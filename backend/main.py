@@ -5,6 +5,10 @@ from mqtt_handler import get_mqtt_client, get_websocket_clients
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
+from state_manager import (
+    set_event_loop, set_mqtt_client, set_serial_mode,
+    update_sensor, register_websocket_client
+)
 
 load_dotenv()
 
@@ -29,7 +33,14 @@ loop = asyncio.get_event_loop()
 
 @app.on_event("startup")
 async def startup_event():
-    threading.Thread(target=run_mqtt, args=(loop,), daemon=True).start()
+    # 1) Wire in MQTT
+    mqtt = get_mqtt_client(loop)
+    set_mqtt_client(mqtt)
+    threading.Thread(target=run_mqtt, daemon=True).start()
+
+    # 2) Wire in serial (hot-plug)
+    set_event_loop(loop)
+    threading.Thread(target=serial_loop, daemon=True).start()
 
 def run_mqtt(loop):
     mqtt_client = get_mqtt_client(loop)
