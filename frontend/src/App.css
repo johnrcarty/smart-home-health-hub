@@ -38,6 +38,9 @@ html, body, #root {
   margin: 0;
   padding: 0;
   overflow: hidden;
+  font-family: 'Roboto', Arial, sans-serif;
+  background-color: #1a1a1a;
+  color: #fff;
 }
 
 .dashboard-container {
@@ -48,13 +51,25 @@ html, body, #root {
   box-sizing: border-box;
 }
 
-.left-column {
-  width: 75%;
+/* Values column - 25% width */
+.values-column {
+  width: 25%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #333;
+  background-color: #1a2b42; /* Match the dark blue from SciChart */
+}
+
+/* Charts column - 50% width */
+.charts-column {
+  width: 50%;
   height: 100%;
   display: flex;
   flex-direction: column;
 }
 
+/* Right column - 25% width */
 .right-column {
   width: 25%;
   height: 100%;
@@ -66,7 +81,7 @@ html, body, #root {
 .placeholder {
   width: 100%;
   height: 100%;
-  background: #222;
+  background: #1a2b42; /* Match the dark blue from SciChart */
   color: #fff;
   display: flex;
   justify-content: center;
@@ -87,9 +102,53 @@ html, body, #root {
   width: 100%;
   height: 100%;
   position: relative;
+  background-color: #1a2b42; /* Match the dark blue from SciChart */
 }
 
 .chart-inner > div {
   width: 100%;
   height: 100%;
+}
+
+/* Value displays styling */
+.value-display {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 33.33%;
+  padding: 20px;
+  box-sizing: border-box;
+  border-bottom: 1px solid #333;
+  background: linear-gradient(to bottom, #1a2b42, #162438);
+}
+
+.value-display h3 {
+  font-size: 1.2rem;
+  margin: 0 0 10px 0;
+  font-weight: 500;
+}
+
+.value-display .value {
+  font-size: 4rem;
+  font-weight: 700;
+  margin-bottom: 5px;
+}
+
+.value-display .unit {
+  font-size: 1.2rem;
+  opacity: 0.7;
+}
+
+/* Color coding for different sensors */
+.value-display.spo2 .value {
+  color: steelblue;
+}
+
+.value-display.bpm .value {
+  color: orange;
+}
+
+.value-display.perfusion .value {
+  color: green;
 }

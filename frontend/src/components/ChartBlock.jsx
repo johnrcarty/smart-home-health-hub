@@ -8,9 +8,15 @@ import {
   NumberRange,
   EAutoRange,
   TextLabelProvider,
-  EAxisAlignment
+  EAxisAlignment,
+  ZoomExtentsModifier,
+  MouseWheelZoomModifier,
+  ZoomPanModifier,
+  RubberBandXyZoomModifier,
+  LegendModifier
 } from "scichart";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useContext } from "react";
+import { SensorContext } from "../App";
 
 // Create custom time formatter for the X axis that uses local time
 class TimeFormatterLabelProvider extends TextLabelProvider {
@@ -36,6 +42,7 @@ const chartSync = {
   axes: [],
   isInitializing: false,
   lastVisibleRange: new NumberRange(Date.now() - 2 * 60 * 1000, Date.now()),
+  ignoreUpdates: false, // Flag to prevent circular updates
   
   // Add an axis to the sync group after it's fully initialized
   registerAxis(axis) {
@@ -48,10 +55,41 @@ const chartSync = {
     // Set the initial visible range
     axis.visibleRange = this.lastVisibleRange;
     
-    // Only attempt binding when we have multiple axes
-    if (this.axes.length > 1 && !this.isInitializing) {
-      this.synchronizeAxes();
-    }
+    // Set up bidirectional synchronization for this axis
+    this.setupAxisSync(axis);
+  },
+  
+  // Set up sync for a specific axis
+  setupAxisSync(axis) {
+    // Subscribe to changes on this axis
+    axis.visibleRangeChanged.subscribe((args) => {
+      // Skip if we're currently processing updates
+      if (this.ignoreUpdates) return;
+      
+      // Set flag to prevent circular updates
+      this.ignoreUpdates = true;
+      
+      try {
+        // Update our shared range
+        this.lastVisibleRange = args.visibleRange;
+        
+        // Update all other axes
+        this.axes.forEach(otherAxis => {
+          if (otherAxis !== axis) {
+            try {
+              otherAxis.visibleRange = this.lastVisibleRange;
+            } catch (e) {
+              console.error("Error syncing axis:", e);
+            }
+          }
+        });
+      } finally {
+        // Clear the flag when done
+        setTimeout(() => {
+          this.ignoreUpdates = false;
+        }, 0);
+      }
+    });
   },
   
   // Remove an axis from the sync group
@@ -65,67 +103,46 @@ const chartSync = {
   
   // Update all axes with a new visible range
   updateVisibleRange(newRange) {
-    if (!newRange) return;
+    if (!newRange || this.ignoreUpdates) return;
     
-    this.lastVisibleRange = newRange;
-    console.log(`Updating visible range: ${newRange.min} - ${newRange.max}`);
-    
-    // Update all registered axes
-    for (const axis of this.axes) {
-      try {
-        axis.visibleRange = newRange;
-      } catch (e) {
-        console.error("Error updating axis:", e);
-      }
-    }
-  },
-  
-  // Set up mutual visibility binding between all axes
-  synchronizeAxes() {
-    if (this.axes.length <= 1) return;
-    
-    this.isInitializing = true;
-    console.log("Setting up axis synchronization");
-    
+    this.ignoreUpdates = true;
     try {
-      // First, ensure all axes have the same visible range
-      for (const axis of this.axes) {
-        axis.visibleRange = this.lastVisibleRange;
-      }
+      this.lastVisibleRange = newRange;
       
-      // Then set up the scroll/zoom synchronization
-      const mainAxis = this.axes[0];
-      
-      mainAxis.visibleRangeChanged.subscribe((args) => {
-        this.lastVisibleRange = args.visibleRange;
-        
-        for (let i = 1; i < this.axes.length; i++) {
-          try {
-            this.axes[i].visibleRange = this.lastVisibleRange;
-          } catch (e) {
-            console.error("Error during sync:", e);
-          }
+      // Update all registered axes
+      this.axes.forEach(axis => {
+        try {
+          axis.visibleRange = newRange;
+        } catch (e) {
+          console.error("Error updating axis:", e);
         }
       });
-    } catch (e) {
-      console.error("Error during axis synchronization:", e);
+    } finally {
+      setTimeout(() => {
+        this.ignoreUpdates = false;
+      }, 0);
     }
-    
-    this.isInitializing = false;
   }
 };
 
-export default function ChartBlock({ title, topic, yLabel, yMin, yMax, color }) {
+export default function ChartBlock({ 
+  title, 
+  topic, 
+  yLabel, 
+  yMin, 
+  yMax, 
+  color, 
+  sensorKey,
+  xDisplay = true // Default to true if not specified
+}) {
   const [isLoading, setIsLoading] = useState(true);
   const [hasData, setHasData] = useState(false);
   const [chartError, setChartError] = useState(null);
+  const [userHasScrolled, setUserHasScrolled] = useState(false);
   const dataSeries = useRef(null);
-  // at top of component, compute once:
-  const sensorKey = topic.split('/')[1]; // “spo2”, “bpm”, etc.
-
-  
-  // Add debug logging to track data
-  const [dataStats, setDataStats] = useState({ min: null, max: null, count: 0 });
+  const { updateSensorValue } = useContext(SensorContext);
+  const chartRef = useRef(null);
+  const scrollTimerRef = useRef(null);
 
   // Simplified chart initialization focused on reliability
   const initSciChart = (rootElement) =>
@@ -136,24 +153,37 @@ export default function ChartBlock({ title, topic, yLabel, yMin, yMax, color }) 
         // Create the chart surface with basic theme
         const { sciChartSurface, wasmContext } = await SciChartSurface.create(rootElement, {
           theme: new SciChartJsNavyTheme(),
-          title: "",  // We'll handle title outside the chart
+          backgroundColor: "#1a2b42", 
+          title: "",
           titleStyle: { fontSize: 0 }
         });
+        
+        chartRef.current = sciChartSurface;
 
-        // Create X axis with custom time formatter
+        // Create X axis with custom time formatter and scrolling capability
         const xAxis = new NumericAxis(wasmContext, {
-          axisTitle: "",  // Empty title as we want only time labels
-          autoRange: EAutoRange.Never, // We'll control the range manually
+          axisTitle: "",
+          autoRange: EAutoRange.Never,
           labelProvider: new TimeFormatterLabelProvider(wasmContext),
           drawMajorGridLines: true,
           drawMinorGridLines: false,
           majorTickLineStyle: { color: "#FFFFFF22" },
           axisTitleStyle: { color: "#FFFFFF" },
-          labelStyle: { color: "#FFFFFF" }
+          labelStyle: { color: "#FFFFFF" },
+          isScrollable: true,
+          scrollBarHeight: xDisplay ? 15 : 0, // Only show scrollbar if xDisplay is true
+          visibleRangeLimit: new NumberRange(
+            Date.now() - 30 * 60 * 1000, // 30 minutes history
+            Date.now() + 60 * 1000 // 1 minute future buffer
+          ),
+          isVisible: xDisplay,
+          drawLabels: xDisplay,
+          drawMajorTickLines: xDisplay,
+          drawMinorTickLines: xDisplay
         });
         
         sciChartSurface.xAxes.add(xAxis);
-        console.log(`X axis created for ${topic}`);
+        console.log(`X axis created for ${topic}, visible: ${xDisplay}`);
         
         // Simple Y axis with minimal configuration
         const yAxis = new NumericAxis(wasmContext, {
@@ -165,14 +195,27 @@ export default function ChartBlock({ title, topic, yLabel, yMin, yMax, color }) 
           majorTickLineStyle: { color: "#FFFFFF22" },
           axisTitleStyle: { color: "#FFFFFF" },
           labelStyle: { color: "#FFFFFF" },
-          autoRange: EAutoRange.Always,       // <= auto-scale to your data
-          growBy: new NumberRange(0.1, 0.1)   // optional padding
+          autoRange: EAutoRange.Always,
+          growBy: new NumberRange(0.1, 0.1)
         });
         
         sciChartSurface.yAxes.add(yAxis);
 
+        // Add chart modifiers for interaction
+        sciChartSurface.chartModifiers.add(new ZoomExtentsModifier());
+        sciChartSurface.chartModifiers.add(new MouseWheelZoomModifier());
+        sciChartSurface.chartModifiers.add(new ZoomPanModifier());
+        sciChartSurface.chartModifiers.add(new RubberBandXyZoomModifier());
+        
+        // Optional legend
+        const legendModifier = new LegendModifier({ showCheckboxes: false });
+        sciChartSurface.chartModifiers.add(legendModifier);
+
         // Create data series with some initial points
-        const seriesObj = new XyDataSeries(wasmContext, { dataSeriesName: yLabel });
+        const seriesObj = new XyDataSeries(wasmContext, { 
+          dataSeriesName: yLabel,
+          containsDateTime: true  // Indicate this series contains time data
+        });
         dataSeries.current = seriesObj;
         
         // Add some initial data points to ensure rendering starts
@@ -182,7 +225,6 @@ export default function ChartBlock({ title, topic, yLabel, yMin, yMax, color }) 
         for (let i = 0; i < 5; i++) {
           seriesObj.append(initialTime - (5-i) * 1000, midValue);
         }
-        console.log(`Added initial data points for ${topic}, time: ${initialTime}`);
         
         // Create the line series
         const lineSeries = new FastLineRenderableSeries(wasmContext, {
@@ -192,12 +234,24 @@ export default function ChartBlock({ title, topic, yLabel, yMin, yMax, color }) 
         });
         
         sciChartSurface.renderableSeries.add(lineSeries);
-        console.log(`Added line series for ${topic}`);
 
         // Set the initial visible range to show last 2 minutes
         const twoMinutesAgo = initialTime - 2 * 60 * 1000;
         xAxis.visibleRange = new NumberRange(twoMinutesAgo, initialTime);
-        console.log(`Set initial visible range: ${twoMinutesAgo} - ${initialTime}`);
+
+        // Detect user scrolling/zooming - but don't handle sync here
+        // (the chartSync object will handle it)
+        xAxis.visibleRangeChanged.subscribe((args) => {
+          if (!args.isAnimating && !chartSync.ignoreUpdates) { 
+            setUserHasScrolled(true);
+            
+            // After inactivity, resume auto-scrolling
+            clearTimeout(scrollTimerRef.current);
+            scrollTimerRef.current = setTimeout(() => {
+              setUserHasScrolled(false);
+            }, 15000); // Resume after 15 seconds
+          }
+        });
 
         // Force a redraw
         sciChartSurface.invalidateElement();
@@ -217,81 +271,45 @@ export default function ChartBlock({ title, topic, yLabel, yMin, yMax, color }) 
           console.error(`WebSocket error for ${topic}:`, e);
           setIsLoading(false);
         };
-/*
-        ws.onmessage = (msg) => {
-          try {
-            const data = JSON.parse(msg.data);
-            if (data.topic === topic) {
-              const payload = JSON.parse(data.payload);
-              const value = Object.values(payload)[0];
-              const currentTime = Date.now();
-              
-              console.log(`${topic}: Received value ${value} at time ${currentTime}`);
-              
-              // Add the data point to the series
-              seriesObj.append(currentTime, value);
-              setHasData(true);
-              
-              // Update debug stats
-              setDataStats(prev => ({
-                min: prev.min === null ? value : Math.min(prev.min, value),
-                max: prev.max === null ? value : Math.max(prev.max, value),
-                count: prev.count + 1
-              }));
-              
-              // Keep only the latest 300 points (5 minutes at 1Hz)
-              if (seriesObj.count() > 300) {
-                seriesObj.removeRange(0, seriesObj.count() - 300);
-              }
-              
-              // Get data range
-              const dataMin = seriesObj.count() > 0 ? seriesObj.xValues.get(0) : currentTime - 2 * 60 * 1000;
-              const dataMax = currentTime;
-              
-              // Update the visible range to include new data and show last 2 minutes
-              const twoMinutesAgo = Math.min(currentTime - 2 * 60 * 1000, dataMin);
-              const newRange = new NumberRange(twoMinutesAgo, currentTime);
-              console.log(`${topic}: Updating range to ${twoMinutesAgo} - ${currentTime}`);
-              
-              // Update all synchronized charts with this range
-              chartSync.updateVisibleRange(newRange);
-            }
-          } catch (error) {
-            console.error(`Error processing message for ${topic}:`, error);
-          }
-        };
-*/
+
         ws.onmessage = (evt) => {
           try {
             const msg = JSON.parse(evt.data);
 
-            // 1️⃣ Only handle our unified updates
+            // Only handle unified updates
             if (msg.type !== "sensor_update" || !msg.state) return;
 
-            // 2️⃣ Grab the raw JSON payload for *this* sensor
+            // Grab the raw JSON payload for this sensor
             const raw = msg.state[sensorKey];
             if (raw == null) return; // no update yet
 
-            // 3️⃣ Parse the value
-            const obj = JSON.parse(raw);             // → { "spo2": 99 }
-            const value = Object.values(obj)[0];     // → 99
+            // Parse the value
+            const obj = JSON.parse(raw);
+            const value = Object.values(obj)[0];
+            
+            // Update the context with the latest value
+            updateSensorValue(sensorKey, value);
 
-            // 4️⃣ Append to your series
+            // Append to your series
             const now = Date.now();
             dataSeries.current.append(now, value);
 
-            // 5️⃣ Trim history and advance the window
-            if (dataSeries.current.count() > 300) {
-              dataSeries.current.removeRange(0, dataSeries.current.count() - 300);
+            // Keep 30 minutes of history (1800 points at 1 Hz)
+            if (dataSeries.current.count() > 1800) {
+              dataSeries.current.removeRange(0, dataSeries.current.count() - 1800);
             }
 
-            const twoMinAgo = now - 2 * 60 * 1000;
-            chartSync.updateVisibleRange(new NumberRange(twoMinAgo, now));
+            // Update the visible range only if user is not scrolled
+            if (!userHasScrolled) {
+              const twoMinAgo = now - 2 * 60 * 1000;
+              chartSync.updateVisibleRange(new NumberRange(twoMinAgo, now));
+            }
 
           } catch (e) {
             console.error("WS message parse error:", e);
           }
         };
+
         // Fallback to show chart even if no data arrives
         setTimeout(() => {
           if (isLoading) {
@@ -308,23 +326,27 @@ export default function ChartBlock({ title, topic, yLabel, yMin, yMax, color }) 
       }
     });
 
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      clearTimeout(scrollTimerRef.current);
+    };
+  }, []);
+
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
-      { /*}
+      {/* Chart title */}
       <div style={{ 
         position: "absolute", 
-        top: 0, left: 0, right: 0, 
-        padding: "5px", 
-        textAlign: "center", 
+        top: 5, left: 10,
         fontSize: "14px",
         color: "#FFFFFF",
         zIndex: 1
       }}>
-        {title} {hasData && dataStats.count > 0 && `(${dataStats.count} pts, min: ${dataStats.min?.toFixed(1)}, max: ${dataStats.max?.toFixed(1)})`}
+        {title}
       </div>
-
-      */ }
       
+      {/* Loading indicator */}
       {isLoading && (
         <div style={{ 
           position: "absolute", 
@@ -339,6 +361,7 @@ export default function ChartBlock({ title, topic, yLabel, yMin, yMax, color }) 
         </div>
       )}
       
+      {/* Error display */}
       {chartError && (
         <div style={{
           position: "absolute", 
@@ -354,11 +377,40 @@ export default function ChartBlock({ title, topic, yLabel, yMin, yMax, color }) 
         </div>
       )}
       
+      {/* Back to Live button - only shows when scrolled */}
+      {userHasScrolled && (
+        <button 
+          style={{
+            position: "absolute",
+            top: 5,
+            right: 10,
+            background: "#3a5a8c",
+            color: "white",
+            border: "none",
+            padding: "5px 10px",
+            borderRadius: "4px",
+            cursor: "pointer",
+            fontSize: "12px",
+            zIndex: 10
+          }}
+          onClick={() => {
+            const now = Date.now();
+            const twoMinAgo = now - 2 * 60 * 1000;
+            chartSync.updateVisibleRange(new NumberRange(twoMinAgo, now));
+            setUserHasScrolled(false);
+          }}
+        >
+          Back to Live
+        </button>
+      )}
+      
+      {/* The chart itself */}
       <SciChartReact
         initChart={initSciChart}
         onDelete={({ sciChartSurface, websocket, xAxis }) => {
           if (websocket) websocket.close();
           if (xAxis) chartSync.unregisterAxis(xAxis);
+          clearTimeout(scrollTimerRef.current);
         }}
         style={{ width: "100%", height: "100%" }}
       />
