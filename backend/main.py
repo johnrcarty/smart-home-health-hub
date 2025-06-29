@@ -1,4 +1,5 @@
 import threading
+from serial_reader import serial_loop
 import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from mqtt_handler import get_mqtt_client, get_websocket_clients
@@ -36,7 +37,7 @@ async def startup_event():
     # 1) Wire in MQTT
     mqtt = get_mqtt_client(loop)
     set_mqtt_client(mqtt)
-    threading.Thread(target=run_mqtt, daemon=True).start()
+    threading.Thread(target=run_mqtt, args=(loop,), daemon=True).start()
 
     # 2) Wire in serial (hot-plug)
     set_event_loop(loop)

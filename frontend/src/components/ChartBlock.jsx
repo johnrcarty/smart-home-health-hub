@@ -190,11 +190,22 @@ export default function ChartBlock({
           axisTitle: yLabel,
           axisAlignment: EAxisAlignment.Left,
           visibleRange: new NumberRange(yMin, yMax),
-          drawMajorGridLines: true,
+          
+          // Remove grid lines
+          drawMajorGridLines: false,
           drawMinorGridLines: false,
-          majorTickLineStyle: { color: "#FFFFFF22" },
-          axisTitleStyle: { color: "#FFFFFF" },
-          labelStyle: { color: "#FFFFFF" },
+          
+          // Remove tick lines
+          drawMajorTickLines: false,
+          drawMinorTickLines: false,
+          
+          // Remove axis labels
+          drawLabels: false,
+          
+          // Keep title but make it less prominent
+          axisTitleStyle: { color: "rgba(255, 255, 255, 0.5)" },
+          
+          // Keep auto-ranging behavior
           autoRange: EAutoRange.Always,
           growBy: new NumberRange(0.1, 0.1)
         });
