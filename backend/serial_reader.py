@@ -59,9 +59,9 @@ def serial_loop():
             if not raw:
                 continue
 
-            print(f"[serial_reader] RAW: {repr(raw)}")
+            # print(f"[serial_reader] RAW: {repr(raw)}")
             parts = raw.split()
-            print(f"[serial_reader] PARTS: {parts}")
+            # print(f"[serial_reader] PARTS: {parts}")
 
             if len(parts) < 5:
                 print(f"[serial_reader] Skipping invalid line: {raw}")

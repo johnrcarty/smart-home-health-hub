@@ -107,26 +107,36 @@ def publish_to_mqtt(name: str, value):
 
 def broadcast_state():
     """
-    Send the full `sensor_state` snapshot over WebSockets to all clients.
-    """
+        Send the full `sensor_state` snapshot over WebSockets to all clients.
+        """
     if not event_loop:
+        print("[state_manager] Cannot broadcast, event_loop not set.")
         return
+    print(f"[state_manager] Broadcasting to {len(websocket_clients)} clients.")
     message = {
         "type": "sensor_update",
         "state": sensor_state.copy()
     }
+    print(f"[state_manager] Broadcasting state: {message}")
     for ws in list(websocket_clients):
         try:
             asyncio.run_coroutine_threadsafe(ws.send_json(message), event_loop)
-        except Exception:
+        except Exception as e:
+            print(f"[state_manager] Failed to send to websocket: {e}")
             websocket_clients.discard(ws)
 
 
-def update_sensor(name: str, value):
+def update_sensor(name: str, value, from_mqtt=False):
     """
-    Update a sensor value, publish to MQTT, then broadcast to WebSocket clients.
-    Call this from both your serial loop and your MQTT on_message.
-    """
+        Update a sensor value, publish to MQTT, then broadcast to WebSocket clients.
+        Call this from both your serial loop and your MQTT on_message.
+        """
     sensor_state[name] = value
-    publish_to_mqtt(name, value)
     broadcast_state()
+    if not from_mqtt:
+        publish_to_mqtt(name, value)
+
+
+# Add this getter
+def get_websocket_clients():
+    return websocket_clients

@@ -10,10 +10,10 @@ from state_manager import (
     set_event_loop, set_mqtt_client, set_serial_mode,
     update_sensor, register_websocket_client
 )
+from state_manager import register_websocket_client, unregister_websocket_client
 
 load_dotenv()
 
-websocket_clients = get_websocket_clients()
 
 MIN_SPO2=os.getenv("MIN_SPO2")
 MAX_SPO2=os.getenv("MAX_SPO2")
@@ -51,16 +51,15 @@ def run_mqtt(loop):
 @app.websocket("/ws/sensors")
 async def sensor_websocket(websocket: WebSocket):
     await websocket.accept()
-    websocket_clients.add(websocket)
+    register_websocket_client(websocket)
     print("WebSocket client connected")
 
     try:
         while True:
-            await websocket.receive_text()  # Keeps connection alive
+            await websocket.receive_text()
     except WebSocketDisconnect:
-        websocket_clients.discard(websocket)
+        unregister_websocket_client(websocket)
         print("WebSocket client disconnected")
-
 
 
 
