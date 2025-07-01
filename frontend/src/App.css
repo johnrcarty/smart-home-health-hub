@@ -146,9 +146,32 @@ html, body, #root {
 }
 
 .value-display.bpm .value {
-  color: orange;
+  color: green;
 }
 
 .value-display.perfusion .value {
-  color: green;
+  color: orange;
+}
+
+
+.clock-card {
+  height: 100%;
+  background-color: #1a2b42;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  border-radius: 4px;
+  font-family: sans-serif;
+}
+
+.clock-time {
+  font-size: 1.8em;
+  font-weight: bold;
+}
+
+.clock-date {
+  font-size: 1em;
+  margin-top: 5px;
 }

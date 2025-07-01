@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import "./App.css";
 import ChartBlock from "./components/ChartBlock";
+import ClockCard from "./components/ClockCard";
+
 
 export default function App() {
   const [sensorValues, setSensorValues] = useState({
@@ -74,6 +76,8 @@ export default function App() {
               yMax={100}
               color="blue"
               dataset={datasets.spo2}
+              showXaxis={false}
+              showYaxis={true}
             />
           </div>
         </div>
@@ -85,8 +89,10 @@ export default function App() {
               yLabel="BPM"
               yMin={40}
               yMax={160}
-              color="orange"
+              color="green"
               dataset={datasets.bpm}
+              showXaxis={false}
+              showYaxis={true}
             />
           </div>
         </div>
@@ -98,16 +104,33 @@ export default function App() {
               yLabel="PAI (%)"
               yMin={40}
               yMax={160}
-              color="green"
+              color="orange"
               dataset={datasets.perfusion}
+              showXaxis={true}
+              showYaxis={true}
             />
           </div>
         </div>
       </div>
 
       <div className="right-column">
-        <div className="placeholder">Future Sensor Graph</div>
+        <div style={{ height: "10%", marginBottom: "10px" }}>
+          <ClockCard />
+        </div>
+
+        <div style={{ height: "90%", backgroundColor: "#334" }}>
+          <div style={{
+            width: "100%", height: "100%",
+            color: "#ccc",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center"
+          }}>
+            Future Placeholder
+          </div>
+        </div>
       </div>
+
     </div>
   );
 }

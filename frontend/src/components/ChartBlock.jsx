@@ -8,10 +8,11 @@ import {
   SciChartJsNavyTheme,
   NumberRange,
   EAutoRange,
-  TextLabelProvider
+  TextLabelProvider,
+  EAxisAlignment
 } from "scichart";
 
-// Helper for human-readable time labels
+// Human-readable time labels for X Axis
 class TimeFormatterLabelProvider extends TextLabelProvider {
   formatLabel(dataValue) {
     const date = new Date(dataValue);
@@ -28,13 +29,14 @@ class TimeFormatterLabelProvider extends TextLabelProvider {
 export default function ChartBlock({
   title,
   yLabel,
-  yMin,
-  yMax,
   color,
-  dataset
+  dataset,
+  showXaxis = true,
+  showYaxis = true
 }) {
   const dataSeries = useRef(null);
   const chartRef = useRef(null);
+  const xAxisRef = useRef(null);
 
   const initSciChart = (rootElement) =>
     new Promise(async (resolve) => {
@@ -45,31 +47,32 @@ export default function ChartBlock({
 
       chartRef.current = sciChartSurface;
 
-      // X Axis - Time based
+      // X Axis fixed to last 2 mins
       const xAxis = new NumericAxis(wasmContext, {
         axisTitle: "",
-        autoRange: EAutoRange.Always,
+        autoRange: EAutoRange.Never,
         labelProvider: new TimeFormatterLabelProvider(wasmContext),
-        isVisible: true
+        isVisible: showXaxis
       });
       sciChartSurface.xAxes.add(xAxis);
+      xAxisRef.current = xAxis;
 
-      // Y Axis
+      // Y Axis auto-scales
       const yAxis = new NumericAxis(wasmContext, {
         axisTitle: yLabel,
-        visibleRange: new NumberRange(yMin, yMax),
-        axisTitleStyle: { color: "rgba(255, 255, 255, 0.5)" }
+        axisAlignment: EAxisAlignment.Left,
+        axisTitleStyle: { color: "rgba(255, 255, 255, 0.5)" },
+        isVisible: showYaxis,
+        autoRange: EAutoRange.Always
       });
       sciChartSurface.yAxes.add(yAxis);
 
-      // Data Series
       const seriesObj = new XyDataSeries(wasmContext, {
         dataSeriesName: yLabel,
         containsDateTime: true
       });
       dataSeries.current = seriesObj;
 
-      // Line Series
       const lineSeries = new FastLineRenderableSeries(wasmContext, {
         stroke: color,
         strokeThickness: 3,
@@ -80,13 +83,19 @@ export default function ChartBlock({
       resolve({ sciChartSurface });
     });
 
-  // Update dataset when prop changes
   useEffect(() => {
     if (dataSeries.current && dataset.length) {
       const xs = dataset.map(pt => pt.x);
       const ys = dataset.map(pt => pt.y);
       dataSeries.current.clear();
       dataSeries.current.appendRange(xs, ys);
+
+      const now = Date.now();
+      const twoMinAgo = now - 2 * 60 * 1000;
+
+      if (xAxisRef.current) {
+        xAxisRef.current.visibleRange = new NumberRange(twoMinAgo, now);
+      }
     }
   }, [dataset]);
 
