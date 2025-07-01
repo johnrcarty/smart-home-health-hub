@@ -11,9 +11,9 @@ from state_manager import (
     update_sensor, register_websocket_client
 )
 from state_manager import register_websocket_client, unregister_websocket_client
+from db import init_db, get_latest_blood_pressure, get_blood_pressure_history
 
 load_dotenv()
-
 
 MIN_SPO2=os.getenv("MIN_SPO2")
 MAX_SPO2=os.getenv("MAX_SPO2")
@@ -29,11 +29,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 loop = asyncio.get_event_loop()
 
 @app.on_event("startup")
 async def startup_event():
+    # Initialize database
+    init_db()
+    
     # 1) Wire in MQTT
     mqtt = get_mqtt_client(loop)
     set_mqtt_client(mqtt)
@@ -61,11 +63,18 @@ async def sensor_websocket(websocket: WebSocket):
         unregister_websocket_client(websocket)
         print("WebSocket client disconnected")
 
-
-
 @app.get("/limits")
 def get_limits():
     return {
         "spo2": {"min": MIN_SPO2, "max": MAX_SPO2},
         "bpm": {"min": MIN_BPM, "max": MAX_BPM}
     }
+
+# Add new endpoints to access blood pressure data
+@app.get("/blood-pressure/latest")
+def latest_blood_pressure():
+    return get_latest_blood_pressure() or {"message": "No data available"}
+
+@app.get("/blood-pressure/history")
+def blood_pressure_history(limit: int = 100):
+    return get_blood_pressure_history(limit)

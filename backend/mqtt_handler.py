@@ -3,6 +3,7 @@ import os
 import paho.mqtt.client as mqtt
 from sensor_manager import SENSOR_DEFINITIONS
 from state_manager import get_websocket_clients, update_sensor
+from db import save_blood_pressure  # Import the new function
 
 from dotenv import load_dotenv
 import asyncio
@@ -18,8 +19,6 @@ MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
 
 # Track latest sensor values, initialized as None
 sensor_state = {name: None for name in SENSOR_DEFINITIONS.keys()}
-
-
 
 def get_mqtt_client(loop):
     client = mqtt.Client(client_id=MQTT_CLIENT_ID)
@@ -37,14 +36,33 @@ def get_mqtt_client(loop):
             print(f"Failed to connect to MQTT Broker, code {rc}")
 
     def on_message(client, userdata, msg):
-        print(f"MQTT Message received on {msg.topic}: {msg.payload.decode()}")
+        raw_data = msg.payload.decode()
+        print(f"MQTT Message received on {msg.topic}: {raw_data}")
         matching_sensor = next(
             (name for name, topic in SENSOR_DEFINITIONS.items() if topic == msg.topic), None
         )
 
         if matching_sensor:
             try:
-                payload = json.loads(msg.payload.decode())
+                payload = json.loads(raw_data)
+                
+                # Handle blood pressure data specifically
+                if msg.topic == "shh/map/state":
+                    # Extract values from the payload
+                    systolic = payload.get("systolic")
+                    diastolic = payload.get("diastolic")
+                    map_value = payload.get("map")
+                    
+                    # Save to database if we have all values
+                    if systolic is not None and diastolic is not None and map_value is not None:
+                        save_blood_pressure(
+                            systolic=systolic,
+                            diastolic=diastolic,
+                            map_value=map_value,
+                            raw_data=raw_data
+                        )
+                
+                # Continue with normal processing
                 value = payload.get(matching_sensor)
 
                 if value is not None:
