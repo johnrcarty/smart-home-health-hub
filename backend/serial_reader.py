@@ -48,9 +48,6 @@ def connect_serial():
 
 
 def serial_loop():
-    """
-    Main loop for reading serial data with auto-reconnect.
-    """
     ser = connect_serial()
 
     while True:
@@ -59,36 +56,37 @@ def serial_loop():
             if not raw:
                 continue
 
-            # print(f"[serial_reader] RAW: {repr(raw)}")
             parts = raw.split()
-            # print(f"[serial_reader] PARTS: {parts}")
-
             if len(parts) < 5:
                 print(f"[serial_reader] Skipping invalid line: {raw}")
                 continue
 
             timestamp = f"{parts[0]} {parts[1]}"
             spo2_str = parts[2].rstrip("*")
-            bpm_str  = parts[3].rstrip("*")
-            pa_str   = parts[4]
-            status   = parts[5] if len(parts) > 5 else None
+            bpm_str = parts[3].rstrip("*")
+            pa_str = parts[4]
+            status = parts[5] if len(parts) > 5 else None
+
+            updates = []
 
             if spo2_str.isdigit():
-                update_sensor("spo2", int(spo2_str))
+                updates.append(("spo2", int(spo2_str)))
 
             if bpm_str.isdigit():
-                update_sensor("bpm", int(bpm_str))
+                updates.append(("bpm", int(bpm_str)))
 
             try:
                 perf = float(pa_str)
-                update_sensor("perfusion", perf)
+                updates.append(("perfusion", perf))
             except ValueError:
                 pass
 
             if status:
-                update_sensor("status", status)
+                updates.append(("status", status))
 
-            # Optional: print summary for monitoring
+            if updates:
+                update_sensor(*updates)
+
             print(f"[serial_reader] {timestamp} SpO2: {spo2_str}, BPM: {bpm_str}, Perfusion: {pa_str}, Status: {status}")
 
             time.sleep(1)

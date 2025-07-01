@@ -3,6 +3,13 @@
 import asyncio
 import json
 from sensor_manager import SENSOR_DEFINITIONS
+import os
+
+MIN_SPO2 = int(os.getenv("MIN_SPO2", 90))
+MAX_SPO2 = int(os.getenv("MAX_SPO2", 100))
+MIN_BPM = int(os.getenv("MIN_BPM", 55))
+MAX_BPM = int(os.getenv("MAX_BPM", 155))
+
 
 # -----------------------------------------------------------------------------
 # Global state
@@ -22,6 +29,8 @@ mqtt_client = None
 event_loop = None
 
 _serial_mode_callbacks = []
+
+
 
 def register_serial_mode_callback(cb):
     """Call `cb(serial_active: bool)` whenever serial_active flips."""
@@ -85,24 +94,41 @@ def is_serial_mode() -> bool:
 # Core update / broadcast logic
 # -----------------------------------------------------------------------------
 
-def publish_to_mqtt(name: str, value):
+def publish_to_mqtt():
     """
-    Publish a single sensor reading to its MQTT topic for Home Assistant.
-    - For "bp", `value` is expected to be a list of dicts.
-    - For others, it's a single scalar.
+    Publish current sensor state to Home Assistant MQTT topics
     """
     if not mqtt_client:
         return
-    topic = SENSOR_DEFINITIONS.get(name)
-    if not topic:
-        return
-
-    if name == "bp":
-        payload = json.dumps(value)
+    if sensor_state["status"] is None:
+        motion = "OFF"
     else:
-        payload = json.dumps({name: value})
+        motion = "ON" if "MO" in sensor_state["status"] else "OFF"
 
-    mqtt_client.publish(topic, payload, retain=True)
+    # **Alarm Logic**
+    if sensor_state["spo2"] is None:
+        spo2_alarm = "OFF"
+    else:
+        spo2_alarm = "ON" if not (MIN_SPO2 <= int(sensor_state["spo2"]) <= MAX_SPO2) else "OFF"
+
+    if sensor_state["bpm"] is None:
+        hr_alarm = "OFF"
+    else:
+        hr_alarm = "ON" if not (MIN_BPM <= int(sensor_state["bpm"]) <= MAX_BPM) else "OFF"
+
+    payload = {
+        "spo2": sensor_state["spo2"],
+        "bpm": sensor_state["bpm"],
+        "pa": sensor_state["perfusion"],
+        "status": sensor_state["status"],
+        "motion": motion,
+        "spo2_alarm": spo2_alarm,
+        "hr_alarm": hr_alarm
+    }
+
+    json_payload = json.dumps(payload)
+    mqtt_client.publish("medical-test/spo2/state", json_payload, retain=True)
+
 
 
 def broadcast_state():
@@ -126,15 +152,27 @@ def broadcast_state():
             websocket_clients.discard(ws)
 
 
-def update_sensor(name: str, value, from_mqtt=False):
+def update_sensor(*args, from_mqtt=False):
     """
-        Update a sensor value, publish to MQTT, then broadcast to WebSocket clients.
-        Call this from both your serial loop and your MQTT on_message.
-        """
-    sensor_state[name] = value
+    Accepts multiple sensor updates as (name, value) pairs.
+    Publishes combined MQTT message and a single WebSocket broadcast.
+
+    Example:
+        update_sensor(("spo2", 98), ("bpm", 75), ("perfusion", 3.2))
+    """
+    updated = {}
+
+    for name, value in args:
+        sensor_state[name] = value
+        updated[name] = value
+
+    if not updated:
+        return  # Nothing to do
+
     broadcast_state()
-    if not from_mqtt:
-        publish_to_mqtt(name, value)
+
+    publish_to_mqtt()
+
 
 
 # Add this getter

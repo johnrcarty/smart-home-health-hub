@@ -8,4 +8,5 @@ SENSOR_DEFINITIONS = {
     "map_bp": "shh/map/state",
     "skin_temp": "shh/skin_temp/state",
     "body_temp": "shh/body_temp/state",
+    "status": "shh/status/state"
 }

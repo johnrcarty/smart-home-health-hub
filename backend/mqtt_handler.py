@@ -48,7 +48,7 @@ def get_mqtt_client(loop):
                 value = payload.get(matching_sensor)
 
                 if value is not None:
-                    update_sensor(matching_sensor, value, from_mqtt=True)
+                    update_sensor((matching_sensor, value), from_mqtt=True)
                 else:
                     print(f"Warning: {matching_sensor} not found in payload {payload}")
             except json.JSONDecodeError:
