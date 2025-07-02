@@ -4,6 +4,8 @@ import asyncio
 import json
 from sensor_manager import SENSOR_DEFINITIONS
 import os
+from db import get_last_n_blood_pressure, get_last_n_temperature
+from datetime import datetime
 
 MIN_SPO2 = int(os.getenv("MIN_SPO2", 90))
 MAX_SPO2 = int(os.getenv("MAX_SPO2", 100))
@@ -97,15 +99,22 @@ def is_serial_mode() -> bool:
 def publish_to_mqtt():
     """
     Publish current sensor state to Home Assistant MQTT topics
+    following the format of the original script.
     """
     if not mqtt_client:
+        print("[state_manager] Cannot publish to MQTT, mqtt_client not set.")
         return
+    
+    # Use medical-test prefix for testing
+    base_topic = "medical-test/spo2/state"
+    
+    # Status to motion conversion (same as original script)
     if sensor_state["status"] is None:
         motion = "OFF"
     else:
         motion = "ON" if "MO" in sensor_state["status"] else "OFF"
 
-    # **Alarm Logic**
+    # Alarm Logic (same as original script)
     if sensor_state["spo2"] is None:
         spo2_alarm = "OFF"
     else:
@@ -116,34 +125,85 @@ def publish_to_mqtt():
     else:
         hr_alarm = "ON" if not (MIN_BPM <= int(sensor_state["bpm"]) <= MAX_BPM) else "OFF"
 
+    # Create payload matching the original script format
+    timestamp = datetime.now().strftime("%y-%b-%d %H:%M:%S")
+    
     payload = {
+        "timestamp": timestamp,
         "spo2": sensor_state["spo2"],
         "bpm": sensor_state["bpm"],
-        "pa": sensor_state["perfusion"],
+        "pa": sensor_state["perfusion"],  # Note: original script uses 'pa' instead of 'perfusion'
         "status": sensor_state["status"],
         "motion": motion,
         "spo2_alarm": spo2_alarm,
         "hr_alarm": hr_alarm
     }
 
-    json_payload = json.dumps(payload)
-    mqtt_client.publish("medical-test/spo2/state", json_payload, retain=True)
-
+    # Send to test topic
+    try:
+        json_payload = json.dumps(payload)
+        mqtt_client.publish(base_topic, json_payload, retain=True)
+        print(f"[state_manager] Published to {base_topic}: {json_payload}")
+        
+        # Also publish availability
+        mqtt_client.publish("medical-test/spo2/availability", "online", retain=True)
+    except Exception as e:
+        print(f"[state_manager] Error publishing to MQTT: {e}")
 
 
 def broadcast_state():
     """
-        Send the full `sensor_state` snapshot over WebSockets to all clients.
-        """
+    Send the full `sensor_state` snapshot over WebSockets to all clients.
+    Include the last 5 blood pressure readings and temperature readings.
+    """
     if not event_loop:
         print("[state_manager] Cannot broadcast, event_loop not set.")
         return
+
+    # Get the last 5 blood pressure readings
+    bp_history = get_last_n_blood_pressure(5)
+    
+    # Ensure we have valid BP history with default values
+    for bp in bp_history:
+        if bp['systolic_bp'] is None:
+            bp['systolic_bp'] = 0
+        if bp['diastolic_bp'] is None:
+            bp['diastolic_bp'] = 0
+        if bp['map_bp'] is None:
+            bp['map_bp'] = 0
+        if not bp['datetime']:
+            bp['datetime'] = datetime.now().isoformat()
+    
+    # Get the last 5 temperature readings
+    temp_history = get_last_n_temperature(5)
+    
+    # Ensure we have valid temperature history with default values
+    for temp in temp_history:
+        if temp['skin_temp'] is None:
+            temp['skin_temp'] = 0
+        if temp['body_temp'] is None:
+            temp['body_temp'] = 0
+        if not temp['datetime']:
+            temp['datetime'] = datetime.now().isoformat()
+    
+    # Create a copy of the current state and add histories
+    state_copy = sensor_state.copy()
+    state_copy['bp'] = bp_history
+    state_copy['temp'] = temp_history
+    
+    # Ensure all values have defaults
+    for key in state_copy:
+        if key != 'bp' and key != 'temp' and state_copy[key] is None:
+            # Use a sentinel value that your frontend can recognize
+            state_copy[key] = -1
+    
     print(f"[state_manager] Broadcasting to {len(websocket_clients)} clients.")
     message = {
         "type": "sensor_update",
-        "state": sensor_state.copy()
+        "state": state_copy
     }
     print(f"[state_manager] Broadcasting state: {message}")
+    
     for ws in list(websocket_clients):
         try:
             asyncio.run_coroutine_threadsafe(ws.send_json(message), event_loop)

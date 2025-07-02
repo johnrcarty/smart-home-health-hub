@@ -1,14 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import "./App.css";
 import ChartBlock from "./components/ChartBlock";
 import ClockCard from "./components/ClockCard";
-
+import BloodPressureCard from "./components/BloodPressureCard";
 
 export default function App() {
   const [sensorValues, setSensorValues] = useState({
     spo2: null,
     bpm: null,
-    perfusion: null
+    perfusion: null,
+    skin_temp: null,
+    body_temp: null
   });
 
   const [datasets, setDatasets] = useState({
@@ -16,6 +18,12 @@ export default function App() {
     bpm: [],
     perfusion: []
   });
+
+  const [bpHistory, setBpHistory] = useState([]);
+  const [tempHistory, setTempHistory] = useState([]);
+
+  // Move this useRef outside the useEffect hook
+  const initialDataReceived = useRef(false);
 
   useEffect(() => {
     const ws = new WebSocket("ws://localhost:8000/ws/sensors");
@@ -27,17 +35,87 @@ export default function App() {
       if (msg.type === "sensor_update" && msg.state) {
         const now = Date.now();
 
+        // Set regular sensor values
         setSensorValues({
           spo2: msg.state.spo2,
           bpm: msg.state.bpm,
-          perfusion: msg.state.perfusion
+          perfusion: msg.state.perfusion,
+          skin_temp: msg.state.skin_temp,
+          body_temp: msg.state.body_temp
         });
 
-        setDatasets(prev => ({
-          spo2: [...prev.spo2, { x: now, y: msg.state.spo2 }].slice(-1800),
-          bpm: [...prev.bpm, { x: now, y: msg.state.bpm }].slice(-1800),
-          perfusion: [...prev.perfusion, { x: now, y: msg.state.perfusion }].slice(-1800)
-        }));
+        // Handle blood pressure history with filtering of all-zero values
+        if (msg.state.bp) {
+          // Format BP data for charts with null/zero checks
+          const bpData = msg.state.bp
+            .filter(reading => 
+              (reading.systolic_bp !== null && reading.systolic_bp !== 0) || 
+              (reading.diastolic_bp !== null && reading.diastolic_bp !== 0) || 
+              (reading.map_bp !== null && reading.map_bp !== 0)
+            )
+            .map(reading => ({
+              datetime: reading.datetime || Date.now().toString(),
+              systolic: reading.systolic_bp,
+              diastolic: reading.diastolic_bp,
+              map: reading.map_bp
+            }));
+          
+          setBpHistory(bpData);
+        }
+
+        // Handle temperature history with filtering of all-zero values
+        if (msg.state.temp) {
+          // Format temperature data for charts with null/zero checks
+          const tempData = msg.state.temp
+            .filter(reading => 
+              (reading.skin_temp !== null && reading.skin_temp !== 0) || 
+              (reading.body_temp !== null && reading.body_temp !== 0)
+            )
+            .map(reading => ({
+              datetime: reading.datetime || Date.now().toString(),
+              skin: reading.skin_temp,
+              body: reading.body_temp
+            }));
+          
+          setTempHistory(tempData);
+        }
+
+        // Update regular charts data with null checks
+        setDatasets(prev => {
+          // Only update data points if the values are not null
+          const newState = { ...prev };
+          
+          // Track if this is the first meaningful update
+          let hasValidUpdate = false;
+          
+          // Update SpO2 if value exists
+          if (msg.state.spo2 !== null && msg.state.spo2 !== undefined) {
+            newState.spo2 = [...prev.spo2, { x: now, y: msg.state.spo2 }].slice(-1800);
+            hasValidUpdate = true;
+          }
+          
+          // Update BPM if value exists
+          if (msg.state.bpm !== null && msg.state.bpm !== undefined) {
+            newState.bpm = [...prev.bpm, { x: now, y: msg.state.bpm }].slice(-1800);
+            hasValidUpdate = true;
+          }
+          
+          // Update perfusion if value exists
+          if (msg.state.perfusion !== null && msg.state.perfusion !== undefined) {
+            newState.perfusion = [...prev.perfusion, { x: now, y: msg.state.perfusion }].slice(-1800);
+            hasValidUpdate = true;
+          }
+          
+          // If this is our first valid data update, reset BP graph
+          if (hasValidUpdate && !initialDataReceived.current) {
+            initialDataReceived.current = true;
+            // Reset BP chart when we first get data
+            setBpHistory(prev => [...prev]); // Trigger re-render
+            setTempHistory(prev => [...prev]); // Trigger re-render
+          }
+          
+          return newState;
+        });
       }
     };
 
@@ -117,10 +195,15 @@ export default function App() {
         <div style={{ height: "10%", marginBottom: "10px" }}>
           <ClockCard />
         </div>
+        
+        <div style={{ height: "30%", marginBottom: "10px" }}>
+          <BloodPressureCard bpHistory={bpHistory} />
+        </div>
 
-        <div style={{ height: "90%", backgroundColor: "#334" }}>
+        <div style={{ height: "60%", backgroundColor: "#1a2b42", borderRadius: "8px" }}>
           <div style={{
-            width: "100%", height: "100%",
+            width: "100%", 
+            height: "100%",
             color: "#ccc",
             display: "flex",
             justifyContent: "center",
@@ -130,7 +213,6 @@ export default function App() {
           </div>
         </div>
       </div>
-
     </div>
   );
 }

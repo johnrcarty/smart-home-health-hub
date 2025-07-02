@@ -153,7 +153,6 @@ html, body, #root {
   color: orange;
 }
 
-
 .clock-card {
   height: 100%;
   background-color: #1a2b42;
@@ -174,4 +173,88 @@ html, body, #root {
 .clock-date {
   font-size: 1em;
   margin-top: 5px;
+}
+
+/* Blood pressure card styling */
+.bp-card {
+  background-color: #1a2b42;
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.bp-title {
+  color: #9c56b8; /* Changed to purple */
+  font-size: 1rem;
+  margin: 0 0 8px 0;
+  text-align: center;
+  font-weight: 500;
+}
+
+.bp-chart {
+  flex: 1;
+  min-height: 90px; /* Reduced height */
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bp-table-container {
+  margin-top: 8px; /* Reduced margin */
+  max-height: 120px;
+  overflow-y: auto;
+  /* Add custom scrollbar styling */
+  scrollbar-width: thin;
+  scrollbar-color: #9c56b8 #1a2b42; /* Changed to purple */
+}
+
+/* Custom scrollbar for Webkit browsers */
+.bp-table-container::-webkit-scrollbar {
+  width: 4px; /* Reduced width */
+}
+
+.bp-table-container::-webkit-scrollbar-track {
+  background: #1a2b42;
+}
+
+.bp-table-container::-webkit-scrollbar-thumb {
+  background-color: #9c56b8; /* Changed to purple */
+  border-radius: 4px;
+}
+
+.bp-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: #fff;
+  font-size: 0.75rem; /* Smaller font */
+}
+
+.bp-table th,
+.bp-table td {
+  padding: 2px 5px; /* Reduced padding for tighter rows */
+  text-align: center;
+  border-bottom: 1px solid #2a3b52;
+}
+
+.bp-table th {
+  font-weight: 500;
+  color: #9c56b8; /* Changed to purple */
+  font-size: 0.7rem; /* Smaller font */
+  padding-bottom: 3px; /* Add a bit more space below header */
+}
+
+.no-data {
+  color: #9c56b8; /* Changed to purple */
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
+.no-data-row {
+  text-align: center;
+  color: #9c56b8; /* Changed to purple */
+  font-style: italic;
 }

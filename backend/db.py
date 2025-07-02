@@ -33,7 +33,17 @@ def init_db():
         )
         ''')
         
-        # Add any other tables you might need here
+        # Create temperature table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS temperature (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT NOT NULL,
+            skin_temp REAL,
+            body_temp REAL,
+            raw_data TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        ''')
         
         conn.commit()
         logger.info(f"Database initialized at {DB_PATH}")
@@ -73,6 +83,40 @@ def save_blood_pressure(systolic, diastolic, map_value, raw_data):
         return cursor.lastrowid
     except sqlite3.Error as e:
         logger.error(f"Error saving blood pressure: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def save_temperature(skin_temp, body_temp, raw_data):
+    """
+    Save temperature reading to database
+    
+    Args:
+        skin_temp (float): Skin temperature value
+        body_temp (float): Body temperature value
+        raw_data (str): Raw data string received from sensor
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        now = datetime.now().isoformat()
+        
+        cursor.execute(
+            '''
+            INSERT INTO temperature 
+            (timestamp, skin_temp, body_temp, raw_data, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            ''',
+            (now, skin_temp, body_temp, raw_data, now)
+        )
+        
+        conn.commit()
+        logger.info(f"Temperature saved: Skin: {skin_temp}°, Body: {body_temp}°")
+        return cursor.lastrowid
+    except sqlite3.Error as e:
+        logger.error(f"Error saving temperature: {e}")
         return None
     finally:
         if conn:
@@ -136,6 +180,103 @@ def get_blood_pressure_history(limit=100):
     except sqlite3.Error as e:
         logger.error(f"Error fetching blood pressure history: {e}")
         return []
+    finally:
+        if conn:
+            conn.close()
+
+def get_last_n_blood_pressure(n=5):
+    """
+    Get the last n blood pressure readings
+    
+    Args:
+        n (int): Number of readings to retrieve
+    
+    Returns:
+        list: List of dictionaries containing BP readings
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row  # Return rows as dictionaries
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            '''
+            SELECT timestamp, systolic, diastolic, map 
+            FROM blood_pressure 
+            ORDER BY timestamp DESC 
+            LIMIT ?
+            ''', 
+            (n,)
+        )
+        
+        results = cursor.fetchall()
+        bp_data = [
+            {
+                'datetime': row['timestamp'],
+                'systolic_bp': row['systolic'], 
+                'diastolic_bp': row['diastolic'], 
+                'map_bp': row['map']
+            } 
+            for row in results
+        ]
+        
+        # If we have no results, only add a single empty entry
+        if len(bp_data) == 0:
+            return [{'datetime': '', 'systolic_bp': None, 'diastolic_bp': None, 'map_bp': None}]
+            
+        return bp_data
+    except sqlite3.Error as e:
+        logger.error(f"Error fetching blood pressure history: {e}")
+        # Return just one empty entry on error
+        return [{'datetime': '', 'systolic_bp': None, 'diastolic_bp': None, 'map_bp': None}]
+    finally:
+        if conn:
+            conn.close()
+
+def get_last_n_temperature(n=5):
+    """
+    Get the last n temperature readings
+    
+    Args:
+        n (int): Number of readings to retrieve
+    
+    Returns:
+        list: List of dictionaries containing temperature readings
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row  # Return rows as dictionaries
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            '''
+            SELECT timestamp, skin_temp, body_temp 
+            FROM temperature 
+            ORDER BY timestamp DESC 
+            LIMIT ?
+            ''', 
+            (n,)
+        )
+        
+        results = cursor.fetchall()
+        temp_data = [
+            {
+                'datetime': row['timestamp'],
+                'skin_temp': row['skin_temp'], 
+                'body_temp': row['body_temp']
+            } 
+            for row in results
+        ]
+        
+        # If we have no results, only add a single empty entry
+        if len(temp_data) == 0:
+            return [{'datetime': '', 'skin_temp': None, 'body_temp': None}]
+            
+        return temp_data
+    except sqlite3.Error as e:
+        logger.error(f"Error fetching temperature history: {e}")
+        # Return just one empty entry on error
+        return [{'datetime': '', 'skin_temp': None, 'body_temp': None}]
     finally:
         if conn:
             conn.close()

@@ -89,7 +89,7 @@ def serial_loop():
 
             print(f"[serial_reader] {timestamp} SpO2: {spo2_str}, BPM: {bpm_str}, Perfusion: {pa_str}, Status: {status}")
 
-            time.sleep(1)
+
 
         except serial.SerialException:
             print("[serial_reader] SerialException. Reconnecting…")

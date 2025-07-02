@@ -32,7 +32,9 @@ export default function ChartBlock({
   color,
   dataset,
   showXaxis = true,
-  showYaxis = true
+  showYaxis = true,
+  yMin = 0,
+  yMax = 100
 }) {
   const dataSeries = useRef(null);
   const chartRef = useRef(null);
@@ -40,53 +42,80 @@ export default function ChartBlock({
 
   const initSciChart = (rootElement) =>
     new Promise(async (resolve) => {
-      const { sciChartSurface, wasmContext } = await SciChartSurface.create(rootElement, {
-        theme: new SciChartJsNavyTheme(),
-        backgroundColor: "#1a2b42"
-      });
+      try {
+        const { sciChartSurface, wasmContext } = await SciChartSurface.create(rootElement, {
+          theme: new SciChartJsNavyTheme(),
+          backgroundColor: "#1a2b42"
+        });
 
-      chartRef.current = sciChartSurface;
+        chartRef.current = sciChartSurface;
 
-      // X Axis fixed to last 2 mins
-      const xAxis = new NumericAxis(wasmContext, {
-        axisTitle: "",
-        autoRange: EAutoRange.Never,
-        labelProvider: new TimeFormatterLabelProvider(wasmContext),
-        isVisible: showXaxis
-      });
-      sciChartSurface.xAxes.add(xAxis);
-      xAxisRef.current = xAxis;
+        // Create X axis
+        const xAxis = new NumericAxis(wasmContext, {
+          axisTitle: "",
+          autoRange: EAutoRange.Never,
+          labelProvider: new TimeFormatterLabelProvider(wasmContext),
+          isVisible: showXaxis
+        });
 
-      // Y Axis auto-scales
-      const yAxis = new NumericAxis(wasmContext, {
-        axisTitle: yLabel,
-        axisAlignment: EAxisAlignment.Left,
-        axisTitleStyle: { color: "rgba(255, 255, 255, 0.5)" },
-        isVisible: showYaxis,
-        autoRange: EAutoRange.Always
-      });
-      sciChartSurface.yAxes.add(yAxis);
+        sciChartSurface.xAxes.add(xAxis);
+        xAxisRef.current = xAxis;
 
-      const seriesObj = new XyDataSeries(wasmContext, {
-        dataSeriesName: yLabel,
-        containsDateTime: true
-      });
-      dataSeries.current = seriesObj;
+        // Create Y axis
+        const yAxis = new NumericAxis(wasmContext, {
+          axisTitle: yLabel,
+          axisAlignment: EAxisAlignment.Left,
+          axisTitleStyle: { color: "rgba(255, 255, 255, 0.5)" },
+          isVisible: showYaxis,
+          autoRange: EAutoRange.Always
+        });
 
-      const lineSeries = new FastLineRenderableSeries(wasmContext, {
-        stroke: color,
-        strokeThickness: 3,
-        dataSeries: seriesObj
-      });
-      sciChartSurface.renderableSeries.add(lineSeries);
+        sciChartSurface.yAxes.add(yAxis);
 
-      resolve({ sciChartSurface });
+        // Create data series with initial dummy point to prevent crashes
+        const seriesObj = new XyDataSeries(wasmContext, {
+          dataSeriesName: yLabel,
+          containsDateTime: true
+        });
+
+        // Add an initial point to prevent empty series issues
+        const now = Date.now();
+        seriesObj.append(now, yMin + (yMax - yMin) / 2); // Add a midpoint value
+
+        dataSeries.current = seriesObj;
+
+        // Create the line series
+        const lineSeries = new FastLineRenderableSeries(wasmContext, {
+          stroke: color,
+          strokeThickness: 3,
+          dataSeries: seriesObj
+        });
+
+        sciChartSurface.renderableSeries.add(lineSeries);
+
+        // Set initial axis range
+        xAxis.visibleRange = new NumberRange(now - 2 * 60 * 1000, now);
+
+        resolve({ sciChartSurface });
+      } catch (error) {
+        console.error("Failed to initialize chart:", error);
+        resolve({ error });
+      }
     });
 
   useEffect(() => {
-    if (dataSeries.current && dataset.length) {
-      const xs = dataset.map(pt => pt.x);
-      const ys = dataset.map(pt => pt.y);
+    if (dataSeries.current && dataset && dataset.length) {
+      // Filter out any data points with null/undefined y values
+      const validData = dataset.filter(pt => pt.y !== null && pt.y !== undefined);
+      
+      if (validData.length === 0) {
+        // If no valid data, don't try to update the chart
+        return;
+      }
+      
+      const xs = validData.map(pt => pt.x);
+      const ys = validData.map(pt => pt.y);
+      
       dataSeries.current.clear();
       dataSeries.current.appendRange(xs, ys);
 
@@ -111,10 +140,22 @@ export default function ChartBlock({
         {title}
       </div>
 
-      <SciChartReact
-        initChart={initSciChart}
-        style={{ width: "100%", height: "100%" }}
-      />
+      {dataset.length === 0 ? (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100%',
+          color: '#999'
+        }}>
+          Waiting for data...
+        </div>
+      ) : (
+        <SciChartReact
+          initChart={initSciChart}
+          style={{ width: "100%", height: "100%" }}
+        />
+      )}
     </div>
   );
 }
