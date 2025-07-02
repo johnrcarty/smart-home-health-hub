@@ -105,16 +105,25 @@ def publish_to_mqtt():
         print("[state_manager] Cannot publish to MQTT, mqtt_client not set.")
         return
     
-    # Use medical-test prefix for testing
-    base_topic = "medical-test/spo2/state"
+    # Check if MQTT client is connected
+    try:
+        if not mqtt_client.is_connected():
+            print("[state_manager] MQTT client is not connected. Attempting to reconnect...")
+            mqtt_client.reconnect()
+    except Exception as e:
+        print(f"[state_manager] Error checking MQTT connection: {e}")
+        return
     
-    # Status to motion conversion (same as original script)
+    # Use medical-test prefix for testing
+    base_topic = "medical/spo2/state"
+    
+    # Status to motion conversion
     if sensor_state["status"] is None:
         motion = "OFF"
     else:
         motion = "ON" if "MO" in sensor_state["status"] else "OFF"
 
-    # Alarm Logic (same as original script)
+    # Alarm Logic
     if sensor_state["spo2"] is None:
         spo2_alarm = "OFF"
     else:
@@ -132,19 +141,24 @@ def publish_to_mqtt():
         "timestamp": timestamp,
         "spo2": sensor_state["spo2"],
         "bpm": sensor_state["bpm"],
-        "pa": sensor_state["perfusion"],  # Note: original script uses 'pa' instead of 'perfusion'
+        "pa": sensor_state["perfusion"],
         "status": sensor_state["status"],
         "motion": motion,
         "spo2_alarm": spo2_alarm,
         "hr_alarm": hr_alarm
     }
 
-    # Send to test topic
+    # Send to test topic with better error handling
     try:
         json_payload = json.dumps(payload)
-        mqtt_client.publish(base_topic, json_payload, retain=True)
-        print(f"[state_manager] Published to {base_topic}: {json_payload}")
+        result = mqtt_client.publish(base_topic, json_payload, retain=True)
         
+        # Check the result
+        if result.rc == 0:
+            print(f"[state_manager] Published to {base_topic}: {json_payload}")
+        else:
+            print(f"[state_manager] Failed to publish to {base_topic}, result code: {result.rc}")
+            
         # Also publish availability
         mqtt_client.publish("medical-test/spo2/availability", "online", retain=True)
     except Exception as e:
