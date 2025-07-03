@@ -1,14 +1,39 @@
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 export default function ChartBlock({ title, yLabel, color, dataset, showXaxis = true, showYaxis = true }) {
+  // Map colors to match value displays
+  const getColor = (colorName) => {
+    switch (colorName.toLowerCase()) {
+      case 'blue':
+        return '#1565C0';
+      case 'green':
+        return '#2E7D32';
+      case 'orange':
+        return '#EF6C00';
+      default:
+        return colorName;
+    }
+  };
+  
+  const chartColor = getColor(color);
+  
   return (
-    <div style={{ width: "100%", height: "100%", position: "relative" }}>
+    <div style={{ 
+      width: "100%", 
+      height: "100%", 
+      position: "relative", 
+      backgroundColor: "#161e2e",
+      borderRadius: "0px"
+    }}>
       <div style={{
         position: "absolute",
         top: 5,
         left: 10,
         color: "#FFF",
-        zIndex: 1
+        zIndex: 1,
+        fontSize: "1rem",
+        fontWeight: 500,
+        opacity: 0.8
       }}>
         {title}
       </div>
@@ -35,12 +60,33 @@ export default function ChartBlock({ title, yLabel, color, dataset, showXaxis = 
                   const d = new Date(unixTime);
                   return `${d.getHours()}:${d.getMinutes()}:${d.getSeconds()}`;
                 }}
+                axisLine={{ stroke: '#333' }}
+                tickLine={{ stroke: '#333' }}
+                tick={{ fill: '#999', fontSize: 10 }}
               />
             )}
-            {showYaxis && <YAxis label={{ value: yLabel, angle: -90, position: 'insideLeft' }} />}
-            <CartesianGrid strokeDasharray="3 3" />
-            <Tooltip labelFormatter={(unixTime) => new Date(unixTime).toLocaleTimeString()} />
-            <Line type="monotone" dataKey="y" stroke={color} dot={false} />
+            {showYaxis && (
+              <YAxis 
+                label={{ value: yLabel, angle: -90, position: 'insideLeft', fill: '#999', fontSize: 12 }} 
+                axisLine={{ stroke: '#333' }}
+                tickLine={{ stroke: '#333' }}
+                tick={{ fill: '#999', fontSize: 10 }}
+              />
+            )}
+            <Tooltip 
+              labelFormatter={(unixTime) => new Date(unixTime).toLocaleTimeString()} 
+              contentStyle={{ backgroundColor: '#161e2e', border: '1px solid #333', borderRadius: '4px' }}
+              itemStyle={{ color: chartColor }}
+              labelStyle={{ color: '#fff' }}
+            />
+            <Line 
+              type="monotone" 
+              dataKey="y" 
+              stroke={chartColor} 
+              dot={false}
+              strokeWidth={2.5} // Slightly thicker line
+              isAnimationActive={false}
+            />
           </LineChart>
         </ResponsiveContainer>
       )}

@@ -43,39 +43,124 @@ html, body, #root {
   color: #fff;
 }
 
-.dashboard-container {
+/* Add these new styles for the revised layout */
+
+/* Overall wrapper that contains header and dashboard */
+.dashboard-wrapper {
   display: flex;
+  flex-direction: column;
   height: 100vh;
-  width: 100%;
+  width: 100vw;
+  background-color: #161e2e; /* Consistent background color */
   overflow: hidden;
-  box-sizing: border-box;
 }
 
-/* Values column - 25% width */
+/* Header section - 10% height */
+.header-section {
+  height: 10%;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 30px; /* Increase horizontal padding from 20px to 30px */
+  background-color: #161e2e; /* Match main background */
+  border-bottom: 1px solid #30363d;
+}
+
+.logo-container {
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.header-logo {
+  max-height: 70%;  /* Limit the height to 70% of the header height */
+  max-width: 200px; /* Limit the width to prevent oversizing */
+  object-fit: contain; /* Maintain aspect ratio */
+}
+
+.logo-placeholder {
+  color: white;
+  font-size: 24px;
+  font-weight: bold;
+  border: 2px dashed rgba(255, 255, 255, 0.3);
+  padding: 5px 20px;
+  border-radius: 4px;
+}
+
+.datetime-container {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  margin-right: 20px; /* Add explicit right margin to move clock inward */
+  padding-right: 10px; /* Add some padding on the right side */
+}
+
+/* Update dashboard container for new height */
+.dashboard-container {
+  display: flex;
+  height: 90%;
+  width: 100%;
+  background-color: #161e2e; /* Match main background */
+}
+
+/* Values column - no significant changes needed */
 .values-column {
   width: 25%;
   height: 100%;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #333;
-  background-color: #1a2b42; /* Match the dark blue from SciChart */
+  border-right: 1px solid #30363d;
+  padding: 10px;
+  box-sizing: border-box;
+  background-color: #161e2e; /* Match main background */
 }
 
-/* Charts column - 50% width */
+/* Charts column - no significant changes needed */
 .charts-column {
   width: 50%;
   height: 100%;
   display: flex;
   flex-direction: column;
+  background-color: #161e2e; /* Match main background */
 }
 
-/* Right column - 25% width */
+/* Updated right column for new BP sizing */
 .right-column {
   width: 25%;
   height: 100%;
+  padding: 10px;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  border-left: 1px solid #333;
+  background-color: #161e2e; /* Match main background */
+}
+
+/* BP container now takes 50% of right column */
+.bp-container {
+  height: 50%;
+  margin-bottom: 10px;
+}
+
+/* Temperature container */
+.temp-container {
+  height: 50%;
+}
+
+/* Placeholder takes remaining 50% */
+.placeholder-container {
+  height: 50%;
+  background-color: #1a2b42;
+  border-radius: 8px;
+}
+
+.placeholder-content {
+  width: 100%;
+  height: 100%;
+  color: #ccc;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .placeholder {
@@ -102,7 +187,8 @@ html, body, #root {
   width: 100%;
   height: 100%;
   position: relative;
-  background-color: #1a2b42; /* Match the dark blue from SciChart */
+  background-color: #161e2e; /* Match main background */
+  border-radius: 8px;
 }
 
 .chart-inner > div {
@@ -119,7 +205,7 @@ html, body, #root {
   border-radius: 8px;
   padding: 15px;
   height: 30%;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   color: white;
 }
 
@@ -141,56 +227,81 @@ html, body, #root {
 }
 
 .value {
-  font-size: 3.5rem; /* Larger value */
-  font-weight: 600;
+  font-size: 5.5rem; /* Much larger value */
+  font-weight: 700; /* Bolder */
   text-align: center;
+  line-height: 1;
 }
 
 .unit {
-  font-size: 1.2rem;
-  opacity: 0.7;
+  font-size: 1.5rem; /* Larger unit */
+  opacity: 0.8;
   margin-left: 5px;
   align-self: flex-start;
-  margin-top: 10px;
+  margin-top: 15px; /* Adjusted to align with larger value */
 }
 
 .value-stats {
   display: flex;
   justify-content: space-around;
-  font-size: 0.75rem;
-  opacity: 0.8;
+  font-size: 0.8rem; /* Slightly larger */
+  opacity: 0.9; /* More visible */
   margin-top: 5px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding-top: 5px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  padding-top: 8px;
 }
 
 .value-stats span {
   padding: 0 5px;
 }
 
-/* Keep your existing color classes */
+/* Background colors that better match the charts */
 .spo2 {
   background-color: #1565C0;
+  box-shadow: 0 4px 8px rgba(21, 101, 192, 0.3);
 }
 
 .bpm {
   background-color: #2E7D32;
+  box-shadow: 0 4px 8px rgba(46, 125, 50, 0.3);
 }
 
 .perfusion {
   background-color: #EF6C00;
+  box-shadow: 0 4px 8px rgba(239, 108, 0, 0.3);
 }
 
+/* Update ClockCard to work in the header */
 .clock-card {
-  height: 100%;
-  background-color: #1a2b42;
+  height: 80%;
+  background-color: transparent;
   color: white;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  border-radius: 4px;
+  border-radius: 0;
   font-family: sans-serif;
+  width: 300px; /* Set explicit width to ensure enough space */
+  text-align: center; /* Center the text */
+}
+
+.clock-time {
+  font-size: 1.8em;
+  font-weight: bold;
+  white-space: nowrap; /* Prevent line breaks */
+}
+
+.clock-date {
+  font-size: 1em;
+  margin-top: 5px;
+  white-space: nowrap; /* Prevent line breaks */
+}
+
+/* Update any other components that need to match */
+.clock-card {
+  background-color: transparent;
+  color: white;
 }
 
 .clock-time {
@@ -203,9 +314,11 @@ html, body, #root {
   margin-top: 5px;
 }
 
-/* Blood pressure card styling */
-.bp-card {
-  background-color: #1a2b42;
+/* Update the Blood Pressure and Temperature card styling */
+
+/* Blood pressure and temperature card styling */
+.bp-card, .temp-card {
+  background-color: #161e2e; /* Match main background */
   border-radius: 8px;
   padding: 10px;
   display: flex;
@@ -214,75 +327,162 @@ html, body, #root {
   box-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
 
-.bp-title {
-  color: #9c56b8; /* Changed to purple */
+.bp-title, .temp-title {
   font-size: 1rem;
   margin: 0 0 8px 0;
   text-align: center;
   font-weight: 500;
 }
 
-.bp-chart {
-  flex: 1;
-  min-height: 90px; /* Reduced height */
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.bp-title {
+  color: #ff5252; /* Reddish */
 }
 
-.bp-table-container {
-  margin-top: 8px; /* Reduced margin */
-  max-height: 120px;
+.temp-title {
+  color: #ffd54f; /* Yellow */
+}
+
+/* Change to flex-direction: column for stacked layout */
+.bp-content, .temp-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  height: calc(100% - 30px); /* Account for title */
+}
+
+/* Adjust chart container to 40% height */
+.bp-chart-container, .temp-chart-container {
+  width: 100%;
+  height: 40%;
+  position: relative;
+}
+
+/* Adjust table container to 60% height */
+.bp-table-container, .temp-table-container {
+  width: 100%;
+  height: 60%;
   overflow-y: auto;
-  /* Add custom scrollbar styling */
+  /* Custom scrollbar styling */
   scrollbar-width: thin;
-  scrollbar-color: #9c56b8 #1a2b42; /* Changed to purple */
+  margin-top: 5px; /* Add some spacing between chart and table */
+}
+
+/* Rest of the styles remain the same */
+.bp-table-container {
+  scrollbar-color: #ff5252 #161e2e;
+}
+
+.temp-table-container {
+  scrollbar-color: #ffd54f #161e2e;
 }
 
 /* Custom scrollbar for Webkit browsers */
-.bp-table-container::-webkit-scrollbar {
-  width: 4px; /* Reduced width */
+.bp-table-container::-webkit-scrollbar,
+.temp-table-container::-webkit-scrollbar {
+  width: 4px;
 }
 
-.bp-table-container::-webkit-scrollbar-track {
-  background: #1a2b42;
+.bp-table-container::-webkit-scrollbar-track,
+.temp-table-container::-webkit-scrollbar-track {
+  background: #161e2e;
 }
 
 .bp-table-container::-webkit-scrollbar-thumb {
-  background-color: #9c56b8; /* Changed to purple */
+  background-color: #ff5252;
   border-radius: 4px;
 }
 
-.bp-table {
+.temp-table-container::-webkit-scrollbar-thumb {
+  background-color: #ffd54f;
+  border-radius: 4px;
+}
+
+.bp-table, .temp-table {
   width: 100%;
   border-collapse: collapse;
   color: #fff;
-  font-size: 0.75rem; /* Smaller font */
+  font-size: 0.75rem;
 }
 
-.bp-table th,
-.bp-table td {
-  padding: 2px 5px; /* Reduced padding for tighter rows */
+.bp-table th, .bp-table td,
+.temp-table th, .temp-table td {
+  padding: 4px 5px; /* Slightly reduce padding for more rows */
   text-align: center;
-  border-bottom: 1px solid #2a3b52;
+  border-bottom: 1px solid #30363d;
 }
 
 .bp-table th {
+  color: #ff5252;
+  font-size: 0.7rem;
   font-weight: 500;
-  color: #9c56b8; /* Changed to purple */
-  font-size: 0.7rem; /* Smaller font */
-  padding-bottom: 3px; /* Add a bit more space below header */
+}
+
+.temp-table th {
+  color: #ffd54f;
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+/* Adjust legend to fit inside the chart container better */
+.temp-legend {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  margin-bottom: 2px;
 }
 
 .no-data {
-  color: #9c56b8; /* Changed to purple */
+  color: #ccc;
   font-style: italic;
   font-size: 0.85rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
 }
 
 .no-data-row {
   text-align: center;
-  color: #9c56b8; /* Changed to purple */
+  color: #ccc;
   font-style: italic;
+}
+
+.body-temp {
+  color: #9c56b8; /* Purple */
+}
+
+.skin-temp {
+  color: #ffd54f; /* Yellow */
+}
+
+.temp-legend {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  margin: 5px 0;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend-color {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.legend-label {
+  color: #fff;
+  font-size: 0.7rem;
 }
