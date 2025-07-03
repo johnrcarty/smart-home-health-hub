@@ -124,23 +124,97 @@ export default function App() {
     return () => ws.close();
   }, []);
 
+  const calculateAvg = (data) => {
+    if (data.length === 0) return 0;
+    return data.reduce((sum, item) => sum + item.y, 0) / data.length;
+  };
+
+  const calculateMin = (data) => {
+    if (data.length === 0) return 0;
+    return Math.min(...data.map(item => item.y));
+  };
+
+  const calculateMax = (data) => {
+    if (data.length === 0) return 0;
+    return Math.max(...data.map(item => item.y));
+  };
+
   return (
     <div className="dashboard-container">
       <div className="values-column">
         <div className="value-display spo2">
-          <h3>SpO₂</h3>
-          <div className="value">{sensorValues.spo2 ?? "--"}</div>
-          <div className="unit">%</div>
+          <h3 className="value-title">SpO₂</h3>
+          <div className="value-content">
+            <div className="value">{sensorValues.spo2 ?? "--"}</div>
+            <div className="unit">%</div>
+          </div>
+          <div className="value-stats">
+            {datasets.spo2.length > 0 ? (
+              <>
+                <span>
+                  Avg: {calculateAvg(datasets.spo2.filter(item => item.y !== 0)).toFixed(1)}%
+                </span>
+                <span>
+                  Min: {calculateMin(datasets.spo2.filter(item => item.y !== 0)).toFixed(0)}%
+                </span>
+                <span>
+                  Max: {calculateMax(datasets.spo2.filter(item => item.y !== 0)).toFixed(0)}%
+                </span>
+              </>
+            ) : (
+              <span>No data available</span>
+            )}
+          </div>
         </div>
+        
         <div className="value-display bpm">
-          <h3>Heart Rate</h3>
-          <div className="value">{sensorValues.bpm ?? "--"}</div>
-          <div className="unit">BPM</div>
+          <h3 className="value-title">Heart Rate</h3>
+          <div className="value-content">
+            <div className="value">{sensorValues.bpm ?? "--"}</div>
+            <div className="unit">BPM</div>
+          </div>
+          <div className="value-stats">
+            {datasets.bpm.length > 0 ? (
+              <>
+                <span>
+                  Avg: {calculateAvg(datasets.bpm.filter(item => item.y !== 0)).toFixed(0)}
+                </span>
+                <span>
+                  Min: {calculateMin(datasets.bpm.filter(item => item.y !== 0)).toFixed(0)}
+                </span>
+                <span>
+                  Max: {calculateMax(datasets.bpm.filter(item => item.y !== 0)).toFixed(0)}
+                </span>
+              </>
+            ) : (
+              <span>No data available</span>
+            )}
+          </div>
         </div>
+        
         <div className="value-display perfusion">
-          <h3>Perfusion</h3>
-          <div className="value">{sensorValues.perfusion ?? "--"}</div>
-          <div className="unit">%</div>
+          <h3 className="value-title">Perfusion</h3>
+          <div className="value-content">
+            <div className="value">{sensorValues.perfusion ?? "--"}</div>
+            <div className="unit">%</div>
+          </div>
+          <div className="value-stats">
+            {datasets.perfusion.length > 0 ? (
+              <>
+                <span>
+                  Avg: {calculateAvg(datasets.perfusion.filter(item => item.y !== 0)).toFixed(1)}
+                </span>
+                <span>
+                  Min: {calculateMin(datasets.perfusion.filter(item => item.y !== 0)).toFixed(1)}
+                </span>
+                <span>
+                  Max: {calculateMax(datasets.perfusion.filter(item => item.y !== 0)).toFixed(1)}
+                </span>
+              </>
+            ) : (
+              <span>No data available</span>
+            )}
+          </div>
         </div>
       </div>
 
