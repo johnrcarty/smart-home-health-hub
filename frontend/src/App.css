@@ -196,7 +196,7 @@ html, body, #root {
   height: 100%;
 }
 
-/* Update the value display styles */
+/* Update the value display styles to use global background with colored text */
 
 .value-display {
   display: flex;
@@ -207,8 +207,12 @@ html, body, #root {
   height: 30%;
   margin-bottom: 12px;
   color: white;
+  background-color: #161e2e; /* Same as global background */
+  border: 1px solid rgba(255, 255, 255, 0.1); /* Subtle border */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); /* Subtle shadow for depth */
 }
 
+/* Value title - will inherit the specific color from each type */
 .value-title {
   position: absolute;
   top: 10px;
@@ -216,7 +220,7 @@ html, body, #root {
   margin: 0;
   font-size: 1rem;
   font-weight: 500;
-  opacity: 0.8;
+  /* Color will come from specific classes */
 }
 
 .value-content {
@@ -227,48 +231,55 @@ html, body, #root {
 }
 
 .value {
-  font-size: 5.5rem; /* Much larger value */
-  font-weight: 700; /* Bolder */
+  font-size: 5.5rem;
+  font-weight: 700;
   text-align: center;
   line-height: 1;
+  /* Color will come from specific classes */
 }
 
 .unit {
-  font-size: 1.5rem; /* Larger unit */
-  opacity: 0.8;
+  font-size: 1.5rem;
   margin-left: 5px;
   align-self: flex-start;
-  margin-top: 15px; /* Adjusted to align with larger value */
+  margin-top: 15px;
+  /* Color will inherit from specific classes */
 }
 
 .value-stats {
   display: flex;
   justify-content: space-around;
-  font-size: 0.8rem; /* Slightly larger */
-  opacity: 0.9; /* More visible */
+  font-size: 0.8rem;
   margin-top: 5px;
   border-top: 1px solid rgba(255, 255, 255, 0.15);
   padding-top: 8px;
+  /* Color will inherit from specific classes */
 }
 
 .value-stats span {
   padding: 0 5px;
 }
 
-/* Background colors that better match the charts */
-.spo2 {
-  background-color: #1565C0;
-  box-shadow: 0 4px 8px rgba(21, 101, 192, 0.3);
+/* Apply text colors to each type instead of background colors */
+.spo2 .value-title,
+.spo2 .value,
+.spo2 .unit,
+.spo2 .value-stats {
+  color: #1565C0; /* Blue for SPO2 */
 }
 
-.bpm {
-  background-color: #2E7D32;
-  box-shadow: 0 4px 8px rgba(46, 125, 50, 0.3);
+.bpm .value-title,
+.bpm .value,
+.bpm .unit,
+.bpm .value-stats {
+  color: #2E7D32; /* Green for Heart Rate */
 }
 
-.perfusion {
-  background-color: #EF6C00;
-  box-shadow: 0 4px 8px rgba(239, 108, 0, 0.3);
+.perfusion .value-title,
+.perfusion .value,
+.perfusion .unit,
+.perfusion .value-stats {
+  color: #EF6C00; /* Orange for Perfusion */
 }
 
 /* Update ClockCard to work in the header */
