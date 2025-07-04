@@ -19,7 +19,7 @@ const BloodPressureCard = ({ bpHistory = [] }) => {
     .sort((a, b) => {
       if (!a.datetime) return 1;
       if (!b.datetime) return -1;
-      return new Date(b.datetime) - new Date(a.datetime);
+      return new Date(a.datetime) - new Date(b.datetime); // Changed to oldest first
     })
     .slice(0, 5);
 
@@ -31,6 +31,22 @@ const BloodPressureCard = ({ bpHistory = [] }) => {
     } catch {
       return "Invalid Date";
     }
+  };
+
+  // Calculate Y domain based on actual MAP values
+  const calculateYDomain = () => {
+    if (validBpData.length === 0) return [0, 200]; // Default for BP
+    
+    const mapValues = validBpData.map(d => d.map);
+    let min = Math.min(...mapValues);
+    let max = Math.max(...mapValues);
+    
+    // Add padding (15% for BP since values can vary significantly)
+    const padding = (max - min) * 0.15;
+    min = Math.max(0, min - padding);
+    max = max + padding;
+    
+    return [min, max];
   };
 
   return (
@@ -48,7 +64,7 @@ const BloodPressureCard = ({ bpHistory = [] }) => {
                   hide 
                 />
                 <YAxis 
-                  domain={['auto', 'auto']} 
+                  domain={calculateYDomain()}
                   axisLine={false} 
                   tickLine={false}
                   tick={false}

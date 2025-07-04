@@ -3,10 +3,24 @@ import "./App.css";
 import ChartBlock from "./components/ChartBlock";
 import ClockCard from "./components/ClockCard";
 import BloodPressureCard from "./components/BloodPressureCard";
-import TemperatureCard from "./components/TemperatureCard"; // Import the TemperatureCard component
-import logoImage from './assets/logo.png'; // Import the logo image
+import TemperatureCard from "./components/TemperatureCard";
+import ModalBase from "./components/ModalBase";
+import SettingsForm from "./components/SettingsForm";
+import logoImage from './assets/logo.png';
+import config from './config';
+
+// Add the settings icon - can be imported or use an SVG directly
+const SettingsIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="3"></circle>
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+  </svg>
+);
 
 export default function App() {
+  // Add state for modal
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  
   const [sensorValues, setSensorValues] = useState({
     spo2: null,
     bpm: null,
@@ -27,7 +41,8 @@ export default function App() {
   const initialDataReceived = useRef(false);
 
   useEffect(() => {
-    const ws = new WebSocket("ws://localhost:8000/ws/sensors");
+    console.log(`Connecting to WebSocket at: ${config.wsUrl}`);
+    const ws = new WebSocket(config.wsUrl);
 
     ws.onopen = () => console.log("WebSocket connected");
 
@@ -132,6 +147,18 @@ export default function App() {
         <div className="logo-container">
           <img src={logoImage} alt="Logo" className="header-logo" />
         </div>
+        
+        <div className="menu-container">
+          <button 
+            className={`menu-button ${isSettingsModalOpen ? 'active' : ''}`}
+            onClick={() => setIsSettingsModalOpen(prev => !prev)} // Toggle instead of just opening
+            aria-label="Settings"
+          >
+            <SettingsIcon />
+          </button>
+          {/* Add more menu buttons here in the future */}
+        </div>
+        
         <div className="datetime-container">
           <ClockCard />
         </div>
@@ -272,6 +299,15 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      {/* Settings Modal */}
+      <ModalBase
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        title="Settings"
+      >
+        <SettingsForm />
+      </ModalBase>
     </div>
   );
 }

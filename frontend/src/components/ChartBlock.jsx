@@ -17,6 +17,26 @@ export default function ChartBlock({ title, yLabel, color, dataset, showXaxis = 
   
   const chartColor = getColor(color);
   
+  // Filter dataset to show only the last 5 minutes of data
+  const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+  const filteredData = dataset.filter(point => point.x >= fiveMinutesAgo);
+  
+  // Calculate min and max values for auto-scaling Y axis
+  const calculateYDomain = () => {
+    if (filteredData.length === 0) return [0, 10]; // Default values if no data
+    
+    const yValues = filteredData.map(d => d.y);
+    let min = Math.min(...yValues);
+    let max = Math.max(...yValues);
+    
+    // Add some padding to the min/max values for better visualization
+    const padding = (max - min) * 0.1; // 10% padding
+    min = Math.max(0, min - padding); // Don't go below 0 for most medical metrics
+    max = max + padding;
+    
+    return [min, max];
+  };
+  
   return (
     <div style={{ 
       width: "100%", 
@@ -38,7 +58,7 @@ export default function ChartBlock({ title, yLabel, color, dataset, showXaxis = 
         {title}
       </div>
 
-      {dataset.length === 0 ? (
+      {filteredData.length === 0 ? (
         <div style={{
           display: 'flex',
           justifyContent: 'center',
@@ -50,7 +70,7 @@ export default function ChartBlock({ title, yLabel, color, dataset, showXaxis = 
         </div>
       ) : (
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={dataset}>
+          <LineChart data={filteredData}>
             {showXaxis && (
               <XAxis
                 dataKey="x"
@@ -58,7 +78,7 @@ export default function ChartBlock({ title, yLabel, color, dataset, showXaxis = 
                 domain={['dataMin', 'dataMax']}
                 tickFormatter={(unixTime) => {
                   const d = new Date(unixTime);
-                  return `${d.getHours()}:${d.getMinutes()}:${d.getSeconds()}`;
+                  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}`;
                 }}
                 axisLine={{ stroke: '#333' }}
                 tickLine={{ stroke: '#333' }}
@@ -67,6 +87,7 @@ export default function ChartBlock({ title, yLabel, color, dataset, showXaxis = 
             )}
             {showYaxis && (
               <YAxis 
+                domain={calculateYDomain()}
                 label={{ value: yLabel, angle: -90, position: 'insideLeft', fill: '#999', fontSize: 12 }} 
                 axisLine={{ stroke: '#333' }}
                 tickLine={{ stroke: '#333' }}

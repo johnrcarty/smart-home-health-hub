@@ -65,12 +65,14 @@ html, body, #root {
   padding: 0 30px; /* Increase horizontal padding from 20px to 30px */
   background-color: #161e2e; /* Match main background */
   border-bottom: 1px solid #30363d;
+  position: relative; /* Add this to support absolute positioning of menu-container */
 }
 
 .logo-container {
   height: 100%;
   display: flex;
   align-items: center;
+  z-index: 1; /* Ensure it stays above the centered menu */
 }
 
 .header-logo {
@@ -92,8 +94,208 @@ html, body, #root {
   height: 100%;
   display: flex;
   align-items: center;
-  margin-right: 20px; /* Add explicit right margin to move clock inward */
+  margin-right: 10px; /* Add margin to create space before settings icon */
   padding-right: 10px; /* Add some padding on the right side */
+  z-index: 1; /* Ensure it stays above the centered menu */
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 15px; /* Space between datetime and settings icon */
+}
+
+/* Add these styles for the centered menu */
+
+/* Container for all menu buttons, centered in the header */
+.menu-container {
+  position: absolute;
+  left: 25%;
+  right: 25%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px; /* Space between menu buttons */
+}
+
+/* Individual menu button styling */
+.menu-button {
+  background: none;
+  border: none;
+  color: #fff;
+  opacity: 0.7;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  width: 40px;
+  height: 40px;
+}
+
+.menu-button:hover {
+  opacity: 1;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Active state styling - orange color when modal is open */
+.menu-button.active {
+  color: #ff8c00; /* Orange color */
+  opacity: 1;
+  background-color: rgba(255, 140, 0, 0.1); /* Slight orange background */
+}
+
+/* Modal Base Styles */
+.modal-overlay {
+  position: fixed;
+  top: 10%; /* Start after the header */
+  left: 25%; /* Start after the values column */
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.75);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+
+.modal-container {
+  width: 85%; /* Slightly less than full width of covered area */
+  height: 80%;
+  max-height: 80%;
+  background-color: #161e2e;
+  border-radius: 8px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #30363d;
+}
+
+.modal-title {
+  color: white;
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 500;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: #ccc;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.2s;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.modal-close:hover {
+  color: white;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  color: white;
+  flex: 1;
+}
+
+/* Settings Form Styles */
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+}
+
+.settings-section {
+  border-bottom: 1px solid #30363d;
+  padding-bottom: 20px;
+}
+
+.settings-section h3 {
+  margin-top: 0;
+  margin-bottom: 16px;
+  color: #ccc;
+  font-size: 1rem;
+}
+
+.form-group {
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group label {
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+  color: #eee;
+}
+
+.form-group input[type="number"],
+.form-group input[type="text"],
+.form-group select {
+  background-color: #253244;
+  border: 1px solid #30363d;
+  border-radius: 4px;
+  padding: 8px 12px;
+  color: white;
+  font-size: 1rem;
+  width: 100%;
+  max-width: 300px;
+}
+
+.form-group.checkbox-group {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.form-group.checkbox-group input[type="checkbox"] {
+  margin: 0;
+  width: 18px;
+  height: 18px;
+  accent-color: #1565C0;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.save-button {
+  background-color: #1565C0;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 20px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.save-button:hover {
+  background-color: #1976D2;
 }
 
 /* Update dashboard container for new height */
@@ -434,16 +636,47 @@ html, body, #root {
   font-weight: 500;
 }
 
-/* Adjust legend to fit inside the chart container better */
+/* Improve legend positioning at the bottom of the chart */
 .temp-legend {
   display: flex;
   justify-content: center;
   gap: 15px;
   position: absolute;
-  bottom: 0;
+  bottom: 10px; /* Increase from 0 to 10px to move it higher */
   left: 0;
   right: 0;
-  margin-bottom: 2px;
+  margin-bottom: 5px;
+  background-color: rgba(22, 30, 46, 0.8); /* Slightly less transparent for better readability */
+  padding: 6px 0; /* Increase padding from 3px to 6px for more height */
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2); /* Add subtle shadow for better distinction */
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px; /* Slightly more space between dot and text */
+}
+
+.legend-color {
+  width: 12px; /* Slightly bigger dots */
+  height: 12px;
+  border-radius: 50%;
+}
+
+.legend-label {
+  font-size: 0.8rem; /* Slightly larger font */
+  color: #fff;
+  font-weight: 500; /* Make it a bit bolder */
+}
+
+/* Also update the body and skin temp text colors in the table */
+.body-temp {
+  color: #9c56b8; /* Purple for body temp */
+}
+
+.skin-temp {
+  color: #ffd54f; /* Yellow for skin temp */
 }
 
 .no-data {
@@ -460,40 +693,4 @@ html, body, #root {
   text-align: center;
   color: #ccc;
   font-style: italic;
-}
-
-.body-temp {
-  color: #9c56b8; /* Purple */
-}
-
-.skin-temp {
-  color: #ffd54f; /* Yellow */
-}
-
-.temp-legend {
-  display: flex;
-  justify-content: center;
-  gap: 15px;
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  margin: 5px 0;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.legend-color {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.legend-label {
-  color: #fff;
-  font-size: 0.7rem;
 }

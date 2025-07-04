@@ -22,7 +22,7 @@ const TemperatureCard = ({ tempHistory = [] }) => {
     .sort((a, b) => {
       if (!a.datetime) return 1;
       if (!b.datetime) return -1;
-      return new Date(b.datetime) - new Date(a.datetime);
+      return new Date(a.datetime) - new Date(b.datetime); // Changed to oldest first
     })
     .slice(0, 5);
 
@@ -41,6 +41,29 @@ const TemperatureCard = ({ tempHistory = [] }) => {
     return temp.toFixed(1);
   };
 
+  // Calculate Y domain based on actual temperature values
+  const calculateYDomain = () => {
+    if (validTempData.length === 0) return [90, 105]; // Default range for temps (°F)
+    
+    const allTemps = [];
+    validTempData.forEach(d => {
+      if (d.body !== null && d.body !== undefined) allTemps.push(d.body);
+      if (d.skin !== null && d.skin !== undefined) allTemps.push(d.skin);
+    });
+    
+    if (allTemps.length === 0) return [90, 105];
+    
+    let min = Math.min(...allTemps);
+    let max = Math.max(...allTemps);
+    
+    // Add padding (5% for temperature since values are usually in narrow range)
+    const padding = (max - min) * 0.05;
+    min = Math.max(min - padding, 80); // Don't go below reasonable temp
+    max = Math.min(max + padding, 110); // Don't go above reasonable temp
+    
+    return [min, max];
+  };
+
   return (
     <div className="temp-card">
       <h3 className="temp-title">Temperature History</h3>
@@ -50,13 +73,13 @@ const TemperatureCard = ({ tempHistory = [] }) => {
         <div className="temp-chart-container">
           {validTempData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={validTempData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
+              <LineChart data={validTempData} margin={{ top: 10, right: 5, bottom: 30, left: 5 }}>
                 <XAxis 
                   dataKey="index" 
                   hide 
                 />
                 <YAxis 
-                  domain={['auto', 'auto']} 
+                  domain={calculateYDomain()}
                   axisLine={false} 
                   tickLine={false}
                   tick={false}
@@ -77,6 +100,7 @@ const TemperatureCard = ({ tempHistory = [] }) => {
                   strokeWidth={2}
                   activeDot={{ fill: '#9c56b8', stroke: '#fff', strokeWidth: 2, r: 6 }}
                   isAnimationActive={false}
+                  name="Body" // Set proper name for tooltip
                 />
                 <Line 
                   type="monotone" 
@@ -86,6 +110,7 @@ const TemperatureCard = ({ tempHistory = [] }) => {
                   strokeWidth={2}
                   activeDot={{ fill: '#ffd54f', stroke: '#fff', strokeWidth: 2, r: 6 }}
                   isAnimationActive={false}
+                  name="Skin" // Set proper name for tooltip
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -93,7 +118,7 @@ const TemperatureCard = ({ tempHistory = [] }) => {
             <div className="no-data">No temperature data available</div>
           )}
           
-          {/* Legend inside the chart container */}
+          {/* Updated legend styling for better positioning */}
           <div className="temp-legend">
             <div className="legend-item">
               <div className="legend-color" style={{ backgroundColor: "#9c56b8" }}></div>
