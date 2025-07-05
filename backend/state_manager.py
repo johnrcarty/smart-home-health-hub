@@ -200,10 +200,23 @@ def broadcast_state():
         if not temp['datetime']:
             temp['datetime'] = datetime.now().isoformat()
     
+    # Get the latest nutrition and weight data
+    from db import get_vitals_by_type
+    
+    # Get the last 5 entries for each vital type
+    calories_history = get_vitals_by_type("calories", 5)
+    water_history = get_vitals_by_type("water", 5)
+    weight_history = get_vitals_by_type("weight", 5)
+    
     # Create a copy of the current state and add histories
     state_copy = sensor_state.copy()
     state_copy['bp'] = bp_history
     state_copy['temp'] = temp_history
+    state_copy['nutrition'] = {
+        'calories': calories_history,
+        'water': water_history
+    }
+    state_copy['weight'] = weight_history
     
     # Ensure all values have defaults
     for key in state_copy:
@@ -216,7 +229,6 @@ def broadcast_state():
         "type": "sensor_update",
         "state": state_copy
     }
-    print(f"[state_manager] Broadcasting state: {message}")
     
     for ws in list(websocket_clients):
         try:

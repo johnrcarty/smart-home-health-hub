@@ -123,3 +123,78 @@ def latest_temperature():
 @app.get("/temperature/history")
 def temperature_history(limit: int = 100):
     return get_last_n_temperature(limit)
+
+# Add this new route to handle manual vitals
+@app.post("/api/vitals/manual")
+async def add_manual_vitals(vital_data: dict):
+    try:
+        # Extract data from the request
+        datetime = vital_data.get("datetime")
+        bp = vital_data.get("bp", {})
+        temp = vital_data.get("temp", {})
+        nutrition = vital_data.get("nutrition", {})
+        weight = vital_data.get("weight")
+        notes = vital_data.get("notes")
+        
+        # Handle BP data - use existing table
+        if bp and (bp.get("systolic_bp") or bp.get("diastolic_bp")):
+            systolic = bp.get("systolic_bp")
+            diastolic = bp.get("diastolic_bp")
+            map_bp = bp.get("map_bp")
+            if systolic and diastolic:
+                save_blood_pressure(
+                    systolic=systolic,
+                    diastolic=diastolic,
+                    map_value=map_bp or 0,
+                    raw_data=json.dumps(bp)
+                )
+        
+        # Handle temperature data - use existing table
+        if temp and temp.get("body_temp"):
+            body_temp = temp.get("body_temp")
+            save_temperature(
+                skin_temp=None,  # Only capturing body temp manually
+                body_temp=body_temp,
+                raw_data=json.dumps(temp)
+            )
+        
+        # Handle other vitals using the new generic vitals table
+        if nutrition and nutrition.get("calories"):
+            save_vital("calories", nutrition.get("calories"), datetime, notes)
+            
+        if nutrition and nutrition.get("water_ml"):
+            save_vital("water", nutrition.get("water_ml"), datetime, notes)
+            
+        if weight:
+            save_vital("weight", weight, datetime, notes)
+        
+        # Force state update to include new readings
+        broadcast_state()
+        
+        return {"status": "success", "message": "Vitals saved successfully"}
+    except Exception as e:
+        print(f"Error saving manual vitals: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
+# Add these endpoints after your existing endpoints
+
+@app.get("/api/vitals/{vital_type}")
+def get_vital_history(vital_type: str, limit: int = 100):
+    """
+    Get history for a specific vital type
+    
+    Args:
+        vital_type: Type of vital (weight, calories, water, etc.)
+        limit: Maximum number of records to return
+    """
+    from db import get_vitals_by_type
+    return get_vitals_by_type(vital_type, limit)
+
+@app.get("/api/vitals/nutrition")
+def get_nutrition_history(limit: int = 100):
+    """Get combined nutrition history (calories and water)"""
+    from db import get_vitals_by_type
+    return {
+        "calories": get_vitals_by_type("calories", limit),
+        "water": get_vitals_by_type("water", limit)
+    }

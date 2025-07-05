@@ -92,10 +92,10 @@ export default function ChartBlock({ title, yLabel, color, dataset, showXaxis = 
             <Line 
               type="monotone" 
               dataKey="y" 
-              stroke={chartColor} rokeWidth={2.5} // Slightly thicker line
-              dot={false}isAnimationActive={false}
-              strokeWidth={2.5} // Slightly thicker line
+              stroke={chartColor}
+              dot={false}
               isAnimationActive={false}
+              strokeWidth={2.5} // Keep only one strokeWidth property
             />
           </LineChart>
         </ResponsiveContainer>

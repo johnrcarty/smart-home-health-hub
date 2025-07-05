@@ -11,6 +11,13 @@ const config = {
   // Add other configuration values here
   chartRefreshRate: import.meta.env.VITE_CHART_REFRESH_RATE || 1000,
   chartTimespan: import.meta.env.VITE_CHART_TIMESPAN || 5,
+
+  // Ensure this is correctly set
+  vitalsEndpoints: {
+    manual: '/api/vitals/manual',
+    nutrition: '/api/vitals/nutrition',
+    weight: '/api/vitals/weight',
+  }
 };
 
 export default config;

@@ -45,6 +45,18 @@ def init_db():
         )
         ''')
         
+        # Create generic vitals table for other measurements
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS vitals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT NOT NULL,
+            vital_type TEXT NOT NULL,
+            value REAL NOT NULL,
+            notes TEXT,
+            created_at TEXT NOT NULL
+        )
+        ''')
+        
         conn.commit()
         logger.info(f"Database initialized at {DB_PATH}")
     except sqlite3.Error as e:
@@ -117,6 +129,42 @@ def save_temperature(skin_temp, body_temp, raw_data):
         return cursor.lastrowid
     except sqlite3.Error as e:
         logger.error(f"Error saving temperature: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def save_vital(vital_type, value, timestamp=None, notes=None):
+    """
+    Save a generic vital reading to database
+    
+    Args:
+        vital_type (str): Type of vital (weight, calories, water, etc.)
+        value (float or int): Value of the vital
+        timestamp (str, optional): Timestamp for the reading. Defaults to current time.
+        notes (str, optional): Additional notes.
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        now = datetime.now().isoformat()
+        timestamp = timestamp or now
+        
+        cursor.execute(
+            '''
+            INSERT INTO vitals 
+            (timestamp, vital_type, value, notes, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            ''',
+            (timestamp, vital_type, value, notes, now)
+        )
+        
+        conn.commit()
+        logger.info(f"Vital saved: {vital_type}={value}")
+        return cursor.lastrowid
+    except sqlite3.Error as e:
+        logger.error(f"Error saving vital: {e}")
         return None
     finally:
         if conn:
@@ -277,6 +325,51 @@ def get_last_n_temperature(n=5):
         logger.error(f"Error fetching temperature history: {e}")
         # Return just one empty entry on error
         return [{'datetime': '', 'skin_temp': None, 'body_temp': None}]
+    finally:
+        if conn:
+            conn.close()
+
+def get_vitals_by_type(vital_type, limit=100):
+    """
+    Get history of a specific vital type
+    
+    Args:
+        vital_type (str): Type of vital (weight, calories, water, etc.)
+        limit (int): Maximum number of records to return
+    
+    Returns:
+        list: List of dictionaries containing readings
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row  # Return rows as dictionaries
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            '''
+            SELECT timestamp, value, notes 
+            FROM vitals
+            WHERE vital_type = ?
+            ORDER BY timestamp DESC 
+            LIMIT ?
+            ''', 
+            (vital_type, limit)
+        )
+        
+        results = cursor.fetchall()
+        vitals_data = [
+            {
+                'datetime': row['timestamp'],
+                'value': row['value'],
+                'notes': row['notes']
+            } 
+            for row in results
+        ]
+        
+        return vitals_data
+    except sqlite3.Error as e:
+        logger.error(f"Error fetching {vital_type} history: {e}")
+        return []
     finally:
         if conn:
             conn.close()
