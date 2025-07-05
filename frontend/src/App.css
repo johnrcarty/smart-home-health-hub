@@ -62,50 +62,87 @@ html, body, #root {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 30px; /* Increase horizontal padding from 20px to 30px */
-  background-color: #161e2e; /* Match main background */
+  padding: 0;
+  background-color: #161e2e;
   border-bottom: 1px solid #30363d;
-  position: relative; /* Add this to support absolute positioning of menu-container */
+  position: relative;
 }
 
+/* Logo container with Smart Home Health text */
 .logo-container {
+  width: 25%; /* Match width of first column */
   height: 100%;
   display: flex;
   align-items: center;
-  z-index: 1; /* Ensure it stays above the centered menu */
+  justify-content: center; /* Center logo and text */
+  z-index: 1;
+  padding-left: 10px;
 }
 
 .header-logo {
-  max-height: 70%;  /* Limit the height to 70% of the header height */
-  max-width: 200px; /* Limit the width to prevent oversizing */
-  object-fit: contain; /* Maintain aspect ratio */
+  max-height: 70%;
+  max-width: 50px; /* Reduce size to make room for text */
+  object-fit: contain;
 }
 
-.logo-placeholder {
+.logo-text {
   color: white;
-  font-size: 24px;
-  font-weight: bold;
-  border: 2px dashed rgba(255, 255, 255, 0.3);
-  padding: 5px 20px;
-  border-radius: 4px;
+  font-size: 1.2rem;
+  font-weight: 500;
+  margin-left: 10px;
+  white-space: nowrap;
 }
 
-.datetime-container {
+/* Keep the menu centered in middle 50% */
+.menu-container {
+  position: absolute;
+  left: 25%;
+  right: 25%;
   height: 100%;
   display: flex;
+  justify-content: center;
   align-items: center;
-  margin-right: 10px; /* Add margin to create space before settings icon */
-  padding-right: 10px; /* Add some padding on the right side */
-  z-index: 1; /* Ensure it stays above the centered menu */
+  gap: 20px;
 }
 
-.header-controls {
+/* Clock positioned in rightmost 25% */
+.datetime-container {
+  width: 25%; /* Match width of last column */
+  height: 100%;
   display: flex;
+  justify-content: center; /* Center the clock */
   align-items: center;
-  gap: 15px; /* Space between datetime and settings icon */
+  z-index: 1;
 }
 
-/* Add these styles for the centered menu */
+/* Update clock styling to fit in the container */
+.clock-card {
+  height: 80%;
+  background-color: transparent;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  border-radius: 0;
+  font-family: sans-serif;
+  width: 100%; /* Use full width of container */
+  text-align: center;
+}
+
+.clock-time {
+  font-size: 1.6em;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.clock-date {
+  font-size: 0.9em;
+  margin-top: 5px;
+  white-space: nowrap;
+}
+
+/* Update these styles for the centered menu */
 
 /* Container for all menu buttons, centered in the header */
 .menu-container {
@@ -495,18 +532,18 @@ html, body, #root {
   align-items: center;
   border-radius: 0;
   font-family: sans-serif;
-  width: 300px; /* Set explicit width to ensure enough space */
+  width: 100%; /* Use full width of container */
   text-align: center; /* Center the text */
 }
 
 .clock-time {
-  font-size: 1.8em;
+  font-size: 1.6em;
   font-weight: bold;
   white-space: nowrap; /* Prevent line breaks */
 }
 
 .clock-date {
-  font-size: 1em;
+  font-size: 0.9em;
   margin-top: 5px;
   white-space: nowrap; /* Prevent line breaks */
 }
@@ -518,12 +555,12 @@ html, body, #root {
 }
 
 .clock-time {
-  font-size: 1.8em;
+  font-size: 1.6em;
   font-weight: bold;
 }
 
 .clock-date {
-  font-size: 1em;
+  font-size: 0.9em;
   margin-top: 5px;
 }
 

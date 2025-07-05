@@ -6,7 +6,7 @@ import BloodPressureCard from "./components/BloodPressureCard";
 import TemperatureCard from "./components/TemperatureCard";
 import ModalBase from "./components/ModalBase";
 import SettingsForm from "./components/SettingsForm";
-import logoImage from './assets/logo.png';
+import logoImage from './assets/logo2.png';
 import config from './config';
 
 // Add the settings icon - can be imported or use an SVG directly
@@ -146,12 +146,13 @@ export default function App() {
       <div className="header-section">
         <div className="logo-container">
           <img src={logoImage} alt="Logo" className="header-logo" />
+          <div className="logo-text">Smart Home Health</div>
         </div>
         
         <div className="menu-container">
           <button 
             className={`menu-button ${isSettingsModalOpen ? 'active' : ''}`}
-            onClick={() => setIsSettingsModalOpen(prev => !prev)} // Toggle instead of just opening
+            onClick={() => setIsSettingsModalOpen(prev => !prev)}
             aria-label="Settings"
           >
             <SettingsIcon />

@@ -45,18 +45,7 @@ export default function ChartBlock({ title, yLabel, color, dataset, showXaxis = 
       backgroundColor: "#161e2e",
       borderRadius: "0px"
     }}>
-      <div style={{
-        position: "absolute",
-        top: 5,
-        left: 10,
-        color: "#FFF",
-        zIndex: 1,
-        fontSize: "1rem",
-        fontWeight: 500,
-        opacity: 0.8
-      }}>
-        {title}
-      </div>
+      {/* Removed the title div that was here */}
 
       {filteredData.length === 0 ? (
         <div style={{
@@ -103,8 +92,8 @@ export default function ChartBlock({ title, yLabel, color, dataset, showXaxis = 
             <Line 
               type="monotone" 
               dataKey="y" 
-              stroke={chartColor} 
-              dot={false}
+              stroke={chartColor} rokeWidth={2.5} // Slightly thicker line
+              dot={false}isAnimationActive={false}
               strokeWidth={2.5} // Slightly thicker line
               isAnimationActive={false}
             />
@@ -112,5 +101,4 @@ export default function ChartBlock({ title, yLabel, color, dataset, showXaxis = 
         </ResponsiveContainer>
       )}
     </div>
-  );
-}
+  );}
