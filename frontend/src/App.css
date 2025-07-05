@@ -102,7 +102,7 @@ html, body, #root {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 20px;
+  gap: 25px; /* Increased gap for better spacing with badges */
 }
 
 /* Clock positioned in rightmost 25% */
@@ -127,19 +127,19 @@ html, body, #root {
   border-radius: 0;
   font-family: sans-serif;
   width: 100%; /* Use full width of container */
-  text-align: center;
+  text-align: center; /* Center the text */
 }
 
 .clock-time {
   font-size: 1.6em;
   font-weight: bold;
-  white-space: nowrap;
+  white-space: nowrap; /* Prevent line breaks */
 }
 
 .clock-date {
   font-size: 0.9em;
   margin-top: 5px;
-  white-space: nowrap;
+  white-space: nowrap; /* Prevent line breaks */
 }
 
 /* Update these styles for the centered menu */
@@ -153,7 +153,7 @@ html, body, #root {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 20px; /* Space between menu buttons */
+  gap: 25px; /* Increased gap for better spacing with badges */
 }
 
 /* Individual menu button styling */
@@ -169,8 +169,12 @@ html, body, #root {
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
-  width: 40px;
-  height: 40px;
+  width: 50px; /* Set consistent width */
+  height: 50px; /* Set consistent height */
+}
+
+.menu-button svg {
+  display: block; /* Ensures proper centering */
 }
 
 .menu-button:hover {
@@ -730,4 +734,29 @@ html, body, #root {
   text-align: center;
   color: #ccc;
   font-style: italic;
+}
+
+/* Add these styles for the icon wrapper and badges */
+
+.icon-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background-color: #ff3b30;
+  color: white;
+  font-size: 0.7rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2px;
+  font-weight: bold;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
