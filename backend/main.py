@@ -16,6 +16,9 @@ from db import init_db, get_latest_blood_pressure, get_blood_pressure_history, g
 from mqtt_discovery import send_mqtt_discovery
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
+# Reset sensor state to clear any bad data
+from state_manager import reset_sensor_state
+
 
 load_dotenv()
 
@@ -51,6 +54,8 @@ async def startup_event():
     
     # Initialize default settings if they don't exist
     from db import save_setting, get_setting
+
+    reset_sensor_state()
     
     # Device settings
     if get_setting("device_name") is None:

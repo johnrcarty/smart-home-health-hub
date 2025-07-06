@@ -431,31 +431,3 @@ def get_websocket_clients():
         set: The set of active WebSocket clients
     """
     return websocket_clients
-
-
-# Update your initialization code (near the top of the file)
-
-# Add this somewhere in the global scope
-def reset_sensor_state():
-    """Reset sensor state to a clean initial state"""
-    global sensor_state
-    sensor_state = {
-        'spo2': None,
-        'bpm': None,
-        'perfusion': None,
-        'status': None,
-        'map_bp': None,
-        'temp': None,
-    }
-
-# Call this in your startup code
-reset_sensor_state()
-
-# Also add a call to this in the startup event in main.py
-@app.on_event("startup")
-async def startup_event():
-    # ... existing code ...
-    
-    # Reset sensor state to clear any bad data
-    from state_manager import reset_sensor_state
-    reset_sensor_state()
