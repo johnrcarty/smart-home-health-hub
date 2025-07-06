@@ -431,3 +431,16 @@ def get_websocket_clients():
         set: The set of active WebSocket clients
     """
     return websocket_clients
+
+# Add this somewhere in the global scope
+def reset_sensor_state():
+    """Reset sensor state to a clean initial state"""
+    global sensor_state
+    sensor_state = {
+        'spo2': None,
+        'bpm': None,
+        'perfusion': None,
+        'status': None,
+        'map_bp': None,
+        'temp': None,
+    }
