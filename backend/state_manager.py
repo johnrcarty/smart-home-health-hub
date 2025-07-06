@@ -247,70 +247,42 @@ def broadcast_state():
             websocket_clients.discard(ws)
 
 
-def update_sensor(*args, from_mqtt=False):
+# Replace the duplicate update_sensor function with a single, combined version
+
+# Remove this first update_sensor function (around line 241)
+# def update_sensor(*args, from_mqtt=False):
+#     """
+#     Accepts multiple sensor updates as (name, value) pairs.
+#     Publishes combined MQTT message and a single WebSocket broadcast.
+#
+#     Example:
+#         update_sensor(("spo2", 98), ("bpm", 75), ("perfusion", 3.2))
+#     """
+#     updated = {}
+#
+#     for name, value in args:
+#         sensor_state[name] = value
+#         updated[name] = value
+#
+#     if not updated:
+#         return  # Nothing to do
+#
+#     broadcast_state()
+#
+#     publish_to_mqtt()
+
+
+# Modify this second update_sensor function to include the MQTT publishing (around line 286)
+def update_sensor(*updates, from_mqtt=False):
     """
-    Accepts multiple sensor updates as (name, value) pairs.
-    Publishes combined MQTT message and a single WebSocket broadcast.
-
-    Example:
-        update_sensor(("spo2", 98), ("bpm", 75), ("perfusion", 3.2))
-    """
-    updated = {}
-
-    for name, value in args:
-        sensor_state[name] = value
-        updated[name] = value
-
-    if not updated:
-        return  # Nothing to do
-
-    broadcast_state()
-
-    publish_to_mqtt()
-
-
-
-# Add this getter
-def get_websocket_clients():
-    return websocket_clients
-
-
-# Add this function to broadcast settings changes
-
-def broadcast_settings():
-    """
-    Send the current settings over WebSockets to all clients.
-    """
-    if not event_loop:
-        print("[state_manager] Cannot broadcast settings, event_loop not set.")
-        return
-
-    from db import get_all_settings
-    settings = get_all_settings()
-    
-    print(f"[state_manager] Broadcasting settings to {len(websocket_clients)} clients.")
-    message = {
-        "type": "settings_update",
-        "settings": settings
-    }
-    
-    for ws in list(websocket_clients):
-        try:
-            asyncio.run_coroutine_threadsafe(ws.send_json(message), event_loop)
-        except Exception as e:
-            print(f"[state_manager] Failed to send settings to websocket: {e}")
-            websocket_clients.discard(ws)
-
-
-def update_sensor(*updates):
-    """
-    Update sensor state values and broadcast changes
+    Update sensor state values, track alerts, and broadcast changes
     
     Args:
         *updates: pairs of (sensor_name, value) to update
+        from_mqtt: Whether this update is from MQTT (vs serial)
     """
     global current_alert_id, alert_thresholds_exceeded, alert_start_data_id, sensor_state
-    global alert_recovery_start_time  # Add this to track recovery timing
+    global alert_recovery_start_time
     
     has_pulse_ox_updates = False
     pulse_ox_data = {
@@ -320,15 +292,27 @@ def update_sensor(*updates):
         'status': None
     }
     
-    # First, update all the values
-    for sensor_name, value in zip(updates[0::2], updates[1::2]):
-        sensor_state[sensor_name] = value
-        
-        # Track pulse ox related updates
-        if sensor_name in pulse_ox_data:
-            pulse_ox_data[sensor_name] = value
-            has_pulse_ox_updates = True
+    updated = {}  # Track what's been updated for MQTT publishing
     
+    # First, update all the values
+    for i in range(0, len(updates), 2):
+        if i+1 < len(updates):  # Make sure we have a pair
+            sensor_name = updates[i]
+            value = updates[i+1]
+            
+            # Update global state
+            sensor_state[sensor_name] = value
+            updated[sensor_name] = value
+            
+            # Track pulse ox related updates
+            if sensor_name in pulse_ox_data:
+                pulse_ox_data[sensor_name] = value
+                has_pulse_ox_updates = True
+    
+    # If no updates, exit early
+    if not updated:
+        return
+        
     # If we received pulse ox data, check for alerts
     if has_pulse_ox_updates and (pulse_ox_data['spo2'] is not None or pulse_ox_data['bpm'] is not None):
         spo2_alarm, hr_alarm = check_thresholds(pulse_ox_data['spo2'], pulse_ox_data['bpm'])
@@ -418,3 +402,6 @@ def update_sensor(*updates):
     
     # Broadcast updated state
     broadcast_state()
+    
+    # Publish to MQTT if needed
+    publish_to_mqtt()
