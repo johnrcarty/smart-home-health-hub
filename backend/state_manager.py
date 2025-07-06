@@ -220,21 +220,25 @@ def broadcast_state():
     # Get unacknowledged alerts count
     alerts_count = get_unacknowledged_alerts_count()
     
-    # Create a copy of the current state and add histories
-    state_copy = sensor_state.copy()
+    # Create a clean copy of the current state with only proper keys
+    state_copy = {}
+    for key, value in sensor_state.items():
+        # Only include string keys that are actual sensor names (not tuples)
+        if isinstance(key, str):
+            state_copy[key] = value
+    
+    # Add histories and other data
     state_copy['bp'] = bp_history
     state_copy['temp'] = temp_history
     state_copy['settings'] = settings
     state_copy['alerts_count'] = alerts_count
     
-    # Print detailed state for debugging
-    print(f"[state_manager] State to broadcast: {state_copy}")
+    # Ensure all standard values have defaults
+    for key in ['spo2', 'bpm', 'perfusion', 'status', 'map_bp']:
+        if key not in state_copy or state_copy[key] is None:
+            state_copy[key] = -1  # Use -1 as sentinel value
     
-    # Ensure all values have defaults
-    for key in state_copy:
-        if key != 'bp' and key != 'temp' and key != 'settings' and state_copy[key] is None:
-            # Use a sentinel value that your frontend can recognize
-            state_copy[key] = -1
+    print(f"[state_manager] Clean state to broadcast: {state_copy}")
     
     print(f"[state_manager] Broadcasting to {len(websocket_clients)} clients.")
     message = {
@@ -244,15 +248,13 @@ def broadcast_state():
     
     for ws in list(websocket_clients):
         try:
-            print(f"[state_manager] Sending to websocket client: {ws}")
             asyncio.run_coroutine_threadsafe(ws.send_json(message), event_loop)
-            print(f"[state_manager] Sent message to websocket client")
         except Exception as e:
             print(f"[state_manager] Failed to send to websocket: {e}")
             websocket_clients.discard(ws)
 
 
-# Replace your current update_sensor function with this improved version
+# Replace your current update_sensor function with this fixed version
 
 def update_sensor(*updates, from_mqtt=False):
     """
@@ -274,21 +276,30 @@ def update_sensor(*updates, from_mqtt=False):
     }
     
     updated = {}  # Track what's been updated for MQTT publishing
+    raw_data = None
     
     # Debug the incoming updates to see what we're getting
     print(f"[state_manager] Received updates: {updates}")
     
-    # Process updates more flexibly to handle both ways of calling
-    if len(updates) == 1 and isinstance(updates[0], tuple):
-        # Handle case where a single tuple of (name, value) pairs is passed
+    # Process updates based on how they're passed
+    if len(updates) == 1 and isinstance(updates[0], (list, tuple)) and all(isinstance(x, tuple) for x in updates[0]):
+        # Handle case where a list/tuple of (name, value) pairs is passed
         pairs = updates[0]
-        for name, value in pairs:
-            sensor_state[name] = value
-            updated[name] = value
+        
+        # Look for raw_data separately
+        raw_data_items = [pair[1] for pair in pairs if pair[0] == "raw_data"]
+        if raw_data_items:
+            raw_data = raw_data_items[0]
             
-            if name in pulse_ox_data:
-                pulse_ox_data[name] = value
-                has_pulse_ox_updates = True
+        # Process normal sensor values
+        for name, value in pairs:
+            if name != "raw_data":
+                sensor_state[name] = value  # Direct assignment with name as key
+                updated[name] = value
+                
+                if name in pulse_ox_data:
+                    pulse_ox_data[name] = value
+                    has_pulse_ox_updates = True
     else:
         # Handle case where name, value are passed as separate arguments
         for i in range(0, len(updates), 2):
@@ -296,12 +307,12 @@ def update_sensor(*updates, from_mqtt=False):
                 sensor_name = updates[i]
                 value = updates[i+1]
                 
-                # Skip raw data for state management but pass it along if needed
                 if sensor_name == "raw_data":
+                    raw_data = value
                     continue
                     
-                # Update global state
-                sensor_state[sensor_name] = value
+                # Direct assignment with name as key
+                sensor_state[sensor_name] = value  
                 updated[sensor_name] = value
                 
                 # Track pulse ox related updates
@@ -309,14 +320,14 @@ def update_sensor(*updates, from_mqtt=False):
                     pulse_ox_data[sensor_name] = value
                     has_pulse_ox_updates = True
     
-    # Print current state for debugging
-    print(f"[state_manager] Current sensor state: {sensor_state}")
+    # Print current state for debugging (after fixing it)
+    print(f"[state_manager] Current sensor state after update: {sensor_state}")
     
     # If no updates, exit early
     if not updated:
         print("[state_manager] No updates to process")
         return
-    
+
     # If we received pulse ox data, check for alerts
     if has_pulse_ox_updates and (pulse_ox_data['spo2'] is not None or pulse_ox_data['bpm'] is not None):
         spo2_alarm, hr_alarm = check_thresholds(pulse_ox_data['spo2'], pulse_ox_data['bpm'])
@@ -420,3 +431,31 @@ def get_websocket_clients():
         set: The set of active WebSocket clients
     """
     return websocket_clients
+
+
+# Update your initialization code (near the top of the file)
+
+# Add this somewhere in the global scope
+def reset_sensor_state():
+    """Reset sensor state to a clean initial state"""
+    global sensor_state
+    sensor_state = {
+        'spo2': None,
+        'bpm': None,
+        'perfusion': None,
+        'status': None,
+        'map_bp': None,
+        'temp': None,
+    }
+
+# Call this in your startup code
+reset_sensor_state()
+
+# Also add a call to this in the startup event in main.py
+@app.on_event("startup")
+async def startup_event():
+    # ... existing code ...
+    
+    # Reset sensor state to clear any bad data
+    from state_manager import reset_sensor_state
+    reset_sensor_state()
