@@ -405,3 +405,14 @@ def update_sensor(*updates, from_mqtt=False):
     
     # Publish to MQTT if needed
     publish_to_mqtt()
+
+
+# Add this function to expose the websocket clients to other modules
+
+def get_websocket_clients():
+    """
+    Get the current set of active WebSocket clients
+    Returns:
+        set: The set of active WebSocket clients
+    """
+    return websocket_clients
