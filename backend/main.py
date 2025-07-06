@@ -42,6 +42,10 @@ loop = asyncio.get_event_loop()
 async def startup_event():
     global mqtt_client_ref
     
+    # Set the event loop
+    set_event_loop(asyncio.get_event_loop())
+    print("[main] Event loop registered with state manager")
+    
     # Initialize database
     init_db()
     
@@ -123,17 +127,22 @@ async def shutdown_event():
             print(f"[main] Failed to publish offline status: {e}")
 
 @app.websocket("/ws/sensors")
-async def sensor_websocket(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
+    print(f"[main] WebSocket client connected: {websocket}")
     register_websocket_client(websocket)
-    print("WebSocket client connected")
-
+    
     try:
         while True:
-            await websocket.receive_text()
+            # Just keep the connection alive
+            data = await websocket.receive_text()
+            # You can handle commands here if needed
     except WebSocketDisconnect:
+        print(f"[main] WebSocket client disconnected: {websocket}")
         unregister_websocket_client(websocket)
-        print("WebSocket client disconnected")
+    except Exception as e:
+        print(f"[main] WebSocket error: {e}")
+        unregister_websocket_client(websocket)
 
 @app.get("/limits")
 def get_limits():
