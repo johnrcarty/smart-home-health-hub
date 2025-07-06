@@ -85,11 +85,12 @@ def serial_loop():
                 updates.append(("status", status))
 
             if updates:
+                # Include the raw data when sending updates
+                updates.append("raw_data")
+                updates.append(raw)
                 update_sensor(*updates)
 
             print(f"[serial_reader] {timestamp} SpO2: {spo2_str}, BPM: {bpm_str}, Perfusion: {pa_str}, Status: {status}")
-
-
 
         except serial.SerialException:
             print("[serial_reader] SerialException. Reconnecting…")

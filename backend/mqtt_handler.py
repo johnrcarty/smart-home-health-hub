@@ -35,6 +35,8 @@ def get_mqtt_client(loop):
         else:
             print(f"Failed to connect to MQTT Broker, code {rc}")
 
+    # Update the on_message function to save raw data
+
     def on_message(client, userdata, msg):
         raw_data = msg.payload.decode()
         print(f"MQTT Message received on {msg.topic}: {raw_data}")
@@ -89,6 +91,12 @@ def get_mqtt_client(loop):
                     else:
                         print(f"Ignoring invalid temperature values: skin_temp={skin_temp}, body_temp={body_temp}")
                 
+                # Handle spo2 data specifically 
+                elif msg.topic == "shh/spo2/state" or msg.topic == "shh/bpm/state" or msg.topic == "shh/perfusion/state":
+                    # Add sensor update with raw data
+                    update_sensor(matching_sensor, payload.get(matching_sensor), "raw_data", raw_data)
+                    return
+                
                 # Continue with normal processing for other sensors
                 else:
                     value = payload.get(matching_sensor)
@@ -99,6 +107,8 @@ def get_mqtt_client(loop):
                     
             except json.JSONDecodeError:
                 print(f"Failed to decode JSON: {msg.payload}")
+            except Exception as e:
+                print(f"Error processing message on {msg.topic}: {e}")
         else:
             print(f"Received message for unknown topic: {msg.topic}")
 

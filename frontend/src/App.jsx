@@ -16,6 +16,9 @@ import {
 } from "./components/Icons";
 import logoImage from './assets/logo2.png';
 import config from './config';
+import AlertsList from "./components/AlertsList";
+// Import the PulseOxModal component
+import PulseOxModal from "./components/PulseOxModal";
 
 export default function App() {
   // Add state for modal
@@ -24,6 +27,7 @@ export default function App() {
   // Add state for notification counts
   const [ventNotifications, setVentNotifications] = useState(2); // Example count
   const [pulseOxNotifications, setPulseOxNotifications] = useState(3); // Example count
+  const [pulseOxAlerts, setPulseOxAlerts] = useState(0);
 
   const [sensorValues, setSensorValues] = useState({
     spo2: null,
@@ -122,6 +126,11 @@ export default function App() {
 
           return newState;
         });
+
+        // Handle alerts count
+        if (msg.state.alerts_count !== undefined) {
+          setPulseOxAlerts(msg.state.alerts_count);
+        }
       }
     };
 
@@ -182,7 +191,7 @@ export default function App() {
       setIsPulseOxModalOpen(true);
     }
     // Clear notifications when clicked
-    setPulseOxNotifications(0);
+    // setPulseOxNotifications(0); - Remove this line
   };
 
   const handleSettingsClick = () => {
@@ -205,6 +214,15 @@ export default function App() {
       closeAllModals();
       setIsVitalsModalOpen(true);
     }
+  };
+
+  // Add a function to handle alerts being viewed
+  const handlePulseOxAlertsViewed = () => {
+    // Clear the alerts count when they're viewed
+    setPulseOxAlerts(0);
+    
+    // Note: Actual acknowledgment will happen when user clicks the "Acknowledge" 
+    // button in the alerts list for individual alerts
   };
 
   return (
@@ -234,8 +252,8 @@ export default function App() {
               aria-label="Pulse Oximeter"
             >
               <MinimalistPulseOxIcon />
+              {pulseOxAlerts > 0 && <div className="badge">{pulseOxAlerts}</div>}
             </button>
-            {pulseOxNotifications > 0 && <div className="badge">{pulseOxNotifications}</div>}
           </div>
           
           <div className="icon-wrapper">
@@ -422,9 +440,13 @@ export default function App() {
       <ModalBase
         isOpen={isPulseOxModalOpen}
         onClose={() => setIsPulseOxModalOpen(false)}
-        title="Pulse Oximeter Settings"
+        title="Pulse Oximeter Alerts"
       >
-        <div>Pulse oximeter settings content here...</div>
+        <PulseOxModal
+          onClose={() => setIsPulseOxModalOpen(false)}
+          alertsCount={pulseOxAlerts}
+          onAlertsViewed={handlePulseOxAlertsViewed}
+        />
       </ModalBase>
 
       {/* Manual Vitals Entry Modal */}

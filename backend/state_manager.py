@@ -6,6 +6,7 @@ from sensor_manager import SENSOR_DEFINITIONS
 import os
 from db import get_last_n_blood_pressure, get_last_n_temperature
 from datetime import datetime
+import time
 
 MIN_SPO2 = int(os.getenv("MIN_SPO2", 90))
 MAX_SPO2 = int(os.getenv("MAX_SPO2", 100))
@@ -32,6 +33,16 @@ event_loop = None
 
 _serial_mode_callbacks = []
 
+from db import get_unacknowledged_alerts_count, save_pulse_ox_data, start_monitoring_alert, update_monitoring_alert
+
+# Add these global variables to track the current alert state
+current_alert_id = None
+alert_thresholds_exceeded = False
+alert_start_data_id = None
+
+# Add these global variables to track recovery timing
+alert_recovery_start_time = None
+RECOVERY_SECONDS_REQUIRED = 30  # Require 30 seconds of good readings to end an alert
 
 
 def register_serial_mode_callback(cb):
@@ -165,10 +176,32 @@ def publish_to_mqtt():
         print(f"[state_manager] Error publishing to MQTT: {e}")
 
 
+def check_thresholds(spo2=None, bpm=None):
+    """Check if values are within threshold limits"""
+    
+    # Get threshold values from settings or environment variables
+    from db import get_setting
+    min_spo2 = get_setting("min_spo2", MIN_SPO2)
+    max_spo2 = get_setting("max_spo2", MAX_SPO2)
+    min_bpm = get_setting("min_bpm", MIN_BPM)
+    max_bpm = get_setting("max_bpm", MAX_BPM)
+    
+    spo2_alarm = False
+    hr_alarm = False
+    
+    if spo2 is not None:
+        spo2_alarm = not (min_spo2 <= spo2 <= max_spo2)
+        
+    if bpm is not None:
+        hr_alarm = not (min_bpm <= bpm <= max_bpm)
+        
+    return spo2_alarm, hr_alarm
+
+
 def broadcast_state():
     """
     Send the full `sensor_state` snapshot over WebSockets to all clients.
-    Include the last 5 blood pressure readings and temperature readings.
+    Include alert counts, BP readings, temperature readings, and settings.
     """
     if not event_loop:
         print("[state_manager] Cannot broadcast, event_loop not set.")
@@ -177,46 +210,22 @@ def broadcast_state():
     # Get the last 5 blood pressure readings
     bp_history = get_last_n_blood_pressure(5)
     
-    # Ensure we have valid BP history with default values
-    for bp in bp_history:
-        if bp['systolic_bp'] is None:
-            bp['systolic_bp'] = 0
-        if bp['diastolic_bp'] is None:
-            bp['diastolic_bp'] = 0
-        if bp['map_bp'] is None:
-            bp['map_bp'] = 0
-        if not bp['datetime']:
-            bp['datetime'] = datetime.now().isoformat()
-    
     # Get the last 5 temperature readings
     temp_history = get_last_n_temperature(5)
     
-    # Ensure we have valid temperature history with default values
-    for temp in temp_history:
-        if temp['skin_temp'] is None:
-            temp['skin_temp'] = 0
-        if temp['body_temp'] is None:
-            temp['body_temp'] = 0
-        if not temp['datetime']:
-            temp['datetime'] = datetime.now().isoformat()
+    # Get all settings
+    from db import get_all_settings
+    settings = get_all_settings()
     
-    # Get the latest nutrition and weight data
-    from db import get_vitals_by_type
-    
-    # Get the last 5 entries for each vital type
-    calories_history = get_vitals_by_type("calories", 5)
-    water_history = get_vitals_by_type("water", 5)
-    weight_history = get_vitals_by_type("weight", 5)
+    # Get unacknowledged alerts count
+    alerts_count = get_unacknowledged_alerts_count()
     
     # Create a copy of the current state and add histories
     state_copy = sensor_state.copy()
     state_copy['bp'] = bp_history
     state_copy['temp'] = temp_history
-    state_copy['nutrition'] = {
-        'calories': calories_history,
-        'water': water_history
-    }
-    state_copy['weight'] = weight_history
+    state_copy['settings'] = settings
+    state_copy['alerts_count'] = alerts_count
     
     # Ensure all values have defaults
     for key in state_copy:
@@ -264,3 +273,148 @@ def update_sensor(*args, from_mqtt=False):
 # Add this getter
 def get_websocket_clients():
     return websocket_clients
+
+
+# Add this function to broadcast settings changes
+
+def broadcast_settings():
+    """
+    Send the current settings over WebSockets to all clients.
+    """
+    if not event_loop:
+        print("[state_manager] Cannot broadcast settings, event_loop not set.")
+        return
+
+    from db import get_all_settings
+    settings = get_all_settings()
+    
+    print(f"[state_manager] Broadcasting settings to {len(websocket_clients)} clients.")
+    message = {
+        "type": "settings_update",
+        "settings": settings
+    }
+    
+    for ws in list(websocket_clients):
+        try:
+            asyncio.run_coroutine_threadsafe(ws.send_json(message), event_loop)
+        except Exception as e:
+            print(f"[state_manager] Failed to send settings to websocket: {e}")
+            websocket_clients.discard(ws)
+
+
+def update_sensor(*updates):
+    """
+    Update sensor state values and broadcast changes
+    
+    Args:
+        *updates: pairs of (sensor_name, value) to update
+    """
+    global current_alert_id, alert_thresholds_exceeded, alert_start_data_id, sensor_state
+    global alert_recovery_start_time  # Add this to track recovery timing
+    
+    has_pulse_ox_updates = False
+    pulse_ox_data = {
+        'spo2': None,
+        'bpm': None,
+        'perfusion': None,
+        'status': None
+    }
+    
+    # First, update all the values
+    for sensor_name, value in zip(updates[0::2], updates[1::2]):
+        sensor_state[sensor_name] = value
+        
+        # Track pulse ox related updates
+        if sensor_name in pulse_ox_data:
+            pulse_ox_data[sensor_name] = value
+            has_pulse_ox_updates = True
+    
+    # If we received pulse ox data, check for alerts
+    if has_pulse_ox_updates and (pulse_ox_data['spo2'] is not None or pulse_ox_data['bpm'] is not None):
+        spo2_alarm, hr_alarm = check_thresholds(pulse_ox_data['spo2'], pulse_ox_data['bpm'])
+        
+        # Save data to the continuous log
+        data_id = save_pulse_ox_data(
+            spo2=pulse_ox_data['spo2'], 
+            bpm=pulse_ox_data['bpm'],
+            pa=pulse_ox_data['perfusion'],
+            status=pulse_ox_data['status'],
+            motion="ON" if sensor_state.get("motion", False) else "OFF",
+            spo2_alarm="ON" if spo2_alarm else "OFF",
+            hr_alarm="ON" if hr_alarm else "OFF",
+            raw_data=json.dumps(pulse_ox_data)
+        )
+        
+        # Check if we need to start or update an alert
+        is_alert_condition = spo2_alarm or hr_alarm
+        
+        if is_alert_condition and not alert_thresholds_exceeded:
+            # We've just crossed the threshold, start a new alert
+            alert_thresholds_exceeded = True
+            alert_recovery_start_time = None  # Reset recovery timer
+            alert_start_data_id = data_id
+            current_alert_id = start_monitoring_alert(
+                spo2=pulse_ox_data['spo2'],
+                bpm=pulse_ox_data['bpm'],
+                data_id=data_id,
+                spo2_alarm_triggered=1 if spo2_alarm else 0,
+                hr_alarm_triggered=1 if hr_alarm else 0
+            )
+            
+        elif is_alert_condition and alert_thresholds_exceeded and current_alert_id:
+            # Continuing alert, update min/max values
+            alert_recovery_start_time = None  # Reset recovery timer if we're in alert condition
+            update_monitoring_alert(
+                alert_id=current_alert_id,
+                spo2=pulse_ox_data['spo2'],
+                bpm=pulse_ox_data['bpm'],
+                spo2_alarm_triggered=1 if spo2_alarm else None,
+                hr_alarm_triggered=1 if hr_alarm else None
+            )
+            
+        elif not is_alert_condition and alert_thresholds_exceeded and current_alert_id:
+            # Values are now within normal range, but we're still in an alert state
+            # Start or continue tracking recovery time
+            current_time = time.time()
+            
+            if alert_recovery_start_time is None:
+                # First good reading after an alert, start recovery timer
+                alert_recovery_start_time = current_time
+                print(f"[state_manager] Alert recovery started at {datetime.fromtimestamp(alert_recovery_start_time).isoformat()}")
+                
+                # Still update the min/max values during recovery period
+                update_monitoring_alert(
+                    alert_id=current_alert_id,
+                    spo2=pulse_ox_data['spo2'],
+                    bpm=pulse_ox_data['bpm']
+                )
+            elif (current_time - alert_recovery_start_time) >= RECOVERY_SECONDS_REQUIRED:
+                # We've had good readings for the required duration, finalize the alert
+                now = datetime.now().isoformat()
+                print(f"[state_manager] Alert recovery completed after {RECOVERY_SECONDS_REQUIRED} seconds at {now}")
+                
+                update_monitoring_alert(
+                    alert_id=current_alert_id,
+                    end_time=now,
+                    end_data_id=data_id,
+                    spo2=pulse_ox_data['spo2'],
+                    bpm=pulse_ox_data['bpm']
+                )
+                alert_thresholds_exceeded = False
+                current_alert_id = None
+                alert_recovery_start_time = None
+            else:
+                # Still in recovery period, update the alert but don't end it yet
+                elapsed = current_time - alert_recovery_start_time
+                remaining = RECOVERY_SECONDS_REQUIRED - elapsed
+                print(f"[state_manager] Alert recovery in progress: {elapsed:.1f}s elapsed, {remaining:.1f}s remaining")
+                
+                # Update min/max values during recovery period
+                update_monitoring_alert(
+                    alert_id=current_alert_id,
+                    spo2=pulse_ox_data['spo2'],
+                    bpm=pulse_ox_data['bpm']
+                )
+    
+    # Broadcast updated state
+    broadcast_state()

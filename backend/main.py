@@ -1,17 +1,21 @@
 import threading
 from serial_reader import serial_loop
 import asyncio
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import json  # Add this import
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Body, HTTPException
 from mqtt_handler import get_mqtt_client
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
 from state_manager import (
     set_event_loop, set_mqtt_client, set_serial_mode,
-    update_sensor, register_websocket_client, unregister_websocket_client
+    update_sensor, register_websocket_client, unregister_websocket_client,
+    broadcast_state  # Make sure to import this too
 )
-from db import init_db, get_latest_blood_pressure, get_blood_pressure_history, get_last_n_temperature
+from db import init_db, get_latest_blood_pressure, get_blood_pressure_history, get_last_n_temperature, save_blood_pressure, save_temperature, save_vital, get_all_settings, get_setting, save_setting, delete_setting
 from mqtt_discovery import send_mqtt_discovery
+from pydantic import BaseModel
+from typing import Optional, Dict, Any, List
 
 load_dotenv()
 
@@ -40,6 +44,39 @@ async def startup_event():
     
     # Initialize database
     init_db()
+    
+    # Initialize default settings if they don't exist
+    from db import save_setting, get_setting
+    
+    # Device settings
+    if get_setting("device_name") is None:
+        save_setting("device_name", "Smart Home Health Monitor", "string", "Device name")
+    
+    if get_setting("device_location") is None:
+        save_setting("device_location", "Bedroom", "string", "Device location")
+    
+    # Alert thresholds - use environment variables as defaults if available
+    if get_setting("min_spo2") is None:
+        save_setting("min_spo2", os.getenv("MIN_SPO2", 90), "int", "Minimum SpO2 threshold")
+    
+    if get_setting("max_spo2") is None:
+        save_setting("max_spo2", os.getenv("MAX_SPO2", 100), "int", "Maximum SpO2 threshold")
+    
+    if get_setting("min_bpm") is None:
+        save_setting("min_bpm", os.getenv("MIN_BPM", 55), "int", "Minimum heart rate threshold")
+    
+    if get_setting("max_bpm") is None:
+        save_setting("max_bpm", os.getenv("MAX_BPM", 155), "int", "Maximum heart rate threshold")
+    
+    # Display settings
+    if get_setting("temp_unit") is None:
+        save_setting("temp_unit", "F", "string", "Temperature unit (F or C)")
+    
+    if get_setting("weight_unit") is None:
+        save_setting("weight_unit", "lbs", "string", "Weight unit (lbs or kg)")
+    
+    if get_setting("dark_mode") is None:
+        save_setting("dark_mode", True, "bool", "Dark mode enabled")
     
     # 1) Wire in MQTT - only create one client
     mqtt = get_mqtt_client(loop)
@@ -198,3 +235,129 @@ def get_nutrition_history(limit: int = 100):
         "calories": get_vitals_by_type("calories", limit),
         "water": get_vitals_by_type("water", limit)
     }
+
+# Add these imports
+from fastapi import Body, HTTPException
+from pydantic import BaseModel
+from typing import Optional, Dict, Any, List
+
+# Add these models for request validation
+class SettingIn(BaseModel):
+    value: Any
+    data_type: str = "string"
+    description: Optional[str] = None
+
+class SettingUpdate(BaseModel):
+    settings: Dict[str, Any]
+
+# Add these endpoints
+@app.get("/api/settings")
+async def get_all_settings():
+    """Get all settings"""
+    from db import get_all_settings
+    return get_all_settings()
+
+@app.get("/api/settings/{key}")
+async def get_setting(key: str, default: Optional[str] = None):
+    """Get a specific setting by key"""
+    from db import get_setting
+    value = get_setting(key, default)
+    if value is None and default is None:
+        raise HTTPException(status_code=404, detail=f"Setting {key} not found")
+    return {"key": key, "value": value}
+
+@app.post("/api/settings/{key}")
+async def set_setting(key: str, setting: SettingIn):
+    """Set a specific setting"""
+    from db import save_setting
+    success = save_setting(
+        key=key,
+        value=setting.value,
+        data_type=setting.data_type,
+        description=setting.description
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to save setting")
+    
+    # Use broadcast_state instead of broadcast_settings
+    broadcast_state()
+    
+    return {"key": key, "value": setting.value, "status": "success"}
+
+@app.post("/api/settings")
+async def update_multiple_settings(settings: SettingUpdate):
+    """Update multiple settings at once"""
+    from db import save_setting
+    results = {}
+    
+    for key, value in settings.settings.items():
+        # Handle both simple values and complete setting objects
+        if isinstance(value, dict) and "value" in value:
+            data_type = value.get("data_type", "string")
+            description = value.get("description")
+            actual_value = value["value"]
+            success = save_setting(key, actual_value, data_type, description)
+        else:
+            success = save_setting(key, value)
+        
+        results[key] = "success" if success else "failed"
+    
+    # Use broadcast_state instead of broadcast_settings
+    broadcast_state()
+    
+    return results
+
+@app.delete("/api/settings/{key}")
+async def delete_setting_endpoint(key: str):
+    """Delete a setting"""
+    from db import delete_setting
+    success = delete_setting(key)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Setting {key} not found")
+    
+    # Use broadcast_state instead of broadcast_settings
+    broadcast_state()
+    
+    return {"status": "success", "message": f"Setting {key} deleted"}
+
+# Add these endpoints
+
+@app.get("/api/monitoring/alerts")
+async def get_monitoring_alerts_endpoint(
+    limit: int = 50, 
+    include_acknowledged: bool = False,
+    detailed: bool = False
+):
+    """Get monitoring alerts"""
+    from db import get_monitoring_alerts
+    return get_monitoring_alerts(limit, include_acknowledged, detailed)
+
+@app.get("/api/monitoring/alerts/count")
+async def get_unacknowledged_alerts_count_endpoint():
+    """Get count of unacknowledged alerts"""
+    from db import get_unacknowledged_alerts_count
+    return {"count": get_unacknowledged_alerts_count()}
+
+@app.post("/api/monitoring/alerts/{alert_id}/acknowledge")
+async def acknowledge_alert_endpoint(alert_id: int):
+    """Acknowledge an alert"""
+    from db import acknowledge_alert
+    success = acknowledge_alert(alert_id)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Alert {alert_id} not found")
+        
+    # Broadcast updated state with new alert counts
+    broadcast_state()
+    
+    return {"status": "success", "message": f"Alert {alert_id} acknowledged"}
+
+@app.get("/api/monitoring/data")
+async def get_pulse_ox_data_endpoint(
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    limit: int = 1000
+):
+    """Get pulse ox data within a time range"""
+    # This would require implementing a new function in db.py
+    # We'll just return a placeholder for now
+    return {"message": "Feature coming soon"}
