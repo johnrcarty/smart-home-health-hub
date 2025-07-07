@@ -445,5 +445,3 @@ def reset_sensor_state():
         'temp': None,
     }
     
-    # Call this once at startup
-    reset_sensor_state()
