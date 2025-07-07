@@ -254,7 +254,7 @@ def broadcast_state():
             websocket_clients.discard(ws)
 
 
-# Replace your current update_sensor function with this fixed version
+# Update the update_sensor function to handle input from serial_reader correctly
 
 def update_sensor(*updates, from_mqtt=False):
     """
@@ -281,8 +281,23 @@ def update_sensor(*updates, from_mqtt=False):
     # Debug the incoming updates to see what we're getting
     print(f"[state_manager] Received updates: {updates}")
     
-    # Process updates based on how they're passed
-    if len(updates) == 1 and isinstance(updates[0], (list, tuple)) and all(isinstance(x, tuple) for x in updates[0]):
+    # Handle the way serial_reader.py is calling this function
+    # It sends: ([('spo2', 99), ('bpm', 91), ('perfusion', 4.0)], 'raw_data', '25-Jul-06 21:15:30    99      91       4')
+    if len(updates) >= 3 and updates[1] == 'raw_data' and isinstance(updates[0], (list, tuple)):
+        pairs = updates[0]
+        raw_data = updates[2]
+        
+        for name, value in pairs:
+            if name != "raw_data":
+                sensor_state[name] = value  # Direct assignment with name as key
+                updated[name] = value
+                
+                if name in pulse_ox_data:
+                    pulse_ox_data[name] = value
+                    has_pulse_ox_updates = True
+    
+    # Process updates based on how they're passed - keep existing handlers too
+    elif len(updates) == 1 and isinstance(updates[0], (list, tuple)) and all(isinstance(x, tuple) for x in updates[0]):
         # Handle case where a list/tuple of (name, value) pairs is passed
         pairs = updates[0]
         
@@ -444,4 +459,3 @@ def reset_sensor_state():
         'map_bp': None,
         'temp': None,
     }
-    

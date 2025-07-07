@@ -88,8 +88,9 @@ def serial_loop():
                 # Debug the updates being sent
                 print(f"[serial_reader] Sending updates: {updates}")
                 
-                # Include the raw data when sending updates
-                update_sensor(updates, 'raw_data', raw)
+                # Send the updates as a tuple rather than a list
+                # Lists aren't hashable but tuples are
+                update_sensor(tuple(updates), 'raw_data', raw)
 
             print(f"[serial_reader] {timestamp} SpO2: {spo2_str}, BPM: {bpm_str}, Perfusion: {pa_str}, Status: {status}")
 
