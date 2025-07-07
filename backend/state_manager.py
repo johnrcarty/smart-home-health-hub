@@ -182,25 +182,44 @@ def publish_to_mqtt():
         print(f"[state_manager] Error publishing to MQTT: {e}")
 
 
-def check_thresholds(spo2=None, bpm=None):
-    """Check if values are within threshold limits"""
+def check_thresholds(spo2, bpm):
+    """Check if SpO2 or BPM are outside acceptable ranges.
     
-    # Get threshold values from settings or environment variables
+    Returns:
+        tuple: (spo2_alarm, hr_alarm) boolean flags
+    """
     from db import get_setting
-    min_spo2 = get_setting("min_spo2", MIN_SPO2)
-    max_spo2 = get_setting("max_spo2", MAX_SPO2)
-    min_bpm = get_setting("min_bpm", MIN_BPM)
-    max_bpm = get_setting("max_bpm", MAX_BPM)
+    
+    # Get threshold settings, ensuring they're integers
+    min_spo2 = int(get_setting('min_spo2', 90))
+    max_spo2 = int(get_setting('max_spo2', 100))
+    min_bpm = int(get_setting('min_bpm', 55))
+    max_bpm = int(get_setting('max_bpm', 155))
     
     spo2_alarm = False
     hr_alarm = False
     
+    # Only check if we have valid data
     if spo2 is not None:
-        spo2_alarm = not (min_spo2 <= spo2 <= max_spo2)
+        # Make sure spo2 is an integer for comparison
+        if isinstance(spo2, str) and spo2.isdigit():
+            spo2 = int(spo2)
         
+        if isinstance(spo2, (int, float)):
+            spo2_alarm = spo2 < min_spo2 or spo2 > max_spo2
+    
     if bpm is not None:
-        hr_alarm = not (min_bpm <= bpm <= max_bpm)
-        
+        # Make sure bpm is an integer for comparison
+        if isinstance(bpm, str) and bpm.isdigit():
+            bpm = int(bpm)
+            
+        if isinstance(bpm, (int, float)):
+            hr_alarm = bpm < min_bpm or bpm > max_bpm
+    
+    if spo2_alarm or hr_alarm:
+        print(f"[state_manager] ALERT! SpO2: {spo2} (threshold: {min_spo2}-{max_spo2}), "
+              f"HR: {bpm} (threshold: {min_bpm}-{max_bpm})")
+    
     return spo2_alarm, hr_alarm
 
 
