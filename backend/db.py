@@ -922,3 +922,78 @@ def get_monitoring_alerts(limit=50, include_acknowledged=False, detailed=False):
     finally:
         if conn:
             conn.close()
+
+# Add this function to get the pulse ox data for an alert
+
+def get_pulse_ox_data_for_alert(alert_id):
+    """
+    Get all pulse ox readings associated with an alert event
+    
+    Args:
+        alert_id: The ID of the alert
+        
+    Returns:
+        List of pulse ox readings during the alert period
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # First get the alert to determine the time period
+        cursor.execute(
+            """
+            SELECT start_time, end_time, start_data_id, end_data_id 
+            FROM monitoring_alerts 
+            WHERE id = ?
+            """, 
+            (alert_id,)
+        )
+        
+        alert = cursor.fetchone()
+        if not alert:
+            return []
+            
+        start_time, end_time, start_data_id, end_data_id = alert
+        
+        # If the alert is ongoing (no end time), use the current time
+        if not end_time:
+            end_time = datetime.now().isoformat()
+        
+        # If we have data IDs, use them for a more accurate range
+        if start_data_id and end_data_id:
+            cursor.execute(
+                """
+                SELECT id, timestamp, spo2, bpm, pa, status, motion, spo2_alarm, hr_alarm
+                FROM pulse_ox_data
+                WHERE id >= ? AND id <= ?
+                ORDER BY timestamp ASC
+                """,
+                (start_data_id, end_data_id)
+            )
+        else:
+            # Otherwise use timestamps
+            cursor.execute(
+                """
+                SELECT id, timestamp, spo2, bpm, pa, status, motion, spo2_alarm, hr_alarm
+                FROM pulse_ox_data
+                WHERE timestamp >= ? AND timestamp <= ?
+                ORDER BY timestamp ASC
+                """,
+                (start_time, end_time)
+            )
+            
+        columns = [column[0] for column in cursor.description]
+        data = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        
+        for row in data:
+            # Convert spo2_alarm and hr_alarm to booleans
+            row['spo2_alarm'] = row['spo2_alarm'] == 'ON'
+            row['hr_alarm'] = row['hr_alarm'] == 'ON'
+            # Rename columns for frontend consistency
+            row['perfusion'] = row.pop('pa')  # Rename pa to perfusion
+            
+        return data
+        
+    finally:
+        cursor.close()
+        conn.close()

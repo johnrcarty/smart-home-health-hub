@@ -375,3 +375,16 @@ async def get_pulse_ox_data_endpoint(
     # This would require implementing a new function in db.py
     # We'll just return a placeholder for now
     return {"message": "Feature coming soon"}
+
+# Add this endpoint to fetch alert data
+
+@app.get("/api/monitoring/alerts/{alert_id}/data")
+async def get_alert_data(alert_id: int):
+    """Get detailed data for a specific alert event"""
+    from db import get_pulse_ox_data_for_alert
+    
+    try:
+        data = get_pulse_ox_data_for_alert(alert_id)
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving alert data: {str(e)}")
