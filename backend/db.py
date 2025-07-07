@@ -927,6 +927,17 @@ def get_monitoring_alerts(limit=50, include_acknowledged=False, detailed=False):
 
 # Add this function to get the pulse ox data for an alert
 
+def get_db_connection():
+    """Get a connection to the database."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row  # This allows accessing columns by name
+        return conn
+    except sqlite3.Error as e:
+        logger.error(f"Error connecting to database: {e}")
+        raise
+
+# Add the function to get pulse ox data for an alert
 def get_pulse_ox_data_for_alert(alert_id):
     """
     Get all pulse ox readings associated with an alert event
