@@ -7,6 +7,7 @@ import os
 from db import get_last_n_blood_pressure, get_last_n_temperature
 from datetime import datetime
 import time
+from collections import deque
 
 MIN_SPO2 = int(os.getenv("MIN_SPO2", 90))
 MAX_SPO2 = int(os.getenv("MAX_SPO2", 100))
@@ -43,6 +44,11 @@ alert_start_data_id = None
 # Add these global variables to track recovery timing
 alert_recovery_start_time = None
 RECOVERY_SECONDS_REQUIRED = 30  # Require 30 seconds of good readings to end an alert
+
+# Add these global variables for caching pulse ox data
+pulse_ox_cache = deque(maxlen=150)  # ~30 seconds at 5Hz sample rate
+event_data_points = []  # Store all data points during an event
+CACHE_DURATION_SECONDS = 30  # How many seconds of data to keep in normal operation
 
 
 def register_serial_mode_callback(cb):
@@ -265,7 +271,7 @@ def update_sensor(*updates, from_mqtt=False):
         from_mqtt: Whether this update is from MQTT (vs serial)
     """
     global current_alert_id, alert_thresholds_exceeded, alert_start_data_id, sensor_state
-    global alert_recovery_start_time
+    global alert_recovery_start_time, pulse_ox_cache, event_data_points
     
     has_pulse_ox_updates = False
     pulse_ox_data = {
@@ -277,6 +283,7 @@ def update_sensor(*updates, from_mqtt=False):
     
     updated = {}  # Track what's been updated for MQTT publishing
     raw_data = None
+    current_time = datetime.now().isoformat()
     
     # Debug the incoming updates to see what we're getting
     print(f"[state_manager] Received updates: {updates}")
@@ -343,9 +350,28 @@ def update_sensor(*updates, from_mqtt=False):
         print("[state_manager] No updates to process")
         return
 
-    # If we received pulse ox data, check for alerts
+    # If we received pulse ox data, cache it and check for alerts
     if has_pulse_ox_updates and (pulse_ox_data['spo2'] is not None or pulse_ox_data['bpm'] is not None):
+        # Cache the current pulse ox data point
+        data_point = {
+            'timestamp': current_time,
+            'spo2': pulse_ox_data['spo2'],
+            'bpm': pulse_ox_data['bpm'],
+            'perfusion': pulse_ox_data['perfusion'],
+            'status': pulse_ox_data['status'],
+            'motion': "ON" if sensor_state.get("motion", False) else "OFF",
+            'raw_data': raw_data
+        }
+        
+        # Always add to the rolling cache
+        pulse_ox_cache.append(data_point)
+        
+        # Check if values exceed thresholds
         spo2_alarm, hr_alarm = check_thresholds(pulse_ox_data['spo2'], pulse_ox_data['bpm'])
+        
+        # Add alarm status to the data point
+        data_point['spo2_alarm'] = "ON" if spo2_alarm else "OFF"
+        data_point['hr_alarm'] = "ON" if hr_alarm else "OFF"
         
         # Save data to the continuous log
         data_id = save_pulse_ox_data(
@@ -359,6 +385,9 @@ def update_sensor(*updates, from_mqtt=False):
             raw_data=json.dumps(pulse_ox_data)
         )
         
+        # Update the data point with the DB ID
+        data_point['db_id'] = data_id
+        
         # Check if we need to start or update an alert
         is_alert_condition = spo2_alarm or hr_alarm
         
@@ -367,6 +396,12 @@ def update_sensor(*updates, from_mqtt=False):
             alert_thresholds_exceeded = True
             alert_recovery_start_time = None  # Reset recovery timer
             alert_start_data_id = data_id
+            
+            # Clear the event data points and add all cached points from before the event
+            event_data_points = list(pulse_ox_cache)
+            print(f"[state_manager] Alert started. Including {len(event_data_points)} cached data points.")
+            
+            # Start a new monitoring alert
             current_alert_id = start_monitoring_alert(
                 spo2=pulse_ox_data['spo2'],
                 bpm=pulse_ox_data['bpm'],
@@ -378,6 +413,10 @@ def update_sensor(*updates, from_mqtt=False):
         elif is_alert_condition and alert_thresholds_exceeded and current_alert_id:
             # Continuing alert, update min/max values
             alert_recovery_start_time = None  # Reset recovery timer if we're in alert condition
+            
+            # Add this data point to our event collection
+            event_data_points.append(data_point)
+            
             update_monitoring_alert(
                 alert_id=current_alert_id,
                 spo2=pulse_ox_data['spo2'],
@@ -389,11 +428,14 @@ def update_sensor(*updates, from_mqtt=False):
         elif not is_alert_condition and alert_thresholds_exceeded and current_alert_id:
             # Values are now within normal range, but we're still in an alert state
             # Start or continue tracking recovery time
-            current_time = time.time()
+            current_time_obj = datetime.now()
+            
+            # Add this data point to our event collection
+            event_data_points.append(data_point)
             
             if alert_recovery_start_time is None:
                 # First good reading after an alert, start recovery timer
-                alert_recovery_start_time = current_time
+                alert_recovery_start_time = time.time()
                 print(f"[state_manager] Alert recovery started at {datetime.fromtimestamp(alert_recovery_start_time).isoformat()}")
                 
                 # Still update the min/max values during recovery period
@@ -402,9 +444,9 @@ def update_sensor(*updates, from_mqtt=False):
                     spo2=pulse_ox_data['spo2'],
                     bpm=pulse_ox_data['bpm']
                 )
-            elif (current_time - alert_recovery_start_time) >= RECOVERY_SECONDS_REQUIRED:
+            elif (time.time() - alert_recovery_start_time) >= RECOVERY_SECONDS_REQUIRED:
                 # We've had good readings for the required duration, finalize the alert
-                now = datetime.now().isoformat()
+                now = current_time_obj.isoformat()
                 print(f"[state_manager] Alert recovery completed after {RECOVERY_SECONDS_REQUIRED} seconds at {now}")
                 
                 update_monitoring_alert(
@@ -414,12 +456,21 @@ def update_sensor(*updates, from_mqtt=False):
                     spo2=pulse_ox_data['spo2'],
                     bpm=pulse_ox_data['bpm']
                 )
+                
+                # Alert has ended, collect event data
+                print(f"[state_manager] Alert ended. Collecting {len(event_data_points)} data points for the event.")
+                
+                # Add the event data to the alert record in DB
+                store_event_data_for_alert(current_alert_id, event_data_points)
+                
+                # Reset alert state
                 alert_thresholds_exceeded = False
                 current_alert_id = None
                 alert_recovery_start_time = None
+                event_data_points = []
             else:
                 # Still in recovery period, update the alert but don't end it yet
-                elapsed = current_time - alert_recovery_start_time
+                elapsed = time.time() - alert_recovery_start_time
                 remaining = RECOVERY_SECONDS_REQUIRED - elapsed
                 print(f"[state_manager] Alert recovery in progress: {elapsed:.1f}s elapsed, {remaining:.1f}s remaining")
                 
@@ -459,3 +510,39 @@ def reset_sensor_state():
         'map_bp': None,
         'temp': None,
     }
+
+# Add this new function to store event data
+def store_event_data_for_alert(alert_id, data_points):
+    """
+    Store all cached event data for an alert
+    
+    Args:
+        alert_id: ID of the alert
+        data_points: List of data points to store
+    """
+    from db import save_pulse_ox_data
+    
+    print(f"[state_manager] Storing {len(data_points)} data points for alert {alert_id}")
+    
+    # For any data points that were not already saved to DB, save them now
+    for point in data_points:
+        if 'db_id' not in point:
+            # This point wasn't saved to the DB yet
+            data_id = save_pulse_ox_data(
+                spo2=point['spo2'],
+                bpm=point['bpm'],
+                pa=point['perfusion'],
+                status=point['status'],
+                motion=point['motion'],
+                spo2_alarm=point['spo2_alarm'],
+                hr_alarm=point['hr_alarm'],
+                raw_data=point.get('raw_data', None),
+                timestamp=point['timestamp']  # Use the original timestamp
+            )
+            point['db_id'] = data_id
+    
+    # Optional: You could add a field to the monitoring_alerts table
+    # to link to a JSON blob of all the event data, or create a new
+    # table specifically for detailed event data
+    
+    print(f"[state_manager] Successfully stored event data for alert {alert_id}")

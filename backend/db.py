@@ -608,7 +608,7 @@ def delete_setting(key):
         if conn:
             conn.close()
 
-def save_pulse_ox_data(spo2, bpm, pa, status=None, motion=None, spo2_alarm=None, hr_alarm=None, raw_data=None):
+def save_pulse_ox_data(spo2, bpm, pa, status=None, motion=None, spo2_alarm=None, hr_alarm=None, raw_data=None, timestamp=None):
     """
     Save pulse oximeter reading to database
     
@@ -621,6 +621,7 @@ def save_pulse_ox_data(spo2, bpm, pa, status=None, motion=None, spo2_alarm=None,
         spo2_alarm (str): SpO2 alarm status ("ON" or "OFF")
         hr_alarm (str): Heart rate alarm status ("ON" or "OFF")
         raw_data (str): Raw data string received from sensor
+        timestamp (str): Optional ISO timestamp, defaults to now if not provided
     
     Returns:
         int: ID of the inserted record or None on error
@@ -630,6 +631,7 @@ def save_pulse_ox_data(spo2, bpm, pa, status=None, motion=None, spo2_alarm=None,
         cursor = conn.cursor()
         
         now = datetime.now().isoformat()
+        ts = timestamp or now  # Use provided timestamp or current time
         
         cursor.execute(
             '''
@@ -637,7 +639,7 @@ def save_pulse_ox_data(spo2, bpm, pa, status=None, motion=None, spo2_alarm=None,
             (timestamp, spo2, bpm, pa, status, motion, spo2_alarm, hr_alarm, raw_data, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''',
-            (now, spo2, bpm, pa, status, motion, spo2_alarm, hr_alarm, raw_data, now)
+            (ts, spo2, bpm, pa, status, motion, spo2_alarm, hr_alarm, raw_data, now)
         )
         
         conn.commit()
