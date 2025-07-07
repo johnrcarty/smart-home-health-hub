@@ -444,3 +444,6 @@ def reset_sensor_state():
         'map_bp': None,
         'temp': None,
     }
+    
+    # Call this once at startup
+    reset_sensor_state()

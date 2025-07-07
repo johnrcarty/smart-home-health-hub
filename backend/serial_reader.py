@@ -89,9 +89,7 @@ def serial_loop():
                 print(f"[serial_reader] Sending updates: {updates}")
                 
                 # Include the raw data when sending updates
-                if "raw_data" not in updates:
-                    updates.append(("raw_data", raw))
-                update_sensor(*updates)
+                update_sensor(updates, 'raw_data', raw)
 
             print(f"[serial_reader] {timestamp} SpO2: {spo2_str}, BPM: {bpm_str}, Perfusion: {pa_str}, Status: {status}")
 
