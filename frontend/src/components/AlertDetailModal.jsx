@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import ChartBlock from './ChartBlock';
+import { useState, useEffect, useMemo } from 'react';
+import SimpleEventChart from './SimpleEventChart';
 import config from '../config';
 
 const AlertDetailModal = ({ alert, onClose, onAcknowledge }) => {
@@ -18,6 +18,14 @@ const AlertDetailModal = ({ alert, onClose, onAcknowledge }) => {
       const response = await fetch(`${config.apiUrl}/api/monitoring/alerts/${alert.id}/data`);
       if (!response.ok) throw new Error(`Error fetching alert data: ${response.statusText}`);
       const data = await response.json();
+      
+      // Add debug logs to check the data
+      console.log(`Received ${data.length} data points for alert ${alert.id}`);
+      if (data.length > 0) {
+        console.log(`First data point:`, data[0]);
+        console.log(`Data has spo2: ${data[0].spo2 !== undefined}, bpm: ${data[0].bpm !== undefined}`);
+      }
+      
       setEventData(data);
     } catch (err) {
       console.error(`Error fetching data for alert ${alert.id}:`, err);
@@ -39,7 +47,23 @@ const AlertDetailModal = ({ alert, onClose, onAcknowledge }) => {
     const seconds = Math.floor((durationMs % 60000) / 1000);
     return `${minutes}m ${seconds}s`;
   };
-  
+
+  const spo2ChartData = useMemo(() => {
+    if (!eventData || eventData.length === 0) return [];
+    return eventData.map((point) => ({
+      x: new Date(point.timestamp).toLocaleTimeString(),
+      y: point.spo2
+    }));
+  }, [eventData]);
+
+  const bpmChartData = useMemo(() => {
+    if (!eventData || eventData.length === 0) return [];
+    return eventData.map((point) => ({
+      x: new Date(point.timestamp).toLocaleTimeString(),
+      y: point.bpm
+    }));
+  }, [eventData]);
+
   return (
     <div className="modal-backdrop">
       <div className="modal-content alert-detail-modal">
@@ -105,34 +129,40 @@ const AlertDetailModal = ({ alert, onClose, onAcknowledge }) => {
                 <div className="chart-wrapper">
                   <h4>SpO₂ During Event</h4>
                   <div className="chart">
-                    <ChartBlock 
-                      title="Blood Oxygen"
-                      yLabel="SpO₂ (%)"
-                      color="#48BB78"
-                      dataset={eventData.map(d => ({
-                        timestamp: new Date(d.timestamp).getTime(),
-                        value: d.spo2
-                      }))}
-                      minThreshold={90} // Use your threshold values from settings
-                      maxThreshold={100}
-                    />
+                    {loading ? (
+                      <div className="loading">Loading data...</div>
+                    ) : error ? (
+                      <div className="error-message">{error}</div>
+                    ) : !eventData || eventData.length === 0 ? (
+                      <div className="no-data">No data available</div>
+                    ) : (
+                      <SimpleEventChart
+                        title="Blood Oxygen"
+                        color="#48BB78"
+                        unit="SpO₂ (%)"
+                        data={spo2ChartData}
+                      />
+                    )}
                   </div>
                 </div>
                 
                 <div className="chart-wrapper">
                   <h4>Heart Rate During Event</h4>
                   <div className="chart">
-                    <ChartBlock 
-                      title="Pulse Rate"
-                      yLabel="BPM"
-                      color="#F56565"
-                      dataset={eventData.map(d => ({
-                        timestamp: new Date(d.timestamp).getTime(),
-                        value: d.bpm
-                      }))}
-                      minThreshold={55} // Use your threshold values from settings
-                      maxThreshold={155}
-                    />
+                    {loading ? (
+                      <div className="loading">Loading data...</div>
+                    ) : error ? (
+                      <div className="error-message">{error}</div>
+                    ) : !eventData || eventData.length === 0 ? (
+                      <div className="no-data">No data available</div>
+                    ) : (
+                      <SimpleEventChart
+                        title="Pulse Rate"
+                        color="#F56565"
+                        unit="BPM"
+                        data={bpmChartData}
+                      />
+                    )}
                   </div>
                 </div>
               </div>
