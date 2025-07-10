@@ -117,7 +117,7 @@ const SimpleEventChart = memo(({ title, color, data, unit }) => {
   }, [title, color, data, unit]);
 
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+    <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
       <canvas id={canvasId.current} ref={chartRef}></canvas>
     </div>
   );

@@ -9,6 +9,7 @@ const AlertsList = ({ onClose }) => {
   const [showAcknowledged, setShowAcknowledged] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showAcknowledgeForm, setShowAcknowledgeForm] = useState(false);
 
   useEffect(() => {
     fetchAlerts();
@@ -49,6 +50,11 @@ const AlertsList = ({ onClose }) => {
   const closeDetailModal = () => {
     setShowDetailModal(false);
     setSelectedAlert(null);
+  };
+
+  const handleAcknowledge = async (alertId) => {
+    setSelectedAlert(alerts.find(a => a.id === alertId));
+    setShowAcknowledgeForm(true);
   };
 
   const formatDateTime = (isoString) => {
@@ -130,7 +136,7 @@ const AlertsList = ({ onClose }) => {
 
               <div className="alert-actions">
                 {!alert.acknowledged && (
-                  <button onClick={() => acknowledgeAlert(alert.id)} className="acknowledge-button">
+                  <button onClick={() => handleAcknowledge(alert.id)} className="acknowledge-button">
                     Acknowledge
                   </button>
                 )}
@@ -146,11 +152,15 @@ const AlertsList = ({ onClose }) => {
         </div>
       )}
 
-      {showDetailModal && selectedAlert && (
+      {selectedAlert && (
         <AlertDetailModal 
           alert={selectedAlert} 
-          onClose={closeDetailModal}
+          onClose={() => {
+            setSelectedAlert(null);
+            setShowAcknowledgeForm(false);
+          }} 
           onAcknowledge={acknowledgeAlert}
+          initiateAcknowledge={showAcknowledgeForm}
         />
       )}
     </div>

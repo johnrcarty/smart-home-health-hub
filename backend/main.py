@@ -353,17 +353,49 @@ async def get_unacknowledged_alerts_count_endpoint():
     return {"count": get_unacknowledged_alerts_count()}
 
 @app.post("/api/monitoring/alerts/{alert_id}/acknowledge")
-async def acknowledge_alert_endpoint(alert_id: int):
-    """Acknowledge an alert"""
-    from db import acknowledge_alert
-    success = acknowledge_alert(alert_id)
-    if not success:
-        raise HTTPException(status_code=404, detail=f"Alert {alert_id} not found")
+async def acknowledge_alert(alert_id: int, data: dict = Body(...)):
+    """
+    Acknowledge an alert and save oxygen usage data
+    """
+    try:
+        # Extract oxygen data from the request
+        oxygen_used = data.get('oxygen_used', 0)
+        oxygen_highest = data.get('oxygen_highest')
+        oxygen_unit = data.get('oxygen_unit')
         
-    # Broadcast updated state with new alert counts
-    broadcast_state()
-    
-    return {"status": "success", "message": f"Alert {alert_id} acknowledged"}
+        # Update the alert with oxygen information
+        success = db.update_monitoring_alert(
+            alert_id,
+            oxygen_used=oxygen_used,
+            oxygen_highest=oxygen_highest,
+            oxygen_unit=oxygen_unit
+        )
+        
+        # Then acknowledge the alert
+        if success:
+            result = db.acknowledge_alert(alert_id)
+            
+            # Send WebSocket notification of acknowledgment
+            state_manager.broadcast_alert_updates()
+            
+            if result:
+                return {"success": True, "message": "Alert acknowledged"}
+            else:
+                return JSONResponse(
+                    status_code=404, 
+                    content={"detail": f"Alert {alert_id} not found"}
+                )
+        else:
+            return JSONResponse(
+                status_code=500,
+                content={"detail": f"Failed to update alert {alert_id}"}
+            )
+    except Exception as e:
+        logger.error(f"Error acknowledging alert: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error acknowledging alert: {str(e)}"}
+        )
 
 @app.get("/api/monitoring/data")
 async def get_pulse_ox_data_endpoint(

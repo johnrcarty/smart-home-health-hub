@@ -2,14 +2,25 @@ import { useState, useEffect, useMemo } from 'react';
 import SimpleEventChart from './SimpleEventChart';
 import config from '../config';
 
-const AlertDetailModal = ({ alert, onClose, onAcknowledge }) => {
+const AlertDetailModal = ({ alert, onClose, onAcknowledge, initiateAcknowledge = false }) => {
   const [eventData, setEventData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showOxygenForm, setShowOxygenForm] = useState(initiateAcknowledge);
+  const [oxygenUsed, setOxygenUsed] = useState(false);
+  const [oxygenValue, setOxygenValue] = useState('');
+  const [oxygenUnit, setOxygenUnit] = useState('L/min');
+  const [acknowledgingAlert, setAcknowledgingAlert] = useState(false);
 
   useEffect(() => {
     fetchEventData();
   }, [alert.id]);
+
+  useEffect(() => {
+    if (initiateAcknowledge) {
+      setShowOxygenForm(true);
+    }
+  }, [initiateAcknowledge]);
 
   const fetchEventData = async () => {
     try {
@@ -33,6 +44,58 @@ const AlertDetailModal = ({ alert, onClose, onAcknowledge }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Handle initial acknowledge button click
+  const handleAcknowledgeClick = () => {
+    setShowOxygenForm(true);
+  };
+  
+  // Handle final submission with oxygen data
+  const handleSubmitAcknowledge = async () => {
+    try {
+      setAcknowledgingAlert(true);
+      
+      // Prepare the payload with oxygen usage data
+      const payload = {
+        oxygen_used: oxygenUsed ? 1 : 0,
+        oxygen_highest: oxygenUsed ? parseFloat(oxygenValue) : null,
+        oxygen_unit: oxygenUsed ? oxygenUnit : null
+      };
+      
+      console.log('Acknowledging alert with data:', payload);
+      
+      const response = await fetch(`${config.apiUrl}/api/monitoring/alerts/${alert.id}/acknowledge`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to acknowledge alert');
+      }
+      
+      // Call the parent component's handler to update the UI
+      onAcknowledge(alert.id);
+      
+      // Close the modal
+      onClose();
+    } catch (err) {
+      console.error('Error acknowledging alert:', err);
+      setError('Failed to acknowledge alert. Please try again.');
+    } finally {
+      setAcknowledgingAlert(false);
+    }
+  };
+
+  // Reset form if cancelled
+  const handleCancelOxygenForm = () => {
+    setShowOxygenForm(false);
+    setOxygenUsed(false);
+    setOxygenValue('');
+    setOxygenUnit('L/min');
   };
 
   const formatDateTime = (isoString) => {
@@ -64,6 +127,70 @@ const AlertDetailModal = ({ alert, onClose, onAcknowledge }) => {
     }));
   }, [eventData]);
 
+  // Render the oxygen usage form
+  const renderOxygenUsageForm = () => {
+    return (
+      <div className="oxygen-form-overlay">
+        <div className="oxygen-form">
+          <h3>Oxygen Usage Information</h3>
+          <div className="form-group">
+            <label className="checkbox-label">
+              <input 
+                type="checkbox" 
+                checked={oxygenUsed} 
+                onChange={(e) => setOxygenUsed(e.target.checked)} 
+              />
+              Oxygen was administered during this alert
+            </label>
+          </div>
+          
+          {oxygenUsed && (
+            <>
+              <div className="form-group">
+                <label>Highest Flow Rate / Concentration:</label>
+                <div className="input-with-unit">
+                  <input 
+                    type="number" 
+                    value={oxygenValue} 
+                    onChange={(e) => setOxygenValue(e.target.value)}
+                    step="0.1"
+                    min="0"
+                    required
+                    placeholder="Enter value"
+                  />
+                  <select 
+                    value={oxygenUnit} 
+                    onChange={(e) => setOxygenUnit(e.target.value)}
+                  >
+                    <option value="L/min">L/min</option>
+                    <option value="%">%</option>
+                  </select>
+                </div>
+              </div>
+            </>
+          )}
+          
+          <div className="form-actions">
+            <button 
+              className="secondary-button" 
+              onClick={handleCancelOxygenForm}
+              disabled={acknowledgingAlert}
+            >
+              Cancel
+            </button>
+            <button 
+              className="primary-button" 
+              onClick={handleSubmitAcknowledge}
+              disabled={acknowledgingAlert || (oxygenUsed && !oxygenValue)}
+            >
+              {acknowledgingAlert ? 'Submitting...' : 'Submit'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="modal-backdrop">
       <div className="modal-content alert-detail-modal">
@@ -72,7 +199,7 @@ const AlertDetailModal = ({ alert, onClose, onAcknowledge }) => {
           <button className="close-button" onClick={onClose}>×</button>
         </div>
 
-        <div className="modal-body">
+        <div className="modal-body compact">
           <div className="alert-info-grid">
             <div className="info-item">
               <span className="label">Start Time:</span>
@@ -94,86 +221,73 @@ const AlertDetailModal = ({ alert, onClose, onAcknowledge }) => {
             </div>
           </div>
 
-          <div className="alert-values">
-            <div className="alert-value-box">
-              <h3>SpO₂ Range</h3>
-              <div className="range-value">
+          <div className="metrics-grid">
+            <div className="metric-card">
+              <div className="metric-header">
+                <h3>SpO<sub>2</sub> Range</h3>
+                {alert.spo2_alarm_triggered && <div className="alarm-indicator">Alarm Triggered</div>}
+              </div>
+              <div className="metric-value">
                 {alert.spo2_min !== null && alert.spo2_max !== null
                   ? `${alert.spo2_min} - ${alert.spo2_max}%`
                   : 'N/A'}
               </div>
-              {alert.spo2_alarm_triggered && <div className="alarm-indicator">Alarm Triggered</div>}
             </div>
             
-            <div className="alert-value-box">
-              <h3>Heart Rate Range</h3>
-              <div className="range-value">
+            <div className="metric-card">
+              <div className="metric-header">
+                <h3>Heart Rate Range</h3>
+                {alert.hr_alarm_triggered ? 
+                  <div className="alarm-indicator">Alarm Triggered</div> : 
+                  <div className="safe-indicator">Safe</div>
+                }
+              </div>
+              <div className="metric-value">
                 {alert.bpm_min !== null && alert.bpm_max !== null
                   ? `${alert.bpm_min} - ${alert.bpm_max} BPM`
                   : 'N/A'}
               </div>
-              {alert.hr_alarm_triggered && <div className="alarm-indicator">Alarm Triggered</div>}
             </div>
           </div>
 
-          <div className="event-charts">
-            <h3>Event Data</h3>
-            {loading ? (
-              <div className="loading">Loading event data...</div>
-            ) : error ? (
-              <div className="error-message">{error}</div>
-            ) : !eventData || eventData.length === 0 ? (
-              <div className="no-data">No data available for this event</div>
-            ) : (
-              <div className="charts-container">
-                <div className="chart-wrapper">
-                  <h4>SpO₂ During Event</h4>
-                  <div className="chart">
-                    {loading ? (
-                      <div className="loading">Loading data...</div>
-                    ) : error ? (
-                      <div className="error-message">{error}</div>
-                    ) : !eventData || eventData.length === 0 ? (
-                      <div className="no-data">No data available</div>
-                    ) : (
-                      <SimpleEventChart
-                        title="Blood Oxygen"
-                        color="#48BB78"
-                        unit="SpO₂ (%)"
-                        data={spo2ChartData}
-                      />
-                    )}
-                  </div>
-                </div>
-                
-                <div className="chart-wrapper">
-                  <h4>Heart Rate During Event</h4>
-                  <div className="chart">
-                    {loading ? (
-                      <div className="loading">Loading data...</div>
-                    ) : error ? (
-                      <div className="error-message">{error}</div>
-                    ) : !eventData || eventData.length === 0 ? (
-                      <div className="no-data">No data available</div>
-                    ) : (
-                      <SimpleEventChart
-                        title="Pulse Rate"
-                        color="#F56565"
-                        unit="BPM"
-                        data={bpmChartData}
-                      />
-                    )}
-                  </div>
+          {/* Charts - without "Event Data" header */}
+          {loading ? (
+            <div className="loading">Loading data...</div>
+          ) : error ? (
+            <div className="error-message">{error}</div>
+          ) : !eventData || eventData.length === 0 ? (
+            <div className="no-data">No data available for this event</div>
+          ) : (
+            <div className="charts-grid">
+              <div className="chart-container">
+                <div className="chart">
+                  <SimpleEventChart
+                    title="Blood Oxygen"
+                    color="#48BB78"
+                    unit="SpO₂ (%)"
+                    data={spo2ChartData}
+                  />
                 </div>
               </div>
-            )}
-          </div>
+              
+              <div className="chart-container">
+                <div className="chart">
+                  <SimpleEventChart
+                    title="Pulse Rate"
+                    color="#F56565"
+                    unit="BPM"
+                    data={bpmChartData}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="modal-footer">
           {!alert.acknowledged && (
             <button 
-              onClick={() => onAcknowledge(alert.id)} 
+              onClick={handleAcknowledgeClick} 
               className="primary-button acknowledge-button"
             >
               Acknowledge
@@ -181,6 +295,9 @@ const AlertDetailModal = ({ alert, onClose, onAcknowledge }) => {
           )}
           <button onClick={onClose} className="secondary-button">Close</button>
         </div>
+        
+        {/* Render the oxygen form if shown */}
+        {showOxygenForm && renderOxygenUsageForm()}
       </div>
     </div>
   );
