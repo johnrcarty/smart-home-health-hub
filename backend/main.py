@@ -10,7 +10,7 @@ import os
 from state_manager import (
     set_event_loop, set_mqtt_client, set_serial_mode,
     update_sensor, register_websocket_client, unregister_websocket_client,
-    broadcast_state  # Make sure to import this too
+    broadcast_state, broadcast_alert_updates  # Make sure to import this too
 )
 from db import init_db, get_latest_blood_pressure, get_blood_pressure_history, get_last_n_temperature, save_blood_pressure, save_temperature, save_vital, get_all_settings, get_setting, save_setting, delete_setting
 from mqtt_discovery import send_mqtt_discovery
@@ -377,7 +377,8 @@ async def acknowledge_alert(alert_id: int, data: dict = Body(...)):
             oxygen_highest = None
         
         # Update the alert with oxygen information
-        success = db.update_monitoring_alert(
+        from db import update_monitoring_alert, acknowledge_alert
+        success = update_monitoring_alert(
             alert_id,
             oxygen_used=oxygen_used,
             oxygen_highest=oxygen_highest,
@@ -386,10 +387,8 @@ async def acknowledge_alert(alert_id: int, data: dict = Body(...)):
         
         # Then acknowledge the alert
         if success:
-            result = db.acknowledge_alert(alert_id)
-            
-            # Send WebSocket notification of acknowledgment
-            state_manager.broadcast_alert_updates()
+            result = acknowledge_alert(alert_id)
+        
             
             if result:
                 return {"success": True, "message": "Alert acknowledged"}
