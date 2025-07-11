@@ -127,9 +127,22 @@ export default function App() {
           return newState;
         });
 
-        // Handle alerts count
+        // Handle alerts count - only update if it's specifically included in the message
         if (msg.state.alerts_count !== undefined) {
           setPulseOxAlerts(msg.state.alerts_count);
+        }
+        
+        // Similarly for vent notifications if the server sends them
+        if (msg.state.vent_notifications !== undefined) {
+          setVentNotifications(msg.state.vent_notifications);
+        }
+      }
+      
+      // Handle explicit alert acknowledgment messages if your server sends them
+      else if (msg.type === "alert_acknowledged") {
+        // Update alerts count based on server response
+        if (msg.alerts_count !== undefined) {
+          setPulseOxAlerts(msg.alerts_count);
         }
       }
     };
@@ -177,8 +190,8 @@ export default function App() {
       closeAllModals();
       setIsVentModalOpen(true);
     }
-    // Clear notifications when clicked
-    setVentNotifications(0);
+    // DON'T clear notifications when clicked
+    // setVentNotifications(0); - Remove this line
   };
 
   const handlePulseOxClick = () => {
@@ -190,8 +203,7 @@ export default function App() {
       closeAllModals();
       setIsPulseOxModalOpen(true);
     }
-    // Clear notifications when clicked
-    // setPulseOxNotifications(0); - Remove this line
+    // DON'T clear notifications when clicked - wait for acknowledgment instead
   };
 
   const handleSettingsClick = () => {
@@ -216,13 +228,33 @@ export default function App() {
     }
   };
 
-  // Add a function to handle alerts being viewed
+  // Modify the handlePulseOxAlertsViewed function
   const handlePulseOxAlertsViewed = () => {
-    // Clear the alerts count when they're viewed
-    setPulseOxAlerts(0);
+    // DON'T automatically clear alerts when the modal is viewed
+    // setPulseOxAlerts(0); - Remove this line
     
-    // Note: Actual acknowledgment will happen when user clicks the "Acknowledge" 
-    // button in the alerts list for individual alerts
+    // Instead, alerts will be cleared when individual alerts are acknowledged
+    // or when the WebSocket sends an update with zero alerts
+    
+    // You might want to inform the server that alerts are being viewed
+    // This could be useful for analytics or user activity tracking
+    fetch(`${config.apiUrl}/api/alerts/viewed`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    }).catch(err => console.error('Error marking alerts as viewed:', err));
+  };
+
+  // Add this function to handle alert acknowledgment
+  const handleAlertAcknowledged = (alertId) => {
+    // Fetch updated alert count from server
+    fetch(`${config.apiUrl}/api/monitoring/alerts/count`)
+      .then(response => response.json())
+      .then(data => {
+        if (data && data.count !== undefined) {
+          setPulseOxAlerts(data.count);
+        }
+      })
+      .catch(err => console.error('Error fetching updated alert count:', err));
   };
 
   return (
@@ -446,6 +478,7 @@ export default function App() {
           onClose={() => setIsPulseOxModalOpen(false)}
           alertsCount={pulseOxAlerts}
           onAlertsViewed={handlePulseOxAlertsViewed}
+          onAlertAcknowledged={handleAlertAcknowledged}
         />
       </ModalBase>
 

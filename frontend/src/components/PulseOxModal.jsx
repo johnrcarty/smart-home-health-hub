@@ -4,7 +4,8 @@ import AlertsList from './AlertsList';
 const PulseOxModal = ({ 
   onClose,
   alertsCount,
-  onAlertsViewed
+  onAlertsViewed,
+  onAlertAcknowledged // Add onAlertAcknowledged to props
 }) => {
 
   // Mark alerts as viewed when modal opens
@@ -14,11 +15,19 @@ const PulseOxModal = ({
     }
   }, [alertsCount, onAlertsViewed]);
 
+  // Add a function to handle alert acknowledgment
+  const handleAlertAcknowledge = (alertId) => {
+    // Your existing acknowledgment code...
+    
+    // After successful acknowledgment, inform the parent component
+    onAlertAcknowledged(alertId);
+  };
+
   return (
     <div className="pulse-ox-modal">
 
       <div className="alerts-container">
-        <AlertsList onClose={onClose} />
+        <AlertsList onClose={onClose} onAlertAcknowledge={handleAlertAcknowledge} />
       </div>
     </div>
   );
