@@ -18,7 +18,8 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 # Reset sensor state to clear any bad data
 from state_manager import reset_sensor_state
-
+import logging
+from fastapi.responses import JSONResponse
 
 load_dotenv()
 
@@ -27,6 +28,9 @@ MAX_SPO2=os.getenv("MAX_SPO2")
 MIN_BPM=os.getenv("MIN_BPM")
 MAX_BPM=os.getenv("MAX_BPM")
 app = FastAPI()
+
+# Initialize a logger for your application
+logger = logging.getLogger("app")
 
 # Store a reference to the MQTT client for shutdown
 mqtt_client_ref = None
@@ -358,7 +362,7 @@ async def acknowledge_alert(alert_id: int, data: dict = Body(...)):
     Acknowledge an alert and save oxygen usage data
     """
     try:
-        # Log the incoming request data for debugging
+        # Now logger is defined
         logger.info(f"Acknowledging alert {alert_id} with data: {data}")
         
         # Extract oxygen data from the request
@@ -390,17 +394,21 @@ async def acknowledge_alert(alert_id: int, data: dict = Body(...)):
             if result:
                 return {"success": True, "message": "Alert acknowledged"}
             else:
+                from fastapi.responses import JSONResponse
                 return JSONResponse(
                     status_code=404, 
                     content={"detail": f"Alert {alert_id} not found"}
                 )
         else:
+            from fastapi.responses import JSONResponse
             return JSONResponse(
                 status_code=500,
                 content={"detail": f"Failed to update alert {alert_id}"}
             )
     except Exception as e:
+        # Now logger is defined
         logger.error(f"Error acknowledging alert: {e}", exc_info=True)
+        from fastapi.responses import JSONResponse
         return JSONResponse(
             status_code=500,
             content={"detail": f"Error acknowledging alert: {str(e)}"}
