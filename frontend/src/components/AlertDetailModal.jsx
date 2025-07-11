@@ -59,11 +59,12 @@ const AlertDetailModal = ({ alert, onClose, onAcknowledge, initiateAcknowledge =
       // Prepare the payload with oxygen usage data
       const payload = {
         oxygen_used: oxygenUsed ? 1 : 0,
-        oxygen_highest: oxygenUsed ? parseFloat(oxygenValue) : null,
-        oxygen_unit: oxygenUsed ? oxygenUnit : null
+        // Only include these fields if oxygen was used, otherwise send null explicitly
+        oxygen_highest: oxygenUsed && oxygenValue ? parseFloat(oxygenValue) : null,
+        oxygen_unit: oxygenUsed && oxygenValue ? oxygenUnit : null
       };
       
-      console.log('Acknowledging alert with data:', payload);
+      console.log('Acknowledging alert with payload:', payload);
       
       const response = await fetch(`${config.apiUrl}/api/monitoring/alerts/${alert.id}/acknowledge`, {
         method: 'POST',
@@ -73,8 +74,12 @@ const AlertDetailModal = ({ alert, onClose, onAcknowledge, initiateAcknowledge =
         body: JSON.stringify(payload)
       });
       
+      // Log the response for debugging
+      const responseText = await response.text();
+      console.log('Acknowledge response:', response.status, responseText);
+      
       if (!response.ok) {
-        throw new Error('Failed to acknowledge alert');
+        throw new Error(`Failed to acknowledge alert: ${responseText}`);
       }
       
       // Call the parent component's handler to update the UI
@@ -84,7 +89,7 @@ const AlertDetailModal = ({ alert, onClose, onAcknowledge, initiateAcknowledge =
       onClose();
     } catch (err) {
       console.error('Error acknowledging alert:', err);
-      setError('Failed to acknowledge alert. Please try again.');
+      setError(`Failed to acknowledge alert: ${err.message}`);
     } finally {
       setAcknowledgingAlert(false);
     }
@@ -132,7 +137,11 @@ const AlertDetailModal = ({ alert, onClose, onAcknowledge, initiateAcknowledge =
     return (
       <div className="oxygen-form-overlay">
         <div className="oxygen-form">
-          <h3>Oxygen Usage Information</h3>
+          <h3>Acknowledge Alert</h3>
+          <p className="form-instructions">
+            Please confirm if oxygen was administered during this alert. If not, simply click "Submit".
+          </p>
+          
           <div className="form-group">
             <label className="checkbox-label">
               <input 
@@ -140,7 +149,7 @@ const AlertDetailModal = ({ alert, onClose, onAcknowledge, initiateAcknowledge =
                 checked={oxygenUsed} 
                 onChange={(e) => setOxygenUsed(e.target.checked)} 
               />
-              Oxygen was administered during this alert
+              <span>Oxygen was administered during this alert</span>
             </label>
           </div>
           
@@ -152,10 +161,16 @@ const AlertDetailModal = ({ alert, onClose, onAcknowledge, initiateAcknowledge =
                   <input 
                     type="number" 
                     value={oxygenValue} 
-                    onChange={(e) => setOxygenValue(e.target.value)}
+                    onChange={(e) => {
+                      // Validate the input to ensure it's a valid number
+                      const value = e.target.value;
+                      if (value === '' || (!isNaN(parseFloat(value)) && parseFloat(value) >= 0)) {
+                        setOxygenValue(value);
+                      }
+                    }}
                     step="0.1"
                     min="0"
-                    required
+                    required={oxygenUsed}
                     placeholder="Enter value"
                   />
                   <select 

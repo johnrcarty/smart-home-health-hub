@@ -358,10 +358,19 @@ async def acknowledge_alert(alert_id: int, data: dict = Body(...)):
     Acknowledge an alert and save oxygen usage data
     """
     try:
+        # Log the incoming request data for debugging
+        logger.info(f"Acknowledging alert {alert_id} with data: {data}")
+        
         # Extract oxygen data from the request
         oxygen_used = data.get('oxygen_used', 0)
         oxygen_highest = data.get('oxygen_highest')
         oxygen_unit = data.get('oxygen_unit')
+        
+        logger.info(f"Processed data: used={oxygen_used}, highest={oxygen_highest}, unit={oxygen_unit}")
+        
+        # Make sure we handle null values properly
+        if oxygen_highest == "":
+            oxygen_highest = None
         
         # Update the alert with oxygen information
         success = db.update_monitoring_alert(
@@ -391,7 +400,7 @@ async def acknowledge_alert(alert_id: int, data: dict = Body(...)):
                 content={"detail": f"Failed to update alert {alert_id}"}
             )
     except Exception as e:
-        logger.error(f"Error acknowledging alert: {e}")
+        logger.error(f"Error acknowledging alert: {e}", exc_info=True)
         return JSONResponse(
             status_code=500,
             content={"detail": f"Error acknowledging alert: {str(e)}"}

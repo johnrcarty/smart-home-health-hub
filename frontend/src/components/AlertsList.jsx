@@ -33,9 +33,10 @@ const AlertsList = ({ onClose }) => {
 
   const acknowledgeAlert = async (alertId) => {
     try {
-      const response = await fetch(`${config.apiUrl}/api/monitoring/alerts/${alertId}/acknowledge`, { method: 'POST' });
-      if (!response.ok) throw new Error(`Error acknowledging alert: ${response.statusText}`);
-      fetchAlerts();
+      // Don't directly acknowledge from here anymore - let AlertDetailModal handle it
+      // This will be called by the AlertDetailModal after it collects oxygen data
+      console.log(`Alert ${alertId} acknowledged successfully via modal`);
+      fetchAlerts(); // Refresh the alerts list
     } catch (err) {
       console.error(`Error acknowledging alert ${alertId}:`, err);
       setError('Failed to acknowledge alert. Please try again.');
