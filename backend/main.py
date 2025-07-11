@@ -10,7 +10,7 @@ import os
 from state_manager import (
     set_event_loop, set_mqtt_client, set_serial_mode,
     update_sensor, register_websocket_client, unregister_websocket_client,
-    broadcast_state, broadcast_alert_updates  # Make sure to import this too
+    broadcast_state  # Make sure to import this too
 )
 from db import init_db, get_latest_blood_pressure, get_blood_pressure_history, get_last_n_temperature, save_blood_pressure, save_temperature, save_vital, get_all_settings, get_setting, save_setting, delete_setting
 from mqtt_discovery import send_mqtt_discovery
