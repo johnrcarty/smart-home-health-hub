@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { getSettings, updateSettings } from '../services/settings';
 import config from '../config';
+import GpioSettings from './GpioSettings';
 
 /**
  * Settings form component for system configuration
@@ -211,6 +212,11 @@ const SettingsForm = () => {
             Dark Mode
           </label>
         </div>
+      </div>
+      
+      <div className="settings-section">
+        <h2>External Alarm Configuration</h2>
+        <GpioSettings />
       </div>
       
       {error && <div className="error-message">{error}</div>}

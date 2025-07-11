@@ -1631,3 +1631,69 @@ html, body, #root {
   margin-bottom: 1.25rem;
   text-align: center;
 }
+
+/* Add these styles for the GPIO settings */
+
+.gpio-settings {
+  padding: 1rem;
+  background-color: #1e2430;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.setting-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.setting-group label {
+  font-size: 0.9rem;
+  color: #a0aec0;
+}
+
+.setting-group select,
+.setting-group input {
+  padding: 0.5rem;
+  background-color: #2d3748;
+  color: #f7fafc;
+  border: 1px solid #4a5568;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.info-section {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background-color: #2d3748;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.info-section h4 {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  color: #f7fafc;
+}
+
+.info-section p {
+  color: #a0aec0;
+  margin-bottom: 0.75rem;
+}
+
+.info-section p:last-child {
+  margin-bottom: 0;
+}

@@ -565,3 +565,39 @@ def store_event_data_for_alert(alert_id, data_points):
     # table specifically for detailed event data
     
     print(f"[state_manager] Successfully stored event data for alert {alert_id}")
+
+# Add this function to broadcast alert updates
+
+def broadcast_alert_updates():
+    """
+    Send alert update information to all connected WebSocket clients.
+    This is called when alarms are triggered or cleared.
+    """
+    if not event_loop:
+        print("[state_manager] Cannot broadcast alerts, event_loop not set.")
+        return
+
+    # Get counts of active alarms
+    from db import get_unacknowledged_alerts_count
+    from db import get_active_ventilator_alerts_count
+    
+    # Get the counts
+    pulse_ox_alerts = get_unacknowledged_alerts_count()
+    vent_alerts = get_active_ventilator_alerts_count()
+    
+    # Create the message to broadcast
+    message = {
+        "type": "alert_update",
+        "alerts": {
+            "pulse_ox": pulse_ox_alerts,
+            "ventilator": vent_alerts
+        }
+    }
+    
+    # Send to all connected clients
+    for ws in list(websocket_clients):
+        try:
+            asyncio.run_coroutine_threadsafe(ws.send_json(message), event_loop)
+        except Exception as e:
+            print(f"[state_manager] Failed to send alert update: {e}")
+            websocket_clients.discard(ws)

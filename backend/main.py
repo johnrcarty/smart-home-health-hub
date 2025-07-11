@@ -91,6 +91,20 @@ async def startup_event():
     if get_setting("dark_mode") is None:
         save_setting("dark_mode", True, "bool", "Dark mode enabled")
     
+
+    # Initialize default GPIO alarm settings if they don't exist
+    if get_setting("alarm1_device") is None:
+        save_setting("alarm1_device", "vent", "string", "Device type for Alarm 1 RJ9 port")
+    
+    if get_setting("alarm2_device") is None:
+        save_setting("alarm2_device", "pulseox", "string", "Device type for Alarm 2 RJ9 port")
+
+    if get_setting("alarm1_recovery_time") is None:
+        save_setting("alarm1_recovery_time", 30, "int", "Recovery time in seconds for Alarm 1")
+    
+    if get_setting("alarm2_recovery_time") is None:
+        save_setting("alarm2_recovery_time", 30, "int", "Recovery time in seconds for Alarm 2")
+        
     # 1) Wire in MQTT - only create one client
     mqtt = get_mqtt_client(loop)
     mqtt_client_ref = mqtt  # Store reference for shutdown
@@ -436,3 +450,4 @@ async def get_alert_data(alert_id: int):
         return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving alert data: {str(e)}")
+

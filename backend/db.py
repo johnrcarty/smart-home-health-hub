@@ -115,6 +115,37 @@ def init_db():
         )
         ''')
         
+        # Create ventilator alerts table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS ventilator_alerts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_id TEXT NOT NULL,
+            pin INTEGER NOT NULL,
+            start_time TEXT NOT NULL,
+            end_time TEXT,
+            last_activity TEXT NOT NULL,
+            acknowledged INTEGER DEFAULT 0,
+            notes TEXT,
+            created_at TEXT NOT NULL
+        )
+        ''')
+        
+        # Create external alarms table for detailed tracking
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS external_alarms (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            alert_id INTEGER,
+            device_id TEXT NOT NULL,
+            pin INTEGER NOT NULL,
+            start_time TEXT NOT NULL,
+            end_time TEXT,
+            last_activity TEXT NOT NULL,
+            acknowledged INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (alert_id) REFERENCES monitoring_alerts(id)
+        )
+        ''')
+        
         conn.commit()
         logger.info(f"Database initialized at {DB_PATH}")
     except sqlite3.Error as e:
@@ -1010,3 +1041,158 @@ def get_pulse_ox_data_for_alert(alert_id):
     finally:
         cursor.close()
         conn.close()
+
+def record_ventilator_alarm(device_id, pin):
+    """Record a ventilator alarm event in the database"""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        now = datetime.now().isoformat()
+        
+        # Check for an existing active vent alarm
+        cursor.execute(
+            """
+            SELECT id FROM ventilator_alerts
+            WHERE end_time IS NULL AND device_id = ?
+            """,
+            (device_id,)
+        )
+        
+        existing_alert = cursor.fetchone()
+        
+        if existing_alert:
+            # Update the existing alert with new activity
+            cursor.execute(
+                """
+                UPDATE ventilator_alerts
+                SET last_activity = ?
+                WHERE id = ?
+                """,
+                (now, existing_alert[0])
+            )
+        else:
+            # Create a new alert
+            cursor.execute(
+                """
+                INSERT INTO ventilator_alerts
+                (device_id, pin, start_time, last_activity, acknowledged, created_at)
+                VALUES (?, ?, ?, ?, 0, ?)
+                """,
+                (device_id, pin, now, now, now)
+            )
+        
+        conn.commit()
+        logger.info(f"Ventilator alarm recorded for {device_id} on pin {pin}")
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"Database error recording ventilator alarm: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+def record_external_pulse_ox_alarm(device_id, pin):
+    """Record an external pulse oximeter alarm event in the database"""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        now = datetime.now().isoformat()
+        
+        # Start a new monitoring alert with external trigger flag
+        cursor.execute(
+            """
+            INSERT INTO monitoring_alerts
+            (start_time, external_alarm_triggered, created_at)
+            VALUES (?, 1, ?)
+            """,
+            (now, now)
+        )
+        
+        # Get the new alert ID
+        alert_id = cursor.lastrowid
+        
+        # Also record detailed alarm info in a dedicated table
+        cursor.execute(
+            """
+            INSERT INTO external_alarms
+            (alert_id, device_id, pin, start_time, last_activity, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (alert_id, device_id, pin, now, now, now)
+        )
+        
+        conn.commit()
+        logger.info(f"External pulse ox alarm recorded for {device_id} on pin {pin}, alert ID: {alert_id}")
+        return alert_id
+    except sqlite3.Error as e:
+        logger.error(f"Database error recording external pulse ox alarm: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def clear_external_alarm(device_id):
+    """Close any active external alarms for the given device"""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        now = datetime.now().isoformat()
+        
+        # First find which device type this is
+        device_type = get_setting(f"{device_id}_device", "unknown")
+        
+        if device_type == "vent":
+            # Close any active ventilator alerts
+            cursor.execute(
+                """
+                UPDATE ventilator_alerts
+                SET end_time = ?
+                WHERE device_id = ? AND end_time IS NULL
+                """,
+                (now, device_id)
+            )
+        elif device_type == "pulseox":
+            # Get all active external alarms for this device
+            cursor.execute(
+                """
+                SELECT alert_id FROM external_alarms
+                WHERE device_id = ? AND end_time IS NULL
+                """,
+                (device_id,)
+            )
+            
+            alert_ids = [row[0] for row in cursor.fetchall()]
+            
+            # Close the external alarms
+            cursor.execute(
+                """
+                UPDATE external_alarms
+                SET end_time = ?
+                WHERE device_id = ? AND end_time IS NULL
+                """,
+                (now, device_id)
+            )
+            
+            # Also update the monitoring alerts
+            for alert_id in alert_ids:
+                cursor.execute(
+                    """
+                    UPDATE monitoring_alerts
+                    SET end_time = ?
+                    WHERE id = ? AND end_time IS NULL
+                    """,
+                    (now, alert_id)
+                )
+        
+        conn.commit()
+        logger.info(f"External alarm cleared for {device_id} ({device_type})")
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"Database error clearing external alarm: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
