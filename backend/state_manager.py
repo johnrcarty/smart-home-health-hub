@@ -547,37 +547,55 @@ def reset_sensor_state():
 # Add this new function to store event data
 def store_event_data_for_alert(alert_id, data_points):
     """
-    Store all cached event data for an alert
-    
+    Store all cached event data for an alert (pulse ox or external alarm).
     Args:
         alert_id: ID of the alert
         data_points: List of data points to store
     """
     from db import save_pulse_ox_data
-    
+
     print(f"[state_manager] Storing {len(data_points)} data points for alert {alert_id}")
-    
-    # For any data points that were not already saved to DB, save them now
+
     for point in data_points:
+        # If this is an external alarm event, extract sensor values from 'sensor_state'
+        if 'sensor_state' in point:
+            sensor = point['sensor_state']
+            spo2 = sensor.get('spo2')
+            bpm = sensor.get('bpm')
+            perfusion = sensor.get('perfusion')
+            status = sensor.get('status')
+            motion = sensor.get('motion', "OFF")
+            spo2_alarm = "OFF"
+            hr_alarm = "OFF"
+            raw_data = None
+            timestamp = point.get('timestamp')
+        else:
+            # Pulse ox event format
+            spo2 = point.get('spo2')
+            bpm = point.get('bpm')
+            perfusion = point.get('perfusion')
+            status = point.get('status')
+            motion = point.get('motion', "OFF")
+            spo2_alarm = point.get('spo2_alarm', "OFF")
+            hr_alarm = point.get('hr_alarm', "OFF")
+            raw_data = point.get('raw_data', None)
+            timestamp = point.get('timestamp')
+
+        # Save to DB if not already saved
         if 'db_id' not in point:
-            # This point wasn't saved to the DB yet
             data_id = save_pulse_ox_data(
-                spo2=point['spo2'],
-                bpm=point['bpm'],
-                pa=point['perfusion'],
-                status=point['status'],
-                motion=point['motion'],
-                spo2_alarm=point['spo2_alarm'],
-                hr_alarm=point['hr_alarm'],
-                raw_data=point.get('raw_data', None),
-                timestamp=point['timestamp']  # Use the original timestamp
+                spo2=spo2,
+                bpm=bpm,
+                pa=perfusion,
+                status=status,
+                motion=motion,
+                spo2_alarm=spo2_alarm,
+                hr_alarm=hr_alarm,
+                raw_data=raw_data,
+                timestamp=timestamp
             )
             point['db_id'] = data_id
-    
-    # Optional: You could add a field to the monitoring_alerts table
-    # to link to a JSON blob of all the event data, or create a new
-    # table specifically for detailed event data
-    
+
     print(f"[state_manager] Successfully stored event data for alert {alert_id}")
 
 # Add this function to broadcast alert updates
