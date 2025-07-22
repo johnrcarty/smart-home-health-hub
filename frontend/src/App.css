@@ -1697,3 +1697,9 @@ html, body, #root {
 .info-section p:last-child {
   margin-bottom: 0;
 }
+
+.header-section.alarm-active {
+  background-color: #b71c1c !important; /* Red */
+  border-bottom: 2px solid #ff3b30;
+  transition: background-color 0.3s;
+}

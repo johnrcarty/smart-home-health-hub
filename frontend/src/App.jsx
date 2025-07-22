@@ -58,7 +58,7 @@ export default function App() {
       const msg = JSON.parse(event.data);
       if (msg.type === "sensor_update" && msg.state) {
         const now = Date.now();
-
+        setIsAlarmActive(!!msg.state.alarm);
         setSensorValues({
           spo2: msg.state.spo2,
           bpm: msg.state.bpm,
@@ -171,6 +171,7 @@ export default function App() {
   const [isVentModalOpen, setIsVentModalOpen] = useState(false);
   const [isPulseOxModalOpen, setIsPulseOxModalOpen] = useState(false);
   const [isVitalsModalOpen, setIsVitalsModalOpen] = useState(false);
+  const [isAlarmActive, setIsAlarmActive] = useState(false);
 
   // Close all modals function for reuse
   const closeAllModals = () => {
@@ -259,7 +260,7 @@ export default function App() {
 
   return (
     <div className="dashboard-wrapper">
-      <div className="header-section">
+      <div className={`header-section${isAlarmActive ? ' alarm-active' : ''}`}>
         <div className="logo-container">
           <img src={logoImage} alt="Logo" className="header-logo" />
           <div className="logo-text">Smart Home Health</div>
