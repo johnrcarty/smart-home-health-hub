@@ -133,28 +133,36 @@ def clear_alarm(device_id):
     
     logger.info(f"Alarm cleared for {device_id} ({device_type})")
 
+def pin_callback(channel):
+    value = GPIO.input(channel)
+    logger.info(f">>> GPIO Pin {channel} changed to {'HIGH' if value else 'LOW'}")
+
 def setup_gpio():
     """Set up GPIO pins and event detection"""
-    # Use BCM mode for GPIO pin numbering
     GPIO.setmode(GPIO.BCM)
     GPIO.setwarnings(False)
 
-    # Set up pins for each device
     for device, pins in DEFAULT_GPIO_MAP.items():
         device_triggered[device] = False
         device_last_trigger_time[device] = 0
-        
+
         for pin in pins:
             try:
-                # Set pin as input with pull-down resistor
                 GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-                # Add event detection for rising edge (0 to 1)
-                GPIO.add_event_detect(pin, GPIO.RISING, callback=gpio_callback, bouncetime=200)
-                logger.info(f"GPIO pin {pin} set up for {device}")
+                # Use BOTH edge detection for better debugging
+                GPIO.add_event_detect(pin, GPIO.BOTH, callback=pin_callback, bouncetime=100)
+                logger.info(f"GPIO pin {pin} set up for {device} with BOTH edge detection")
             except Exception as e:
                 logger.error(f"Failed to set up GPIO pin {pin}: {e}")
 
     logger.info("GPIO monitoring system initialized")
+
+def log_pin_states():
+    """Periodically log the current state of all monitored pins."""
+    while True:
+        states = {pin: GPIO.input(pin) for pins in DEFAULT_GPIO_MAP.values() for pin in pins}
+        logger.info(f"Current GPIO pin states: {states}")
+        time.sleep(1)
 
 def start_gpio_monitoring():
     """Start GPIO monitoring in a separate thread"""
@@ -173,8 +181,10 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     print("Starting GPIO test mode")
     start_gpio_monitoring()
-    
-    # Keep the main thread running
+
+    # Start periodic pin state logging in a background thread
+    threading.Thread(target=log_pin_states, daemon=True).start()
+
     try:
         while True:
             time.sleep(1)
