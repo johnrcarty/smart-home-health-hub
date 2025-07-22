@@ -53,6 +53,11 @@ CACHE_DURATION_SECONDS = 30  # How many seconds of data to keep in normal operat
 # Add this global variable near the top
 alarm_states = {"alarm1": False, "alarm2": False}
 
+# Add these global variables near your other alert state variables
+alarm_event_active = False
+alarm_event_start_time = None
+alarm_event_data_points = []
+
 
 def register_serial_mode_callback(cb):
     """Call `cb(serial_active: bool)` whenever serial_active flips."""
@@ -285,8 +290,10 @@ def broadcast_state():
             print(f"[state_manager] Failed to send to websocket: {e}")
             websocket_clients.discard(ws)
 
+    # Call alarm event state updater
+    update_alarm_event_state()
 
-# Update the update_sensor function to handle input from serial_reader correctly
+    # ...existing code for websocket broadcast...
 
 def update_sensor(*updates, from_mqtt=False):
     """
@@ -623,3 +630,121 @@ def set_alarm_states(new_states):
     if changed:
         # Broadcast immediately when alarm state changes
         broadcast_state()
+
+def update_alarm_event_state():
+    """
+    Check alarm states and manage alert event lifecycle for external alarms.
+    """
+    global alarm_event_active, alarm_event_start_time, alarm_event_data_points, current_alert_id, event_data_points
+
+    now = time.time()
+    # If either alarm is active, start or continue the event
+    if alarm_states.get("alarm1") or alarm_states.get("alarm2"):
+        if not alarm_event_active:
+            alarm_event_active = True
+            alarm_event_start_time = now
+            alarm_event_data_points = []
+            print("[state_manager] External alarm event started.")
+            # Start a new monitoring alert (or reuse your DB logic)
+            current_alert_id = start_monitoring_alert(
+                spo2=None,
+                bpm=None,
+                data_id=None,
+                external_alarm_triggered=1
+            )
+        # Collect data points during the event
+        alarm_event_data_points.append({
+            "timestamp": datetime.now().isoformat(),
+            "alarm1": alarm_states.get("alarm1"),
+            "alarm2": alarm_states.get("alarm2"),
+            "sensor_state": sensor_state.copy()
+        })
+    else:
+        # If event was active, check if it's time to end it
+        if alarm_event_active:
+            if alarm_event_start_time is not None and (now - alarm_event_start_time) >= RECOVERY_SECONDS_REQUIRED:
+                print("[state_manager] External alarm event ended after recovery period.")
+                # Save event data to DB
+                store_event_data_for_alert(current_alert_id, alarm_event_data_points)
+                # End the alert in DB
+                update_monitoring_alert(
+                    alert_id=current_alert_id,
+                    end_time=datetime.now().isoformat(),
+                    external_alarm_triggered=0
+                )
+                # Reset event state
+                alarm_event_active = False
+                alarm_event_start_time = None
+                alarm_event_data_points = []
+                current_alert_id = None
+
+# In your broadcast_state() and/or update_sensor(), call this function:
+def broadcast_state():
+    """
+    Send the full `sensor_state` snapshot over WebSockets to all clients.
+    Include alert counts, BP readings, temperature readings, and settings.
+    """
+    if not event_loop:
+        print("[state_manager] Cannot broadcast, event_loop not set.")
+        return
+
+    # Get the last 5 blood pressure readings
+    bp_history = get_last_n_blood_pressure(5)
+    
+    # Get the last 5 temperature readings
+    temp_history = get_last_n_temperature(5)
+    
+    # Get all settings
+    from db import get_all_settings, get_unacknowledged_alerts_count
+    settings = get_all_settings()
+    
+    # Get unacknowledged alerts count
+    alerts_count = get_unacknowledged_alerts_count()
+    
+    # Create a clean copy of the current state with only proper keys
+    state_copy = {}
+    for key, value in sensor_state.items():
+        # Only include string keys that are actual sensor names (not tuples)
+        if isinstance(key, str):
+            state_copy[key] = value
+    
+    # Add histories and other data
+    state_copy['bp'] = bp_history
+    state_copy['temp'] = temp_history
+    state_copy['settings'] = settings
+    state_copy['alerts_count'] = alerts_count
+    
+    # Ensure all standard values have defaults
+    for key in ['spo2', 'bpm', 'perfusion', 'status', 'map_bp']:
+        if key not in state_copy or state_copy[key] is None:
+            state_copy[key] = -1  # Use -1 as sentinel value
+    
+    # Add alarm states to the state_copy dict
+    state_copy['alarm1'] = alarm_states.get('alarm1', False)
+    state_copy['alarm2'] = alarm_states.get('alarm2', False)
+    
+    print(f"[state_manager] Clean state to broadcast: {state_copy}")
+    
+    print(f"[state_manager] Broadcasting to {len(websocket_clients)} clients.")
+    message = {
+        "type": "sensor_update",
+        "state": state_copy
+    }
+    
+    for ws in list(websocket_clients):
+        try:
+            asyncio.run_coroutine_threadsafe(ws.send_json(message), event_loop)
+        except Exception as e:
+            print(f"[state_manager] Failed to send to websocket: {e}")
+            websocket_clients.discard(ws)
+
+    # Call alarm event state updater
+    update_alarm_event_state()
+
+    # ...existing code for websocket broadcast...
+
+def update_sensor(*updates, from_mqtt=False):
+    # ...existing code...
+    # At the end of update_sensor, after updating sensor_state:
+    update_alarm_event_state()
+    # ...existing code...
