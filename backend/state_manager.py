@@ -270,11 +270,33 @@ def broadcast_state():
     for key in ['spo2', 'bpm', 'perfusion', 'status', 'map_bp']:
         if key not in state_copy or state_copy[key] is None:
             state_copy[key] = -1  # Use -1 as sentinel value
-    
+
     # Add alarm states to the state_copy dict
     state_copy['alarm1'] = alarm_states.get('alarm1', False)
     state_copy['alarm2'] = alarm_states.get('alarm2', False)
-    
+
+    # --- Add spo2_alarm and bpm_alarm ---
+    # Get thresholds from settings
+    min_spo2 = int(settings.get('min_spo2', {}).get('value', 90))
+    max_spo2 = int(settings.get('max_spo2', {}).get('value', 100))
+    min_bpm = int(settings.get('min_bpm', {}).get('value', 55))
+    max_bpm = int(settings.get('max_bpm', {}).get('value', 155))
+
+    spo2_val = state_copy.get('spo2', -1)
+    bpm_val = state_copy.get('bpm', -1)
+
+    state_copy['spo2_alarm'] = False
+    state_copy['bpm_alarm'] = False
+
+    if isinstance(spo2_val, (int, float)) and spo2_val != -1:
+        if spo2_val < min_spo2 or spo2_val > max_spo2:
+            state_copy['spo2_alarm'] = True
+
+    if isinstance(bpm_val, (int, float)) and bpm_val != -1:
+        if bpm_val < min_bpm or bpm_val > max_bpm:
+            state_copy['bpm_alarm'] = True
+    # --- End addition ---
+
     print(f"[state_manager] Clean state to broadcast: {state_copy}")
     
     print(f"[state_manager] Broadcasting to {len(websocket_clients)} clients.")
@@ -736,11 +758,33 @@ def broadcast_state():
     for key in ['spo2', 'bpm', 'perfusion', 'status', 'map_bp']:
         if key not in state_copy or state_copy[key] is None:
             state_copy[key] = -1  # Use -1 as sentinel value
-    
+
     # Add alarm states to the state_copy dict
     state_copy['alarm1'] = alarm_states.get('alarm1', False)
     state_copy['alarm2'] = alarm_states.get('alarm2', False)
-    
+
+    # --- Add spo2_alarm and bpm_alarm ---
+    # Get thresholds from settings
+    min_spo2 = int(settings.get('min_spo2', {}).get('value', 90))
+    max_spo2 = int(settings.get('max_spo2', {}).get('value', 100))
+    min_bpm = int(settings.get('min_bpm', {}).get('value', 55))
+    max_bpm = int(settings.get('max_bpm', {}).get('value', 155))
+
+    spo2_val = state_copy.get('spo2', -1)
+    bpm_val = state_copy.get('bpm', -1)
+
+    state_copy['spo2_alarm'] = False
+    state_copy['bpm_alarm'] = False
+
+    if isinstance(spo2_val, (int, float)) and spo2_val != -1:
+        if spo2_val < min_spo2 or spo2_val > max_spo2:
+            state_copy['spo2_alarm'] = True
+
+    if isinstance(bpm_val, (int, float)) and bpm_val != -1:
+        if bpm_val < min_bpm or bpm_val > max_bpm:
+            state_copy['bpm_alarm'] = True
+    # --- End addition ---
+
     print(f"[state_manager] Clean state to broadcast: {state_copy}")
     
     print(f"[state_manager] Broadcasting to {len(websocket_clients)} clients.")
