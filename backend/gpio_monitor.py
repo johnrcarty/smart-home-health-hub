@@ -110,13 +110,24 @@ def log_pin_states():
         logger.info(f"Current GPIO pin states: {states}")
         time.sleep(1)
 
+def log_alarm_states():
+    global LGPIO_HANDLE
+    last_alarm_states = {"alarm1": None, "alarm2": None}
+    while True:
+        for group, pins in DEFAULT_GPIO_MAP.items():
+            active = any(lgpio.gpio_read(LGPIO_HANDLE, pin) == 1 for pin in pins)
+            if last_alarm_states[group] != active:
+                logger.info(f"{group} {'ACTIVE' if active else 'INACTIVE'} (pins: {pins})")
+                last_alarm_states[group] = active
+        time.sleep(0.5)
+
 def start_gpio_monitoring():
     try:
         thread = threading.Thread(target=setup_gpio, daemon=True)
         thread.start()
         logger.info("GPIO monitoring thread started (lgpio)")
-        # Start periodic pin state logging in a background thread
-        threading.Thread(target=log_pin_states, daemon=True).start()
+        # Start alarm state logging in a background thread
+        threading.Thread(target=log_alarm_states, daemon=True).start()
         return True
     except Exception as e:
         logger.error(f"Failed to start GPIO monitoring: {e}")
