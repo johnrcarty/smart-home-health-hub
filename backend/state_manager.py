@@ -50,6 +50,9 @@ pulse_ox_cache = deque(maxlen=150)  # ~30 seconds at 5Hz sample rate
 event_data_points = []  # Store all data points during an event
 CACHE_DURATION_SECONDS = 30  # How many seconds of data to keep in normal operation
 
+# Add this global variable near the top
+alarm_states = {"alarm1": False, "alarm2": False}
+
 
 def register_serial_mode_callback(cb):
     """Call `cb(serial_active: bool)` whenever serial_active flips."""
@@ -262,6 +265,10 @@ def broadcast_state():
     for key in ['spo2', 'bpm', 'perfusion', 'status', 'map_bp']:
         if key not in state_copy or state_copy[key] is None:
             state_copy[key] = -1  # Use -1 as sentinel value
+    
+    # Add alarm states to the state_copy dict
+    state_copy['alarm1'] = alarm_states.get('alarm1', False)
+    state_copy['alarm2'] = alarm_states.get('alarm2', False)
     
     print(f"[state_manager] Clean state to broadcast: {state_copy}")
     
@@ -601,3 +608,18 @@ def broadcast_alert_updates():
         except Exception as e:
             print(f"[state_manager] Failed to send alert update: {e}")
             websocket_clients.discard(ws)
+
+def set_alarm_states(new_states):
+    """
+    Update alarm states and broadcast to websocket clients if changed.
+    """
+    global alarm_states
+    changed = False
+    for key in alarm_states:
+        if alarm_states[key] != new_states.get(key, alarm_states[key]):
+            changed = True
+            break
+    alarm_states = new_states.copy()
+    if changed:
+        # Broadcast immediately when alarm state changes
+        broadcast_state()

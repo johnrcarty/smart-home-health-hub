@@ -1,7 +1,7 @@
 import lgpio
 import threading
 import time
-from state_manager import update_sensor, broadcast_alert_updates
+from state_manager import set_alarm_states, update_sensor, broadcast_alert_updates, set_alarm_states
 import logging
 
 logger = logging.getLogger("app")
@@ -18,6 +18,8 @@ DEFAULT_RECOVERY_TIME = 30
 
 # Store the lgpio handle globally
 LGPIO_HANDLE = None
+
+alarm_states = {"alarm1": False, "alarm2": False}
 
 def get_device_settings():
     try:
@@ -111,7 +113,7 @@ def log_pin_states():
         time.sleep(1)
 
 def log_alarm_states():
-    global LGPIO_HANDLE
+    global LGPIO_HANDLE, alarm_states
     last_alarm_states = {"alarm1": None, "alarm2": None}
     while True:
         for group, pins in DEFAULT_GPIO_MAP.items():
@@ -119,6 +121,8 @@ def log_alarm_states():
             if last_alarm_states[group] != active:
                 logger.info(f"{group} {'ACTIVE' if active else 'INACTIVE'} (pins: {pins})")
                 last_alarm_states[group] = active
+                alarm_states[group] = active
+                set_alarm_states(alarm_states)  # Update state_manager
         time.sleep(0.5)
 
 def start_gpio_monitoring():
