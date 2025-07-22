@@ -684,7 +684,7 @@ def save_pulse_ox_data(spo2, bpm, pa, status=None, motion=None, spo2_alarm=None,
         if conn:
             conn.close()
 
-def start_monitoring_alert(spo2=None, bpm=None, data_id=None, spo2_alarm_triggered=0, hr_alarm_triggered=0):
+def start_monitoring_alert(spo2=None, bpm=None, data_id=None, spo2_alarm_triggered=None, hr_alarm_triggered=None, external_alarm_triggered=None):
     """
     Start a new monitoring alert event
     
