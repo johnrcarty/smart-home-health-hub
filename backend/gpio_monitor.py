@@ -1,4 +1,4 @@
-import RPi.GPIO as GPIO
+import RPi.GPIO2 as GPIO
 import threading
 import time
 from state_manager import update_sensor, broadcast_alert_updates
