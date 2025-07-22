@@ -297,6 +297,14 @@ def broadcast_state():
             state_copy['bpm_alarm'] = True
     # --- End addition ---
 
+    # Add combined alarm field
+    state_copy['alarm'] = (
+        state_copy['alarm1'] or
+        state_copy['alarm2'] or
+        state_copy['spo2_alarm'] or
+        state_copy['bpm_alarm']
+    )
+
     print(f"[state_manager] Clean state to broadcast: {state_copy}")
     
     print(f"[state_manager] Broadcasting to {len(websocket_clients)} clients.")
@@ -784,6 +792,14 @@ def broadcast_state():
         if bpm_val < min_bpm or bpm_val > max_bpm:
             state_copy['bpm_alarm'] = True
     # --- End addition ---
+
+    # Add combined alarm field
+    state_copy['alarm'] = (
+        state_copy['alarm1'] or
+        state_copy['alarm2'] or
+        state_copy['spo2_alarm'] or
+        state_copy['bpm_alarm']
+    )
 
     print(f"[state_manager] Clean state to broadcast: {state_copy}")
     
