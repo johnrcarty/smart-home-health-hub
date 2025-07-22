@@ -20,6 +20,7 @@ from typing import Optional, Dict, Any, List
 from state_manager import reset_sensor_state
 import logging
 from fastapi.responses import JSONResponse
+from gpio_monitor import start_gpio_monitoring
 
 load_dotenv()
 
@@ -31,6 +32,9 @@ app = FastAPI()
 
 # Initialize a logger for your application
 logger = logging.getLogger("app")
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 
 # Store a reference to the MQTT client for shutdown
 mqtt_client_ref = None
@@ -133,6 +137,8 @@ async def startup_event():
     # 2) Wire in serial (hot-plug)
     set_event_loop(loop)
     threading.Thread(target=serial_loop, daemon=True).start()
+
+    start_gpio_monitoring()
 
 @app.on_event("shutdown")
 async def shutdown_event():
