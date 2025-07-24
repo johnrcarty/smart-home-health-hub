@@ -1703,3 +1703,9 @@ html, body, #root {
   border-bottom: 2px solid #ff3b30;
   transition: background-color 0.3s;
 }
+
+.header-section.alarm-blink {
+  background-color: #ff3b30 !important; /* Bright red for blink */
+  border-bottom: 2px solid #ff3b30;
+  transition: background-color 0.1s;
+}

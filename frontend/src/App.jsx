@@ -57,8 +57,16 @@ export default function App() {
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data);
       if (msg.type === "sensor_update" && msg.state) {
-        const now = Date.now();
-        setIsAlarmActive(!!msg.state.alarm);
+        const alarmActive = !!msg.state.alarm;
+        setIsAlarmActive(alarmActive);
+
+        if (alarmActive) {
+          setIsAlarmBlinking(true);
+          setTimeout(() => setIsAlarmBlinking(false), 100); // .1 sec on
+          setTimeout(() => setIsAlarmBlinking(true), 200);  // .1 sec off
+          setTimeout(() => setIsAlarmBlinking(false), 300); // back to normal
+        }
+
         setSensorValues({
           spo2: msg.state.spo2,
           bpm: msg.state.bpm,
@@ -172,6 +180,7 @@ export default function App() {
   const [isPulseOxModalOpen, setIsPulseOxModalOpen] = useState(false);
   const [isVitalsModalOpen, setIsVitalsModalOpen] = useState(false);
   const [isAlarmActive, setIsAlarmActive] = useState(false);
+  const [isAlarmBlinking, setIsAlarmBlinking] = useState(false);
 
   // Close all modals function for reuse
   const closeAllModals = () => {
@@ -260,7 +269,7 @@ export default function App() {
 
   return (
     <div className="dashboard-wrapper">
-      <div className={`header-section${isAlarmActive ? ' alarm-active' : ''}`}>
+      <div className={`header-section${isAlarmBlinking ? ' alarm-blink' : ''}${isAlarmActive ? ' alarm-active' : ''}`}>
         <div className="logo-container">
           <img src={logoImage} alt="Logo" className="header-logo" />
           <div className="logo-text">Smart Home Health</div>
