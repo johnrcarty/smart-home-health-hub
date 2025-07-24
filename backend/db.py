@@ -146,6 +146,26 @@ def init_db():
         )
         ''')
         
+        # Create equipment table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS equipment (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            last_changed TEXT NOT NULL,
+            useful_days INTEGER NOT NULL
+        )
+        ''')
+        
+        # Create equipment change log table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS equipment_change_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            equipment_id INTEGER NOT NULL,
+            changed_at TEXT NOT NULL,
+            FOREIGN KEY (equipment_id) REFERENCES equipment(id)
+        )
+        ''')
+        
         conn.commit()
         logger.info(f"Database initialized at {DB_PATH}")
     except sqlite3.Error as e:
@@ -951,6 +971,113 @@ def get_monitoring_alerts(limit=50, include_acknowledged=False, detailed=False):
         return alerts
     except sqlite3.Error as e:
         logger.error(f"Error fetching monitoring alerts: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+def create_equipment_table():
+    """Create the equipment and equipment_change_log tables if not exist."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS equipment (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            last_changed TEXT NOT NULL,
+            useful_days INTEGER NOT NULL
+        )
+        ''')
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS equipment_change_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            equipment_id INTEGER NOT NULL,
+            changed_at TEXT NOT NULL,
+            FOREIGN KEY (equipment_id) REFERENCES equipment(id)
+        )
+        ''')
+        conn.commit()
+        logger.info("Equipment tables initialized")
+    except sqlite3.Error as e:
+        logger.error(f"Error initializing equipment tables: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+# Equipment CRUD functions
+def add_equipment(name, last_changed, useful_days):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('''
+        INSERT INTO equipment (name, last_changed, useful_days)
+        VALUES (?, ?, ?)
+        ''', (name, last_changed, useful_days))
+        conn.commit()
+        return cursor.lastrowid
+    except sqlite3.Error as e:
+        logger.error(f"Error adding equipment: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_equipment_list():
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM equipment')
+        equipment = [dict(row) for row in cursor.fetchall()]
+        # Calculate due date for each
+        for item in equipment:
+            from datetime import datetime, timedelta
+            last = datetime.fromisoformat(item['last_changed'])
+            due = last + timedelta(days=item['useful_days'])
+            item['due_date'] = due.isoformat()
+        # Sort by due_date
+        equipment.sort(key=lambda x: x['due_date'])
+        return equipment
+    except sqlite3.Error as e:
+        logger.error(f"Error fetching equipment: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+def log_equipment_change(equipment_id, changed_at):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('''
+        INSERT INTO equipment_change_log (equipment_id, changed_at)
+        VALUES (?, ?)
+        ''', (equipment_id, changed_at))
+        # Update last_changed in equipment
+        cursor.execute('''
+        UPDATE equipment SET last_changed = ? WHERE id = ?
+        ''', (changed_at, equipment_id))
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"Error logging equipment change: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+def get_equipment_change_history(equipment_id):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute('''
+        SELECT * FROM equipment_change_log WHERE equipment_id = ? ORDER BY changed_at DESC
+        ''', (equipment_id,))
+        return [dict(row) for row in cursor.fetchall()]
+    except sqlite3.Error as e:
+        logger.error(f"Error fetching equipment change history: {e}")
         return []
     finally:
         if conn:

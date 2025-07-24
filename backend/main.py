@@ -12,7 +12,7 @@ from state_manager import (
     update_sensor, register_websocket_client, unregister_websocket_client,
     broadcast_state  # Make sure to import this too
 )
-from db import init_db, get_latest_blood_pressure, get_blood_pressure_history, get_last_n_temperature, save_blood_pressure, save_temperature, save_vital, get_all_settings, get_setting, save_setting, delete_setting
+from db import init_db, get_latest_blood_pressure, get_blood_pressure_history, get_last_n_temperature, save_blood_pressure, save_temperature, save_vital, get_all_settings, get_setting, save_setting, delete_setting, add_equipment, get_equipment_list, log_equipment_change, get_equipment_change_history
 from mqtt_discovery import send_mqtt_discovery
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
@@ -456,4 +456,36 @@ async def get_alert_data(alert_id: int):
         return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving alert data: {str(e)}")
+
+from db import add_equipment, get_equipment_list, log_equipment_change, get_equipment_change_history
+
+@app.post("/api/equipment")
+async def api_add_equipment(data: dict = Body(...)):
+    """Add new equipment item."""
+    name = data.get('name')
+    last_changed = data.get('last_changed')
+    useful_days = data.get('useful_days')
+    if not name or not last_changed or not useful_days:
+        return JSONResponse(status_code=400, content={"detail": "Missing required fields"})
+    eid = add_equipment(name, last_changed, useful_days)
+    return {"id": eid, "status": "success"}
+
+@app.get("/api/equipment")
+async def api_get_equipment():
+    """Get equipment list sorted by due next."""
+    return get_equipment_list()
+
+@app.post("/api/equipment/{equipment_id}/change")
+async def api_log_equipment_change(equipment_id: int, data: dict = Body(...)):
+    """Log a change and update last_changed."""
+    changed_at = data.get('changed_at')
+    if not changed_at:
+        return JSONResponse(status_code=400, content={"detail": "Missing changed_at"})
+    success = log_equipment_change(equipment_id, changed_at)
+    return {"success": success}
+
+@app.get("/api/equipment/{equipment_id}/history")
+async def api_get_equipment_history(equipment_id: int):
+    """Get change history for equipment."""
+    return get_equipment_change_history(equipment_id)
 

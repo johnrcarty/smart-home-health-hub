@@ -10,6 +10,7 @@ const AlertsList = ({ onClose }) => {
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showAcknowledgeForm, setShowAcknowledgeForm] = useState(false);
+  const [acknowledgeAllLoading, setAcknowledgeAllLoading] = useState(false);
 
   useEffect(() => {
     fetchAlerts();
@@ -40,6 +41,30 @@ const AlertsList = ({ onClose }) => {
     } catch (err) {
       console.error(`Error acknowledging alert ${alertId}:`, err);
       setError('Failed to acknowledge alert. Please try again.');
+    }
+  };
+
+  const acknowledgeAllAlerts = async () => {
+    setAcknowledgeAllLoading(true);
+    try {
+      // Get all unacknowledged alerts
+      const response = await fetch(`${config.apiUrl}/api/monitoring/alerts?include_acknowledged=false`);
+      if (!response.ok) throw new Error('Failed to fetch alerts');
+      const alerts = await response.json();
+      await Promise.all(alerts.map(alert =>
+        fetch(`${config.apiUrl}/api/monitoring/alerts/${alert.id}/acknowledge`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}) // Always send a JSON body
+        })
+      ));
+      fetchAlerts(); // Refresh the alerts list
+      alert('All open alerts acknowledged!');
+    } catch (err) {
+      console.error('Error acknowledging all alerts:', err);
+      alert('Failed to acknowledge all alerts.');
+    } finally {
+      setAcknowledgeAllLoading(false);
     }
   };
 
@@ -86,6 +111,12 @@ const AlertsList = ({ onClose }) => {
           <span className="slider round"></span>
           <span className="toggle-label">Show Acknowledged</span>
         </label>
+        <button className="primary-button" onClick={acknowledgeAllAlerts} disabled={acknowledgeAllLoading || loading} style={{ marginLeft: 12 }}>
+          {acknowledgeAllLoading ? 'Acknowledging...' : 'Acknowledge All'}
+        </button>
+        {acknowledgeAllLoading && (
+          <span className="spinner" style={{ marginLeft: 8 }}></span>
+        )}
       </div>
 
       {error && <div className="error-message">{error}</div>}

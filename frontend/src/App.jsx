@@ -269,22 +269,6 @@ export default function App() {
     }
   };
 
-  // Modify the handlePulseOxAlertsViewed function
-  const handlePulseOxAlertsViewed = () => {
-    // DON'T automatically clear alerts when the modal is viewed
-    // setPulseOxAlerts(0); - Remove this line
-    
-    // Instead, alerts will be cleared when individual alerts are acknowledged
-    // or when the WebSocket sends an update with zero alerts
-    
-    // You might want to inform the server that alerts are being viewed
-    // This could be useful for analytics or user activity tracking
-    fetch(`${config.apiUrl}/api/alerts/viewed`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    }).catch(err => console.error('Error marking alerts as viewed:', err));
-  };
-
   // Add this function to handle alert acknowledgment
   const handleAlertAcknowledged = (alertId) => {
     // Fetch updated alert count from server
@@ -297,6 +281,49 @@ export default function App() {
       })
       .catch(err => console.error('Error fetching updated alert count:', err));
   };
+
+  // Add function to acknowledge all alerts
+  const [acknowledgeAllLoading, setAcknowledgeAllLoading] = useState(false);
+
+  const acknowledgeAllAlerts = async () => {
+    setAcknowledgeAllLoading(true);
+    try {
+      // Get all unacknowledged alerts
+      const response = await fetch(`${config.apiUrl}/api/monitoring/alerts?include_acknowledged=false`);
+      if (!response.ok) throw new Error('Failed to fetch alerts');
+      const alerts = await response.json();
+      // Acknowledge each alert
+      await Promise.all(alerts.map(alert =>
+        fetch(`${config.apiUrl}/api/monitoring/alerts/${alert.id}/acknowledge`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        })
+      ));
+      // Optionally refresh alerts count/state
+      // setPulseOxAlerts(0); // or refetch count
+      // Optionally show a success message
+      alert('All open alerts acknowledged!');
+    } catch (err) {
+      console.error('Error acknowledging all alerts:', err);
+      alert('Failed to acknowledge all alerts.');
+    } finally {
+      setAcknowledgeAllLoading(false);
+    }
+  };
+
+  // Track if alerts viewed POST has been sent for this open
+  const [alertsViewedSent, setAlertsViewedSent] = useState(false);
+
+  // Only call handlePulseOxAlertsViewed once when modal is opened
+  useEffect(() => {
+    if (isPulseOxModalOpen && !alertsViewedSent) {
+      // handlePulseOxAlertsViewed();
+      setAlertsViewedSent(true);
+    }
+    if (!isPulseOxModalOpen) {
+      setAlertsViewedSent(false);
+    }
+  }, [isPulseOxModalOpen, alertsViewedSent]);
 
   return (
     <div className="dashboard-wrapper">
@@ -513,14 +540,21 @@ export default function App() {
       <ModalBase
         isOpen={isPulseOxModalOpen}
         onClose={() => setIsPulseOxModalOpen(false)}
-        title="Pulse Oximeter Alerts"
+        title="Alerts"
       >
         <PulseOxModal
           onClose={() => setIsPulseOxModalOpen(false)}
           alertsCount={pulseOxAlerts}
-          onAlertsViewed={handlePulseOxAlertsViewed}
           onAlertAcknowledged={handleAlertAcknowledged}
         />
+        <div style={{ textAlign: 'right', marginTop: 16 }}>
+          <button className="primary-button" onClick={acknowledgeAllAlerts} disabled={acknowledgeAllLoading}>
+            {acknowledgeAllLoading ? 'Acknowledging...' : 'Acknowledge All'}
+          </button>
+          {acknowledgeAllLoading && (
+            <span className="spinner" style={{ marginLeft: 8 }}></span>
+          )}
+        </div>
       </ModalBase>
 
       {/* Manual Vitals Entry Modal */}
