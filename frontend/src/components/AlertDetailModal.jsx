@@ -234,6 +234,16 @@ const AlertDetailModal = ({ alert, onClose, onAcknowledge, initiateAcknowledge =
                 {!alert.end_time ? 'Active' : alert.acknowledged ? 'Acknowledged' : 'Unacknowledged'}
               </span>
             </div>
+            <div className="info-item">
+              <span className="label">Alarms Triggered:</span>
+              <span className="value">
+                {alert.alarm1_triggered ? 'Alarm1 ' : ''}
+                {alert.alarm2_triggered ? 'Alarm2 ' : ''}
+                {alert.spo2_alarm_triggered ? 'SpO₂ ' : ''}
+                {alert.hr_alarm_triggered ? 'BPM ' : ''}
+                {!alert.alarm1_triggered && !alert.alarm2_triggered && !alert.spo2_alarm_triggered && !alert.hr_alarm_triggered ? 'None' : ''}
+              </span>
+            </div>
           </div>
 
           <div className="metrics-grid">

@@ -128,10 +128,11 @@ const AlertsList = ({ onClose }) => {
                 </div>
                 <div>
                   <strong>Alarms:</strong>{' '}
+                  {alert.alarm1_triggered ? 'Alarm1 ' : ''}
+                  {alert.alarm2_triggered ? 'Alarm2 ' : ''}
                   {alert.spo2_alarm_triggered ? 'SpO₂ ' : ''}
-                  {alert.hr_alarm_triggered ? 'Heart Rate ' : ''}
-                  {alert.external_alarm_triggered ? 'External ' : ''}
-                  {!alert.spo2_alarm_triggered && !alert.hr_alarm_triggered && !alert.external_alarm_triggered ? 'None' : ''}
+                  {alert.hr_alarm_triggered ? 'BPM ' : ''}
+                  {!alert.alarm1_triggered && !alert.alarm2_triggered && !alert.spo2_alarm_triggered && !alert.hr_alarm_triggered ? 'None' : ''}
                 </div>
               </div>
 

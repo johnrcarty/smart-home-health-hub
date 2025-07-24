@@ -47,6 +47,7 @@ export default function App() {
   const [tempHistory, setTempHistory] = useState([]);
 
   const initialDataReceived = useRef(false);
+  const prevAlarmActive = useRef(false);
 
   useEffect(() => {
     console.log(`Connecting to WebSocket at: ${config.wsUrl}`);
@@ -58,14 +59,14 @@ export default function App() {
       const msg = JSON.parse(event.data);
       if (msg.type === "sensor_update" && msg.state) {
         const alarmActive = !!msg.state.alarm;
-        setIsAlarmActive(alarmActive);
 
-        if (alarmActive) {
+        // Only trigger blink if alarm transitions from false to true
+        if (!prevAlarmActive.current && alarmActive) {
           setIsAlarmBlinking(true);
           setTimeout(() => setIsAlarmBlinking(false), 100); // .1 sec on
-          setTimeout(() => setIsAlarmBlinking(true), 200);  // .1 sec off
-          setTimeout(() => setIsAlarmBlinking(false), 300); // back to normal
         }
+        setIsAlarmActive(alarmActive);
+        prevAlarmActive.current = alarmActive;
 
         setSensorValues({
           spo2: msg.state.spo2,
@@ -74,6 +75,8 @@ export default function App() {
           skin_temp: msg.state.skin_temp,
           body_temp: msg.state.body_temp
         });
+
+        const now = Date.now();
 
         if (msg.state.bp) {
           const bpData = msg.state.bp
@@ -181,6 +184,34 @@ export default function App() {
   const [isVitalsModalOpen, setIsVitalsModalOpen] = useState(false);
   const [isAlarmActive, setIsAlarmActive] = useState(false);
   const [isAlarmBlinking, setIsAlarmBlinking] = useState(false);
+  const alarmBlinkInterval = useRef(null);
+
+  // Continuous blinking effect for alarm
+  useEffect(() => {
+    if (isAlarmActive) {
+      // Start interval to toggle blinking
+      if (!alarmBlinkInterval.current) {
+        alarmBlinkInterval.current = setInterval(() => {
+          setIsAlarmBlinking(prev => !prev);
+        }, 500); // 500ms blink interval
+      }
+    } else {
+      // Stop blinking and clear interval
+      if (alarmBlinkInterval.current) {
+        clearInterval(alarmBlinkInterval.current);
+        alarmBlinkInterval.current = null;
+      }
+      setIsAlarmBlinking(false);
+    }
+    // Cleanup on unmount
+    return () => {
+      if (alarmBlinkInterval.current) {
+        clearInterval(alarmBlinkInterval.current);
+        alarmBlinkInterval.current = null;
+      }
+      setIsAlarmBlinking(false);
+    };
+  }, [isAlarmActive]);
 
   // Close all modals function for reuse
   const closeAllModals = () => {
