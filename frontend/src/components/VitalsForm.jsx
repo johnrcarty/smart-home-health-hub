@@ -100,6 +100,7 @@ const VitalsForm = ({ onSave, onClose }) => {
           },
           weight: '',
           notes: '',
+          bathroom: { type: '', size: '' } // <-- Ensure bathroom field is always present
         });
         setSuccess(false);
       }, 2000);
@@ -122,6 +123,12 @@ const VitalsForm = ({ onSave, onClose }) => {
 
   return (
     <form onSubmit={handleSubmit} className="vitals-form">
+      <div className="expandable-buttons-row" style={{ marginBottom: 24 }}>
+        <button type="button" className="expand-btn" onClick={() => setShowNutrition(v => !v)}>Nutrition {showNutrition ? '-' : '+'}</button>
+        <button type="button" className="expand-btn" onClick={() => setShowWeight(v => !v)}>Weight {showWeight ? '-' : '+'}</button>
+        <button type="button" className="expand-btn" onClick={() => setShowNotes(v => !v)}>Notes {showNotes ? '-' : '+'}</button>
+        <button type="button" className="expand-btn" onClick={() => setShowBathroom(v => !v)}>Bathroom {showBathroom ? '-' : '+'}</button>
+      </div>
       <div className="form-section">
         <h3>Blood Pressure</h3>
         <div className="form-row">
@@ -166,12 +173,6 @@ const VitalsForm = ({ onSave, onClose }) => {
             max="105"
           />
         </div>
-      </div>
-      <div className="expandable-buttons-row">
-        <button type="button" className="expand-btn" onClick={() => setShowNutrition(v => !v)}>Nutrition {showNutrition ? '-' : '+'}</button>
-        <button type="button" className="expand-btn" onClick={() => setShowWeight(v => !v)}>Weight {showWeight ? '-' : '+'}</button>
-        <button type="button" className="expand-btn" onClick={() => setShowNotes(v => !v)}>Notes {showNotes ? '-' : '+'}</button>
-        <button type="button" className="expand-btn" onClick={() => setShowBathroom(v => !v)}>Bathroom {showBathroom ? '-' : '+'}</button>
       </div>
       {showNutrition && (
         <div className="form-section">

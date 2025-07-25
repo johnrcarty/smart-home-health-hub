@@ -95,14 +95,15 @@ const GpioSettings = () => {
       <h3>RJ9 Alarm Settings</h3>
       {error && <div className="error-message">{error}</div>}
       {success && <div className="success-message">Settings saved successfully!</div>}
-      <div className="settings-grid">
-        <div className="setting-group">
-          <label>
+      <div className="settings-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px 32px', alignItems: 'center' }}>
+        <div style={{ gridColumn: '1 / span 2', marginBottom: 8 }}>
+          <label style={{ display: 'flex', alignItems: 'center', fontSize: '1.2em' }}>
             <input
               type="checkbox"
               name="gpio_enabled"
               checked={settings.gpio_enabled}
               onChange={handleChange}
+              style={{ marginRight: 12, transform: 'scale(1.5)' }}
             />
             Enable GPIO Monitoring
           </label>

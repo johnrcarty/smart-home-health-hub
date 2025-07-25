@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { getSettings, updateSettings } from '../services/settings';
 import config from '../config';
-import GpioSettings from './GpioSettings';
 
 /**
  * Settings form component for system configuration
@@ -19,10 +18,21 @@ const SettingsForm = () => {
     dark_mode: true,
   });
 
+  const [gpioSettings, setGpioSettings] = useState({
+    alarm1_device: 'vent',
+    alarm2_device: 'pulseox',
+    alarm1_recovery_time: 30,
+    alarm2_recovery_time: 30,
+    gpio_enabled: false
+  });
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [gpioLoading, setGpioLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
+  const [gpioError, setGpioError] = useState(null);
+  const [gpioSuccess, setGpioSuccess] = useState(false);
 
   // Load settings on component mount
   useEffect(() => {
@@ -53,13 +63,45 @@ const SettingsForm = () => {
       }
     };
 
+    // Load GPIO settings
+    const fetchGpioSettings = async () => {
+      try {
+        setGpioLoading(true);
+        const response = await fetch(`${config.apiUrl}/api/settings`);
+        if (!response.ok) throw new Error('Failed to load settings');
+        const data = await response.json();
+        const newSettings = {
+          alarm1_device: data.alarm1_device?.value || 'vent',
+          alarm2_device: data.alarm2_device?.value || 'pulseox',
+          alarm1_recovery_time: data.alarm1_recovery_time?.value || 30,
+          alarm2_recovery_time: data.alarm2_recovery_time?.value || 30,
+          gpio_enabled: data.gpio_enabled?.value === true || data.gpio_enabled?.value === 'true' ? true : false
+        };
+        setGpioSettings(newSettings);
+        setGpioError(null);
+      } catch (err) {
+        setGpioError('Failed to load GPIO settings. Please try again.');
+      } finally {
+        setGpioLoading(false);
+      }
+    };
+
     loadSettings();
+    fetchGpioSettings();
   }, []);
 
   const handleInputChange = (key, value) => {
     setFormData(prev => ({
       ...prev,
       [key]: value
+    }));
+  };
+
+  const handleGpioChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setGpioSettings(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
     }));
   };
 
@@ -90,6 +132,36 @@ const SettingsForm = () => {
       setError("Failed to save settings. Please try again.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleGpioSubmit = async (e) => {
+    e.preventDefault();
+    setGpioError(null);
+    setGpioSuccess(false);
+    setGpioLoading(true);
+    try {
+      const payload = {
+        settings: {
+          alarm1_device: gpioSettings.alarm1_device,
+          alarm2_device: gpioSettings.alarm2_device,
+          alarm1_recovery_time: parseInt(gpioSettings.alarm1_recovery_time),
+          alarm2_recovery_time: parseInt(gpioSettings.alarm2_recovery_time),
+          gpio_enabled: gpioSettings.gpio_enabled
+        }
+      };
+      const response = await fetch(`${config.apiUrl}/api/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) throw new Error('Failed to save GPIO settings');
+      setGpioSuccess(true);
+      setTimeout(() => setGpioSuccess(false), 3000);
+    } catch (err) {
+      setGpioError('Failed to save GPIO settings. Please try again.');
+    } finally {
+      setGpioLoading(false);
     }
   };
 
@@ -216,7 +288,93 @@ const SettingsForm = () => {
       
       <div className="settings-section">
         <h2>External Alarm Configuration</h2>
-        <GpioSettings />
+        <form onSubmit={handleGpioSubmit} className="gpio-settings-form">
+          <div className="gpio-settings-card" style={{ background: 'rgba(30,32,40,0.9)', borderRadius: 18, padding: 32, marginBottom: 24 }}>
+            <h3>RJ9 Alarm Settings</h3>
+            {gpioError && <div className="error-message">{gpioError}</div>}
+            {gpioSuccess && <div className="success-message">Settings saved successfully!</div>}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px 32px', alignItems: 'center' }}>
+              <div style={{ gridColumn: '1 / span 2', marginBottom: 8 }}>
+                <label style={{ display: 'flex', alignItems: 'center', fontSize: '1.2em' }}>
+                  <input
+                    type="checkbox"
+                    name="gpio_enabled"
+                    checked={gpioSettings.gpio_enabled}
+                    onChange={handleGpioChange}
+                    style={{ marginRight: 12, transform: 'scale(1.5)' }}
+                  />
+                  Enable GPIO Monitoring
+                </label>
+              </div>
+              <div className="setting-group">
+                <label>RJ9 Port #1 Device Type:</label>
+                <select 
+                  name="alarm1_device"
+                  value={gpioSettings.alarm1_device}
+                  onChange={handleGpioChange}
+                >
+                  <option value="vent">Ventilator</option>
+                  <option value="pulseox">Pulse Oximeter</option>
+                  <option value="other">Other Device</option>
+                </select>
+              </div>
+              <div className="setting-group">
+                <label>RJ9 Port #1 Recovery Time (seconds):</label>
+                <input
+                  type="number"
+                  name="alarm1_recovery_time"
+                  value={gpioSettings.alarm1_recovery_time}
+                  onChange={handleGpioChange}
+                  min="5"
+                  max="300"
+                />
+              </div>
+              <div className="setting-group">
+                <label>RJ9 Port #2 Device Type:</label>
+                <select 
+                  name="alarm2_device"
+                  value={gpioSettings.alarm2_device}
+                  onChange={handleGpioChange}
+                >
+                  <option value="vent">Ventilator</option>
+                  <option value="pulseox">Pulse Oximeter</option>
+                  <option value="other">Other Device</option>
+                </select>
+              </div>
+              <div className="setting-group">
+                <label>RJ9 Port #2 Recovery Time (seconds):</label>
+                <input
+                  type="number"
+                  name="alarm2_recovery_time"
+                  value={gpioSettings.alarm2_recovery_time}
+                  onChange={handleGpioChange}
+                  min="5"
+                  max="300"
+                />
+              </div>
+            </div>
+            <div className="button-row" style={{ marginTop: 24 }}>
+              <button 
+                className="primary-button"
+                disabled={gpioLoading}
+                type="submit"
+              >
+                {gpioLoading ? 'Saving...' : 'Save Settings'}
+              </button>
+            </div>
+            <div className="info-section" style={{ marginTop: 24 }}>
+              <h4>About RJ9 Alarm Connections</h4>
+              <p>
+                These settings configure how external device alarms connected via RJ9 phone lines
+                are processed. For each port, you can specify the device type and recovery time
+                (how long to wait before accepting a new alarm after an alert ends).
+              </p>
+              <p>
+                <strong>Note:</strong> Changes will take effect immediately without requiring a system restart.
+              </p>
+            </div>
+          </div>
+        </form>
       </div>
       
       {error && <div className="error-message">{error}</div>}

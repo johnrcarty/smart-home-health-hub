@@ -98,11 +98,19 @@ const AlertsList = ({ onClose }) => {
 
   return (
     <div className="alerts-list">
-      <div className="alerts-controls">
-        <button onClick={fetchAlerts} className="refresh-button" disabled={loading}>
-          {loading ? 'Loading...' : 'Refresh'}
-        </button>
-        <label className="toggle-switch">
+      <div className="alerts-controls" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <button onClick={fetchAlerts} className="refresh-button" disabled={loading}>
+            {loading ? 'Loading...' : 'Refresh'}
+          </button>
+          <button className="primary-button" onClick={acknowledgeAllAlerts} disabled={acknowledgeAllLoading || loading} style={{ marginLeft: 12 }}>
+            {acknowledgeAllLoading ? 'Acknowledging...' : 'Acknowledge All'}
+          </button>
+          {acknowledgeAllLoading && (
+            <span className="spinner" style={{ marginLeft: 8 }}></span>
+          )}
+        </div>
+        <label className="toggle-switch" style={{ marginLeft: 'auto' }}>
           <input
             type="checkbox"
             checked={showAcknowledged}
@@ -111,12 +119,6 @@ const AlertsList = ({ onClose }) => {
           <span className="slider round"></span>
           <span className="toggle-label">Show Acknowledged</span>
         </label>
-        <button className="primary-button" onClick={acknowledgeAllAlerts} disabled={acknowledgeAllLoading || loading} style={{ marginLeft: 12 }}>
-          {acknowledgeAllLoading ? 'Acknowledging...' : 'Acknowledge All'}
-        </button>
-        {acknowledgeAllLoading && (
-          <span className="spinner" style={{ marginLeft: 8 }}></span>
-        )}
       </div>
 
       {error && <div className="error-message">{error}</div>}
