@@ -822,7 +822,226 @@ def broadcast_state():
     # ...existing code for websocket broadcast...
 
 def update_sensor(*updates, from_mqtt=False):
-    # ...existing code...
-    # At the end of update_sensor, after updating sensor_state:
-    update_alarm_event_state()
-    # ...existing code...
+    """
+    Update sensor state values, track alerts, and broadcast changes
+    
+    Args:
+        *updates: Either pairs of (sensor_name, value) or a list of (name, value) tuples
+        from_mqtt: Whether this update is from MQTT (vs serial)
+    """
+    global current_alert_id, alert_thresholds_exceeded, alert_start_data_id, sensor_state
+    global alert_recovery_start_time, pulse_ox_cache, event_data_points
+    
+    has_pulse_ox_updates = False
+    pulse_ox_data = {
+        'spo2': None,
+        'bpm': None,
+        'perfusion': None,
+        'status': None
+    }
+    
+    updated = {}  # Track what's been updated for MQTT publishing
+    raw_data = None
+    current_time = datetime.now().isoformat()
+    
+    # Debug the incoming updates to see what we're getting
+    print(f"[state_manager] Received updates: {updates}")
+    
+    # Handle the way serial_reader.py is calling this function
+    # It sends: ([('spo2', 99), ('bpm', 91), ('perfusion', 4.0)], 'raw_data', '25-Jul-06 21:15:30    99      91       4')
+    if len(updates) >= 3 and updates[1] == 'raw_data' and isinstance(updates[0], (list, tuple)):
+        pairs = updates[0]
+        raw_data = updates[2]
+        
+        for name, value in pairs:
+            if name != "raw_data":
+                sensor_state[name] = value  # Direct assignment with name as key
+                updated[name] = value
+                
+                if name in pulse_ox_data:
+                    pulse_ox_data[name] = value
+                    has_pulse_ox_updates = True
+    
+    # Process updates based on how they're passed - keep existing handlers too
+    elif len(updates) == 1 and isinstance(updates[0], (list, tuple)) and all(isinstance(x, tuple) for x in updates[0]):
+        # Handle case where a list/tuple of (name, value) pairs is passed
+        pairs = updates[0]
+        
+        # Look for raw_data separately
+        raw_data_items = [pair[1] for pair in pairs if pair[0] == "raw_data"]
+        if raw_data_items:
+            raw_data = raw_data_items[0]
+            
+        # Process normal sensor values
+        for name, value in pairs:
+            if name != "raw_data":
+                sensor_state[name] = value  # Direct assignment with name as key
+                updated[name] = value
+                
+                if name in pulse_ox_data:
+                    pulse_ox_data[name] = value
+                    has_pulse_ox_updates = True
+    else:
+        # Handle case where name, value are passed as separate arguments
+        for i in range(0, len(updates), 2):
+            if i+1 < len(updates):  # Make sure we have a pair
+                sensor_name = updates[i]
+                value = updates[i+1]
+                
+                if sensor_name == "raw_data":
+                    raw_data = value
+                    continue
+                    
+                # Direct assignment with name as key
+                sensor_state[sensor_name] = value  
+                updated[sensor_name] = value
+                
+                # Track pulse ox related updates
+                if sensor_name in pulse_ox_data:
+                    pulse_ox_data[sensor_name] = value
+                    has_pulse_ox_updates = True
+    
+    # Print current state for debugging (after fixing it)
+    print(f"[state_manager] Current sensor state after update: {sensor_state}")
+    
+    # If no updates, exit early
+    if not updated:
+        print("[state_manager] No updates to process")
+        return
+
+    # If we received pulse ox data, cache it and check for alerts
+    if has_pulse_ox_updates and (pulse_ox_data['spo2'] is not None or pulse_ox_data['bpm'] is not None):
+        # Cache the current pulse ox data point
+        data_point = {
+            'timestamp': current_time,
+            'spo2': pulse_ox_data['spo2'],
+            'bpm': pulse_ox_data['bpm'],
+            'perfusion': pulse_ox_data['perfusion'],
+            'status': pulse_ox_data['status'],
+            'motion': "ON" if sensor_state.get("motion", False) else "OFF",
+            'raw_data': raw_data
+        }
+        
+        # Always add to the rolling cache
+        pulse_ox_cache.append(data_point)
+        
+        # Check if values exceed thresholds
+        spo2_alarm, hr_alarm = check_thresholds(pulse_ox_data['spo2'], pulse_ox_data['bpm'])
+        
+        # Add alarm status to the data point
+        data_point['spo2_alarm'] = "ON" if spo2_alarm else "OFF"
+        data_point['hr_alarm'] = "ON" if hr_alarm else "OFF"
+        
+        # Save data to the continuous log
+        data_id = save_pulse_ox_data(
+            spo2=pulse_ox_data['spo2'], 
+            bpm=pulse_ox_data['bpm'],
+            pa=pulse_ox_data['perfusion'],
+            status=pulse_ox_data['status'],
+            motion="ON" if sensor_state.get("motion", False) else "OFF",
+            spo2_alarm="ON" if spo2_alarm else "OFF",
+            hr_alarm="ON" if hr_alarm else "OFF",
+            raw_data=json.dumps(pulse_ox_data)
+        )
+        
+        # Update the data point with the DB ID
+        data_point['db_id'] = data_id
+        
+        # Check if we need to start or update an alert
+        is_alert_condition = spo2_alarm or hr_alarm
+        
+        if is_alert_condition and not alert_thresholds_exceeded:
+            # We've just crossed the threshold, start a new alert
+            alert_thresholds_exceeded = True
+            alert_recovery_start_time = None  # Reset recovery timer
+            alert_start_data_id = data_id
+            
+            # Clear the event data points and add all cached points from before the event
+            event_data_points = list(pulse_ox_cache)
+            print(f"[state_manager] Alert started. Including {len(event_data_points)} cached data points.")
+            
+            # Start a new monitoring alert
+            current_alert_id = start_monitoring_alert(
+                spo2=pulse_ox_data['spo2'],
+                bpm=pulse_ox_data['bpm'],
+                data_id=data_id,
+                spo2_alarm_triggered=1 if spo2_alarm else 0,
+                hr_alarm_triggered=1 if hr_alarm else 0
+            )
+            
+        elif is_alert_condition and alert_thresholds_exceeded and current_alert_id:
+            # Continuing alert, update min/max values
+            alert_recovery_start_time = None  # Reset recovery timer if we're in alert condition
+            
+            # Add this data point to our event collection
+            event_data_points.append(data_point)
+            
+            update_monitoring_alert(
+                alert_id=current_alert_id,
+                spo2=pulse_ox_data['spo2'],
+                bpm=pulse_ox_data['bpm'],
+                spo2_alarm_triggered=1 if spo2_alarm else None,
+                hr_alarm_triggered=1 if hr_alarm else None
+            )
+            
+        elif not is_alert_condition and alert_thresholds_exceeded and current_alert_id:
+            # Values are now within normal range, but we're still in an alert state
+            # Start or continue tracking recovery time
+            current_time_obj = datetime.now()
+            
+            # Add this data point to our event collection
+            event_data_points.append(data_point)
+            
+            if alert_recovery_start_time is None:
+                # First good reading after an alert, start recovery timer
+                alert_recovery_start_time = time.time()
+                print(f"[state_manager] Alert recovery started at {datetime.fromtimestamp(alert_recovery_start_time).isoformat()}")
+                
+                # Still update the min/max values during recovery period
+                update_monitoring_alert(
+                    alert_id=current_alert_id,
+                    spo2=pulse_ox_data['spo2'],
+                    bpm=pulse_ox_data['bpm']
+                )
+            elif (time.time() - alert_recovery_start_time) >= RECOVERY_SECONDS_REQUIRED:
+                # We've had good readings for the required duration, finalize the alert
+                now = current_time_obj.isoformat()
+                print(f"[state_manager] Alert recovery completed after {RECOVERY_SECONDS_REQUIRED} seconds at {now}")
+                
+                update_monitoring_alert(
+                    alert_id=current_alert_id,
+                    end_time=now,
+                    end_data_id=data_id,
+                    spo2=pulse_ox_data['spo2'],
+                    bpm=pulse_ox_data['bpm']
+                )
+                
+                # Alert has ended, collect event data
+                print(f"[state_manager] Alert ended. Collecting {len(event_data_points)} data points for the event.")
+                
+                # Add the event data to the alert record in DB
+                store_event_data_for_alert(current_alert_id, event_data_points)
+                
+                # Reset alert state
+                alert_thresholds_exceeded = False
+                current_alert_id = None
+                alert_recovery_start_time = None
+                event_data_points = []
+            else:
+                # Still in recovery period, update the alert but don't end it yet
+                elapsed = time.time() - alert_recovery_start_time
+                remaining = RECOVERY_SECONDS_REQUIRED - elapsed
+                print(f"[state_manager] Alert recovery in progress: {elapsed:.1f}s elapsed, {remaining:.1f}s remaining")
+                
+                # Update min/max values during recovery period
+                update_monitoring_alert(
+                    alert_id=current_alert_id,
+                    spo2=pulse_ox_data['spo2'],
+                    bpm=pulse_ox_data['bpm']
+                )
+    
+    # Broadcast updated state
+    broadcast_state()
+    
+    # Publish to MQTT if needed
+    publish_to_mqtt()
