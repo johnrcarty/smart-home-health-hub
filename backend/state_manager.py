@@ -247,11 +247,10 @@ def broadcast_state():
     temp_history = get_last_n_temperature(5)
     
     # Get all settings
-    from db import get_all_settings, get_unacknowledged_alerts_count
+    from db import get_all_settings, get_unacknowledged_alerts_count, get_equipment_due_count
     settings = get_all_settings()
-    
-    # Get unacknowledged alerts count
     alerts_count = get_unacknowledged_alerts_count()
+    equipment_due_count = get_equipment_due_count()
     
     # Create a clean copy of the current state with only proper keys
     state_copy = {}
@@ -265,6 +264,7 @@ def broadcast_state():
     state_copy['temp'] = temp_history
     state_copy['settings'] = settings
     state_copy['alerts_count'] = alerts_count
+    state_copy['equipment_due_count'] = equipment_due_count
     
     # Ensure all standard values have defaults
     for key in ['spo2', 'bpm', 'perfusion', 'status', 'map_bp']:
@@ -743,11 +743,10 @@ def broadcast_state():
     temp_history = get_last_n_temperature(5)
     
     # Get all settings
-    from db import get_all_settings, get_unacknowledged_alerts_count
+    from db import get_all_settings, get_unacknowledged_alerts_count, get_equipment_due_count
     settings = get_all_settings()
-    
-    # Get unacknowledged alerts count
     alerts_count = get_unacknowledged_alerts_count()
+    equipment_due_count = get_equipment_due_count()
     
     # Create a clean copy of the current state with only proper keys
     state_copy = {}
@@ -761,6 +760,7 @@ def broadcast_state():
     state_copy['temp'] = temp_history
     state_copy['settings'] = settings
     state_copy['alerts_count'] = alerts_count
+    state_copy['equipment_due_count'] = equipment_due_count
     
     # Ensure all standard values have defaults
     for key in ['spo2', 'bpm', 'perfusion', 'status', 'map_bp']:

@@ -19,6 +19,7 @@ import config from './config';
 import AlertsList from "./components/AlertsList";
 // Import the PulseOxModal component
 import PulseOxModal from "./components/PulseOxModal";
+import EquipmentModal from "./components/EquipmentModal";
 
 export default function App() {
   // Add state for modal
@@ -527,13 +528,16 @@ export default function App() {
         <SettingsForm />
       </ModalBase>
 
-      {/* Ventilator Modal - Example */}
+      {/* Equipment Modal - fills entire modal space, no inner modal */}
       <ModalBase
         isOpen={isVentModalOpen}
         onClose={() => setIsVentModalOpen(false)}
-        title="Ventilator Settings"
+        title="Equipment Tracker"
       >
-        <div>Ventilator settings content here...</div>
+        <div className="equipment-tracker-full">
+          {/* Render only the inner equipment tracker UI, not the modal shell */}
+          <EquipmentModal isOpen={true} noModal={true} onClose={() => {}} />
+        </div>
       </ModalBase>
 
       {/* Pulse Oximeter Modal - Example */}

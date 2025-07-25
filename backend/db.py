@@ -1323,3 +1323,27 @@ def clear_external_alarm(device_id):
     finally:
         if conn:
             conn.close()
+
+def get_equipment_due_count():
+    """Return the count of equipment items where due_date is today or past."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM equipment')
+        equipment = [dict(row) for row in cursor.fetchall()]
+        from datetime import datetime, timedelta
+        due_count = 0
+        today = datetime.now().date()
+        for item in equipment:
+            last = datetime.fromisoformat(item['last_changed'])
+            due = last + timedelta(days=item['useful_days'])
+            if due.date() <= today:
+                due_count += 1
+        return due_count
+    except Exception as e:
+        logger.error(f"Error calculating equipment due count: {e}")
+        return 0
+    finally:
+        if conn:
+            conn.close()
