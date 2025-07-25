@@ -20,7 +20,7 @@ from typing import Optional, Dict, Any, List
 from state_manager import reset_sensor_state
 import logging
 from fastapi.responses import JSONResponse
-from gpio_monitor import start_gpio_monitoring
+from gpio_monitor import start_gpio_monitoring, stop_gpio_monitoring, set_alarm_states
 
 load_dotenv()
 
@@ -138,7 +138,13 @@ async def startup_event():
     set_event_loop(loop)
     threading.Thread(target=serial_loop, daemon=True).start()
 
-    start_gpio_monitoring()
+    # Start GPIO monitoring only if enabled
+    gpio_enabled = get_setting("gpio_enabled", False)
+    if gpio_enabled in [True, "true", "True", 1, "1"]:
+        start_gpio_monitoring()
+    else:
+        # Set alarm states to false if not enabled
+        set_alarm_states({"alarm1": False, "alarm2": False})
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -327,8 +333,12 @@ async def update_multiple_settings(settings: SettingUpdate):
     """Update multiple settings at once"""
     from db import save_setting
     results = {}
-    
+    gpio_enabled_changed = False
+    gpio_enabled_new = None
     for key, value in settings.settings.items():
+        if key == "gpio_enabled":
+            gpio_enabled_new = value if not isinstance(value, dict) else value.get("value")
+            gpio_enabled_changed = True
         # Handle both simple values and complete setting objects
         if isinstance(value, dict) and "value" in value:
             data_type = value.get("data_type", "string")
@@ -342,6 +352,14 @@ async def update_multiple_settings(settings: SettingUpdate):
     
     # Use broadcast_state instead of broadcast_settings
     broadcast_state()
+    
+    # Handle GPIO enable/disable
+    if gpio_enabled_changed:
+        if gpio_enabled_new in [True, "true", "True", 1, "1"]:
+            start_gpio_monitoring()
+        else:
+            stop_gpio_monitoring()
+            set_alarm_states({"alarm1": False, "alarm2": False})
     
     return results
 

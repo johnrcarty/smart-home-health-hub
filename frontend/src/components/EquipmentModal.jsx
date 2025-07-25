@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import config from '../config';
 
-export default function EquipmentModal({ isOpen, onClose, noModal }) {
+export default function EquipmentModal({ isOpen, onClose, noModal, equipmentDueCount }) {
   const [tab, setTab] = useState('list');
   const [equipment, setEquipment] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -66,7 +66,12 @@ export default function EquipmentModal({ isOpen, onClose, noModal }) {
     return (
       <div className="equipment-tracker-inner" style={{ height: '100%', width: '100%' }}>
         <div className="modal-tabs">
-          <button onClick={() => setTab('list')} className={tab === 'list' ? 'active' : ''}>Due List</button>
+          <button onClick={() => setTab('list')} className={tab === 'list' ? 'active' : ''}>
+            Due List
+            {equipmentDueCount > 0 && (
+              <span className="equipment-badge">{equipmentDueCount}</span>
+            )}
+          </button>
           <button onClick={() => setTab('add')} className={tab === 'add' ? 'active' : ''}>Add Equipment</button>
         </div>
         <div className="modal-body" style={{ height: 'calc(100% - 40px)' }}>
@@ -137,7 +142,12 @@ export default function EquipmentModal({ isOpen, onClose, noModal }) {
           <button className="close-button" onClick={onClose}>×</button>
         </div>
         <div className="modal-tabs">
-          <button onClick={() => setTab('list')} className={tab === 'list' ? 'active' : ''}>Due List</button>
+          <button onClick={() => setTab('list')} className={tab === 'list' ? 'active' : ''}>
+            Due List
+            {equipmentDueCount > 0 && (
+              <span className="equipment-badge">{equipmentDueCount}</span>
+            )}
+          </button>
           <button onClick={() => setTab('add')} className={tab === 'add' ? 'active' : ''}>Add Equipment</button>
         </div>
         <div className="modal-body">

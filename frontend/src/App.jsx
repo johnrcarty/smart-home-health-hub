@@ -29,6 +29,7 @@ export default function App() {
   const [ventNotifications, setVentNotifications] = useState(2); // Example count
   const [pulseOxNotifications, setPulseOxNotifications] = useState(3); // Example count
   const [pulseOxAlerts, setPulseOxAlerts] = useState(0);
+  const [equipmentDueCount, setEquipmentDueCount] = useState(0);
 
   const [sensorValues, setSensorValues] = useState({
     spo2: null,
@@ -147,6 +148,10 @@ export default function App() {
         // Similarly for vent notifications if the server sends them
         if (msg.state.vent_notifications !== undefined) {
           setVentNotifications(msg.state.vent_notifications);
+        }
+        // Update equipment due count from websocket
+        if (msg.state.equipment_due_count !== undefined) {
+          setEquipmentDueCount(msg.state.equipment_due_count);
         }
       }
       
@@ -343,7 +348,7 @@ export default function App() {
             >
               <MinimalistVentIcon />
             </button>
-            {ventNotifications > 0 && <div className="badge">{ventNotifications}</div>}
+            {equipmentDueCount > 0 && <div className="badge">{equipmentDueCount}</div>}
           </div>
           
           <div className="icon-wrapper">
@@ -536,7 +541,7 @@ export default function App() {
       >
         <div className="equipment-tracker-full">
           {/* Render only the inner equipment tracker UI, not the modal shell */}
-          <EquipmentModal isOpen={true} noModal={true} onClose={() => {}} />
+          <EquipmentModal isOpen={true} noModal={true} onClose={() => {}} equipmentDueCount={equipmentDueCount} />
         </div>
       </ModalBase>
 

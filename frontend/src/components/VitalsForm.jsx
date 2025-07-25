@@ -3,21 +3,17 @@ import config from '../config';
 
 const VitalsForm = ({ onSave, onClose }) => {
   const [formData, setFormData] = useState({
-    bloodPressure: {
-      systolic: '',
-      diastolic: '',
-    },
-    temperature: {
-      body: '',
-    },
-    nutrition: {
-      calories: '',
-      water: '',
-    },
+    bloodPressure: { systolic: '', diastolic: '' },
+    temperature: { body: '' },
+    nutrition: { calories: '', water: '' },
     weight: '',
     notes: '',
+    bathroom: { type: '', size: '' }
   });
-
+  const [showNutrition, setShowNutrition] = useState(false);
+  const [showWeight, setShowWeight] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
+  const [showBathroom, setShowBathroom] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -155,7 +151,6 @@ const VitalsForm = ({ onSave, onClose }) => {
           </div>
         </div>
       </div>
-      
       <div className="form-section">
         <h3>Temperature</h3>
         <div className="form-group">
@@ -172,65 +167,103 @@ const VitalsForm = ({ onSave, onClose }) => {
           />
         </div>
       </div>
-      
-      <div className="form-section">
-        <h3>Nutrition</h3>
-        <div className="form-row">
+      <div className="expandable-buttons-row">
+        <button type="button" className="expand-btn" onClick={() => setShowNutrition(v => !v)}>Nutrition {showNutrition ? '-' : '+'}</button>
+        <button type="button" className="expand-btn" onClick={() => setShowWeight(v => !v)}>Weight {showWeight ? '-' : '+'}</button>
+        <button type="button" className="expand-btn" onClick={() => setShowNotes(v => !v)}>Notes {showNotes ? '-' : '+'}</button>
+        <button type="button" className="expand-btn" onClick={() => setShowBathroom(v => !v)}>Bathroom {showBathroom ? '-' : '+'}</button>
+      </div>
+      {showNutrition && (
+        <div className="form-section">
+          <h3>Nutrition</h3>
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="calories">Calories</label>
+              <input
+                type="number"
+                id="calories"
+                value={formData.nutrition.calories}
+                onChange={(e) => handleInputChange('nutrition', 'calories', e.target.value)}
+                placeholder="2000"
+                min="0"
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="water">Water (mL)</label>
+              <input
+                type="number"
+                id="water"
+                value={formData.nutrition.water}
+                onChange={(e) => handleInputChange('nutrition', 'water', e.target.value)}
+                placeholder="2000"
+                min="0"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+      {showWeight && (
+        <div className="form-section">
+          <h3>Weight</h3>
           <div className="form-group">
-            <label htmlFor="calories">Calories</label>
+            <label htmlFor="weight">Weight (lbs)</label>
             <input
               type="number"
-              id="calories"
-              value={formData.nutrition.calories}
-              onChange={(e) => handleInputChange('nutrition', 'calories', e.target.value)}
-              placeholder="2000"
+              id="weight"
+              value={formData.weight}
+              onChange={(e) => handleInputChange(null, 'weight', e.target.value)}
+              placeholder="150"
+              step="0.1"
               min="0"
             />
           </div>
+        </div>
+      )}
+      {showNotes && (
+        <div className="form-section">
+          <h3>Notes</h3>
           <div className="form-group">
-            <label htmlFor="water">Water (mL)</label>
-            <input
-              type="number"
-              id="water"
-              value={formData.nutrition.water}
-              onChange={(e) => handleInputChange('nutrition', 'water', e.target.value)}
-              placeholder="2000"
-              min="0"
-            />
+            <label htmlFor="notes">Notes</label>
+            <textarea
+              id="notes"
+              value={formData.notes}
+              onChange={(e) => handleInputChange(null, 'notes', e.target.value)}
+              placeholder="Any additional notes..."
+              rows="3"
+            ></textarea>
           </div>
         </div>
-      </div>
-      
-      <div className="form-section">
-        <h3>Other</h3>
-        <div className="form-group">
-          <label htmlFor="weight">Weight (lbs)</label>
-          <input
-            type="number"
-            id="weight"
-            value={formData.weight}
-            onChange={(e) => handleInputChange(null, 'weight', e.target.value)}
-            placeholder="150"
-            step="0.1"
-            min="0"
-          />
+      )}
+      {showBathroom && (
+        <div className="form-section">
+          <h3>Bathroom</h3>
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="bathroom-type">Type</label>
+              <select id="bathroom-type" value={formData.bathroom.type} onChange={e => handleInputChange('bathroom', 'type', e.target.value)}>
+                <option value="">Select</option>
+                <option value="dry">Dry</option>
+                <option value="wet">Wet</option>
+                <option value="solid">Solid</option>
+                <option value="mix">Mix</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="bathroom-size">Size</label>
+              <select id="bathroom-size" value={formData.bathroom.size} onChange={e => handleInputChange('bathroom', 'size', e.target.value)}>
+                <option value="">Select</option>
+                <option value="smear">Smear</option>
+                <option value="s">Small</option>
+                <option value="m">Medium</option>
+                <option value="l">Large</option>
+                <option value="xl">Extra Large</option>
+              </select>
+            </div>
+          </div>
         </div>
-        
-        <div className="form-group">
-          <label htmlFor="notes">Notes</label>
-          <textarea
-            id="notes"
-            value={formData.notes}
-            onChange={(e) => handleInputChange(null, 'notes', e.target.value)}
-            placeholder="Any additional notes..."
-            rows="3"
-          ></textarea>
-        </div>
-      </div>
-      
+      )}
       {error && <div className="error-message">{error}</div>}
       {success && <div className="success-message">Vitals saved successfully!</div>}
-      
       <div className="form-actions">
         <button type="button" onClick={onClose} className="button secondary">Cancel</button>
         <button type="submit" className="button primary" disabled={isSubmitting}>

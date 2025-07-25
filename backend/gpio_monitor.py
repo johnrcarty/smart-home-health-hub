@@ -137,6 +137,24 @@ def start_gpio_monitoring():
         logger.error(f"Failed to start GPIO monitoring: {e}")
         return False
 
+# Add this function to stop GPIO monitoring and set alarm states to false
+def stop_gpio_monitoring():
+    global LGPIO_HANDLE, alarm_states
+    try:
+        if LGPIO_HANDLE is not None:
+            try:
+                lgpio.gpiochip_close(LGPIO_HANDLE)
+            except Exception as e:
+                logger.error(f"Error closing LGPIO_HANDLE: {e}")
+            LGPIO_HANDLE = None
+        # Set alarm states to false
+        alarm_states["alarm1"] = False
+        alarm_states["alarm2"] = False
+        set_alarm_states(alarm_states)
+        logger.info("GPIO monitoring stopped and alarm states set to false.")
+    except Exception as e:
+        logger.error(f"Error stopping GPIO monitoring: {e}")
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     print("Starting GPIO test mode (lgpio)")
@@ -145,6 +163,5 @@ if __name__ == "__main__":
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        if LGPIO_HANDLE is not None:
-            lgpio.gpiochip_close(LGPIO_HANDLE)
+        stop_gpio_monitoring()
         print("GPIO test mode terminated")
