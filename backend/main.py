@@ -12,7 +12,9 @@ from state_manager import (
     update_sensor, register_websocket_client, unregister_websocket_client,
     broadcast_state  # Make sure to import this too
 )
-from db import init_db, get_latest_blood_pressure, get_blood_pressure_history, get_last_n_temperature, save_blood_pressure, save_temperature, save_vital, get_all_settings, get_setting, save_setting, delete_setting, add_equipment, get_equipment_list, log_equipment_change, get_equipment_change_history
+from crud import (get_latest_blood_pressure, get_blood_pressure_history, get_last_n_temperature, save_blood_pressure,
+                  save_temperature, save_vital, get_all_settings, get_setting, save_setting, delete_setting,
+                  add_equipment, get_equipment_list, log_equipment_change, get_equipment_change_history)
 from mqtt_discovery import send_mqtt_discovery
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
