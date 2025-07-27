@@ -12,7 +12,8 @@ import {
   SettingsIcon, 
   MinimalistVentIcon, 
   MinimalistPulseOxIcon, 
-  ClipboardIcon 
+  ClipboardIcon, 
+  HistoryIcon 
 } from "./components/Icons";
 import logoImage from './assets/logo2.png';
 import config from './config';
@@ -20,6 +21,7 @@ import AlertsList from "./components/AlertsList";
 // Import the PulseOxModal component
 import PulseOxModal from "./components/PulseOxModal";
 import EquipmentModal from "./components/EquipmentModal";
+import HistoryModal from "./components/HistoryModal";
 
 export default function App() {
   // Add state for modal
@@ -188,6 +190,7 @@ export default function App() {
   const [isVentModalOpen, setIsVentModalOpen] = useState(false);
   const [isPulseOxModalOpen, setIsPulseOxModalOpen] = useState(false);
   const [isVitalsModalOpen, setIsVitalsModalOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isAlarmActive, setIsAlarmActive] = useState(false);
   const [isAlarmBlinking, setIsAlarmBlinking] = useState(false);
   const alarmBlinkInterval = useRef(null);
@@ -225,6 +228,7 @@ export default function App() {
     setIsPulseOxModalOpen(false);
     setIsSettingsModalOpen(false);
     setIsVitalsModalOpen(false);
+    setIsHistoryModalOpen(false);
   };
 
   // Add handler functions
@@ -272,6 +276,15 @@ export default function App() {
       // Close all then open this one
       closeAllModals();
       setIsVitalsModalOpen(true);
+    }
+  };
+
+  const handleHistoryClick = () => {
+    if (isHistoryModalOpen) {
+      setIsHistoryModalOpen(false);
+    } else {
+      closeAllModals();
+      setIsHistoryModalOpen(true);
     }
   };
 
@@ -371,7 +384,15 @@ export default function App() {
               <ClipboardIcon />
             </button>
           </div>
-          
+          <div className="icon-wrapper">
+            <button 
+              className={`menu-button ${isHistoryModalOpen ? 'active' : ''}`}
+              onClick={handleHistoryClick}
+              aria-label="History"
+            >
+              <HistoryIcon />
+            </button>
+          </div>
           <div className="icon-wrapper">
             <button 
               className={`menu-button ${isSettingsModalOpen ? 'active' : ''}`}
@@ -579,6 +600,15 @@ export default function App() {
           }}
           onClose={() => setIsVitalsModalOpen(false)}
         />
+      </ModalBase>
+
+      {/* History Modal */}
+      <ModalBase
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+        title="History"
+      >
+        <HistoryModal onClose={() => setIsHistoryModalOpen(false)} />
       </ModalBase>
     </div>
   );

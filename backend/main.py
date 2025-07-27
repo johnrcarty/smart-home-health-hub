@@ -280,6 +280,22 @@ def get_nutrition_history(limit: int = 100):
         "water": get_vitals_by_type("water", limit)
     }
 
+@app.get("/api/vitals/types")
+def get_vital_types():
+    """
+    Get a distinct list of vital_type values from the vitals table
+    """
+    from db import get_distinct_vital_types
+    return get_distinct_vital_types()
+
+@app.get("/api/vitals/history")
+def get_vital_history_paginated(vital_type: str, page: int = 1, page_size: int = 20):
+    """
+    Get paginated history for a specific vital type
+    """
+    from db import get_vitals_by_type_paginated
+    return get_vitals_by_type_paginated(vital_type, page, page_size)
+
 # Add these imports
 from fastapi import Body, HTTPException
 from pydantic import BaseModel

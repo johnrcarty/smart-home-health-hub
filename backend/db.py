@@ -1347,3 +1347,69 @@ def get_equipment_due_count():
     finally:
         if conn:
             conn.close()
+
+def get_distinct_vital_types():
+    """
+    Get a distinct list of vital_type values from the vitals table
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('SELECT DISTINCT vital_type FROM vitals')
+        results = cursor.fetchall()
+        return [row[0] for row in results]
+    except sqlite3.Error as e:
+        logger.error(f"Error fetching distinct vital types: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+def get_vitals_by_type_paginated(vital_type, page=1, page_size=20):
+    """
+    Get paginated history of a specific vital type
+    Args:
+        vital_type (str): Type of vital (weight, calories, water, etc.)
+        page (int): Page number (1-based)
+        page_size (int): Number of records per page
+    Returns:
+        dict: {data: [...], total: int, page: int, page_size: int}
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM vitals WHERE vital_type = ?', (vital_type,))
+        total = cursor.fetchone()[0]
+        offset = (page - 1) * page_size
+        cursor.execute(
+            '''
+            SELECT timestamp, value, notes 
+            FROM vitals
+            WHERE vital_type = ?
+            ORDER BY timestamp DESC 
+            LIMIT ? OFFSET ?
+            ''', 
+            (vital_type, page_size, offset)
+        )
+        results = cursor.fetchall()
+        data = [
+            {
+                'datetime': row['timestamp'],
+                'value': row['value'],
+                'notes': row['notes']
+            }
+            for row in results
+        ]
+        return {
+            'data': data,
+            'total': total,
+            'page': page,
+            'page_size': page_size
+        }
+    except sqlite3.Error as e:
+        logger.error(f"Error fetching paginated {vital_type} history: {e}")
+        return {'data': [], 'total': 0, 'page': page, 'page_size': page_size}
+    finally:
+        if conn:
+            conn.close()
