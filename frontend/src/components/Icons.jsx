@@ -100,3 +100,19 @@ export const MinimalistPulseOxIcon = () => (
     <path d="M6 12c1-.5 2 .5 3 0s2-1 3 0 2 1.5 3 1 2-1 3-0.5"/>
   </svg>
 );
+
+export const HistoryIcon = () => (
+  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    {/* Chart Axes */}
+    <polyline points="3 17 3 3 21 3" />
+
+    {/* Trend Line */}
+    <polyline points="6 14 10 10 14 13 18 7" />
+    
+    {/* Data Points */}
+    <circle cx="6" cy="14" r="0.8" />
+    <circle cx="10" cy="10" r="0.8" />
+    <circle cx="14" cy="13" r="0.8" />
+    <circle cx="18" cy="7" r="0.8" />
+  </svg>
+);

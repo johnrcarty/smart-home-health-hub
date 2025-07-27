@@ -33,6 +33,7 @@ const SettingsForm = () => {
   const [success, setSuccess] = useState(false);
   const [gpioError, setGpioError] = useState(null);
   const [gpioSuccess, setGpioSuccess] = useState(false);
+  const [activeTab, setActiveTab] = useState('general');
 
   // Load settings on component mount
   useEffect(() => {
@@ -170,222 +171,238 @@ const SettingsForm = () => {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="settings-form">
-      <div className="form-section">
-        <h3>Device Settings</h3>
-        <div className="form-group">
-          <label htmlFor="device_name">Device Name</label>
-          <input
-            type="text"
-            id="device_name"
-            value={formData.device_name}
-            onChange={(e) => handleInputChange('device_name', e.target.value)}
-          />
-        </div>
-        
-        <div className="form-group">
-          <label htmlFor="device_location">Location</label>
-          <input
-            type="text"
-            id="device_location"
-            value={formData.device_location}
-            onChange={(e) => handleInputChange('device_location', e.target.value)}
-          />
-        </div>
-      </div>
-      
-      <div className="form-section">
-        <h3>Alert Thresholds</h3>
-        <div className="form-row">
-          <div className="form-group">
-            <label htmlFor="min_spo2">Min SpO₂ (%)</label>
-            <input
-              type="number"
-              id="min_spo2"
-              value={formData.min_spo2}
-              onChange={(e) => handleInputChange('min_spo2', e.target.value)}
-              min="80"
-              max="99"
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="max_spo2">Max SpO₂ (%)</label>
-            <input
-              type="number"
-              id="max_spo2"
-              value={formData.max_spo2}
-              onChange={(e) => handleInputChange('max_spo2', e.target.value)}
-              min="90"
-              max="100"
-            />
-          </div>
-        </div>
-        
-        <div className="form-row">
-          <div className="form-group">
-            <label htmlFor="min_bpm">Min Heart Rate (BPM)</label>
-            <input
-              type="number"
-              id="min_bpm"
-              value={formData.min_bpm}
-              onChange={(e) => handleInputChange('min_bpm', e.target.value)}
-              min="40"
-              max="100"
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="max_bpm">Max Heart Rate (BPM)</label>
-            <input
-              type="number"
-              id="max_bpm"
-              value={formData.max_bpm}
-              onChange={(e) => handleInputChange('max_bpm', e.target.value)}
-              min="100"
-              max="220"
-            />
-          </div>
-        </div>
-      </div>
-      
-      <div className="form-section">
-        <h3>Display Settings</h3>
-        <div className="form-row">
-          <div className="form-group">
-            <label htmlFor="temp_unit">Temperature Unit</label>
-            <select
-              id="temp_unit"
-              value={formData.temp_unit}
-              onChange={(e) => handleInputChange('temp_unit', e.target.value)}
-            >
-              <option value="F">Fahrenheit (°F)</option>
-              <option value="C">Celsius (°C)</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label htmlFor="weight_unit">Weight Unit</label>
-            <select
-              id="weight_unit"
-              value={formData.weight_unit}
-              onChange={(e) => handleInputChange('weight_unit', e.target.value)}
-            >
-              <option value="lbs">Pounds (lbs)</option>
-              <option value="kg">Kilograms (kg)</option>
-            </select>
-          </div>
-        </div>
-        
-        <div className="form-group checkbox-group">
-          <label>
-            <input
-              type="checkbox"
-              checked={formData.dark_mode}
-              onChange={(e) => handleInputChange('dark_mode', e.target.checked)}
-            />
-            Dark Mode
-          </label>
-        </div>
-      </div>
-      
-      <div className="settings-section">
-        <h2>External Alarm Configuration</h2>
-        <form onSubmit={handleGpioSubmit} className="gpio-settings-form">
-          <div className="gpio-settings-card" style={{ background: 'rgba(30,32,40,0.9)', borderRadius: 18, padding: 32, marginBottom: 24 }}>
-            <h3>RJ9 Alarm Settings</h3>
-            {gpioError && <div className="error-message">{gpioError}</div>}
-            {gpioSuccess && <div className="success-message">Settings saved successfully!</div>}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px 32px', alignItems: 'center' }}>
-              <div style={{ gridColumn: '1 / span 2', marginBottom: 8 }}>
-                <label style={{ display: 'flex', alignItems: 'center', fontSize: '1.2em' }}>
-                  <input
-                    type="checkbox"
-                    name="gpio_enabled"
-                    checked={gpioSettings.gpio_enabled}
-                    onChange={handleGpioChange}
-                    style={{ marginRight: 12, transform: 'scale(1.5)' }}
-                  />
-                  Enable GPIO Monitoring
-                </label>
-              </div>
-              <div className="setting-group">
-                <label>RJ9 Port #1 Device Type:</label>
-                <select 
-                  name="alarm1_device"
-                  value={gpioSettings.alarm1_device}
-                  onChange={handleGpioChange}
-                >
-                  <option value="vent">Ventilator</option>
-                  <option value="pulseox">Pulse Oximeter</option>
-                  <option value="other">Other Device</option>
-                </select>
-              </div>
-              <div className="setting-group">
-                <label>RJ9 Port #1 Recovery Time (seconds):</label>
-                <input
-                  type="number"
-                  name="alarm1_recovery_time"
-                  value={gpioSettings.alarm1_recovery_time}
-                  onChange={handleGpioChange}
-                  min="5"
-                  max="300"
-                />
-              </div>
-              <div className="setting-group">
-                <label>RJ9 Port #2 Device Type:</label>
-                <select 
-                  name="alarm2_device"
-                  value={gpioSettings.alarm2_device}
-                  onChange={handleGpioChange}
-                >
-                  <option value="vent">Ventilator</option>
-                  <option value="pulseox">Pulse Oximeter</option>
-                  <option value="other">Other Device</option>
-                </select>
-              </div>
-              <div className="setting-group">
-                <label>RJ9 Port #2 Recovery Time (seconds):</label>
-                <input
-                  type="number"
-                  name="alarm2_recovery_time"
-                  value={gpioSettings.alarm2_recovery_time}
-                  onChange={handleGpioChange}
-                  min="5"
-                  max="300"
-                />
-              </div>
-            </div>
-            <div className="button-row" style={{ marginTop: 24 }}>
-              <button 
-                className="primary-button"
-                disabled={gpioLoading}
-                type="submit"
-              >
-                {gpioLoading ? 'Saving...' : 'Save Settings'}
-              </button>
-            </div>
-            <div className="info-section" style={{ marginTop: 24 }}>
-              <h4>About RJ9 Alarm Connections</h4>
-              <p>
-                These settings configure how external device alarms connected via RJ9 phone lines
-                are processed. For each port, you can specify the device type and recovery time
-                (how long to wait before accepting a new alarm after an alert ends).
-              </p>
-              <p>
-                <strong>Note:</strong> Changes will take effect immediately without requiring a system restart.
-              </p>
-            </div>
-          </div>
-        </form>
-      </div>
-      
-      {error && <div className="error-message">{error}</div>}
-      {success && <div className="success-message">Settings saved successfully!</div>}
-      
-      <div className="form-actions">
-        <button type="submit" className="button primary" disabled={isSubmitting}>
-          {isSubmitting ? 'Saving...' : 'Save Settings'}
+    <div className="settings-tabs-container">
+      <div className="settings-tabs">
+        <button
+          className={activeTab === 'general' ? 'tab active' : 'tab'}
+          onClick={() => setActiveTab('general')}
+        >
+          General
+        </button>
+        <button
+          className={activeTab === 'thresholds' ? 'tab active' : 'tab'}
+          onClick={() => setActiveTab('thresholds')}
+        >
+          Thresholds
         </button>
       </div>
-    </form>
+      <form onSubmit={handleSubmit} className="settings-form">
+        {activeTab === 'general' && (
+          <>
+            <div className="form-section">
+              <h3>Device Settings</h3>
+              <div className="form-group">
+                <label htmlFor="device_name">Device Name</label>
+                <input
+                  type="text"
+                  id="device_name"
+                  value={formData.device_name}
+                  onChange={(e) => handleInputChange('device_name', e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="device_location">Location</label>
+                <input
+                  type="text"
+                  id="device_location"
+                  value={formData.device_location}
+                  onChange={(e) => handleInputChange('device_location', e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="form-section">
+              <h3>Display Settings</h3>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="temp_unit">Temperature Unit</label>
+                  <select
+                    id="temp_unit"
+                    value={formData.temp_unit}
+                    onChange={(e) => handleInputChange('temp_unit', e.target.value)}
+                  >
+                    <option value="F">Fahrenheit (°F)</option>
+                    <option value="C">Celsius (°C)</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="weight_unit">Weight Unit</label>
+                  <select
+                    id="weight_unit"
+                    value={formData.weight_unit}
+                    onChange={(e) => handleInputChange('weight_unit', e.target.value)}
+                  >
+                    <option value="lbs">Pounds (lbs)</option>
+                    <option value="kg">Kilograms (kg)</option>
+                  </select>
+                </div>
+              </div>
+              <div className="form-group checkbox-group">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={formData.dark_mode}
+                    onChange={(e) => handleInputChange('dark_mode', e.target.checked)}
+                  />
+                  Dark Mode
+                </label>
+              </div>
+            </div>
+          </>
+        )}
+        {activeTab === 'thresholds' && (
+          <>
+            <div className="form-section">
+              <h3>Alert Thresholds</h3>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="min_spo2">Min SpO₂ (%)</label>
+                  <input
+                    type="number"
+                    id="min_spo2"
+                    value={formData.min_spo2}
+                    onChange={(e) => handleInputChange('min_spo2', e.target.value)}
+                    min="80"
+                    max="99"
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="max_spo2">Max SpO₂ (%)</label>
+                  <input
+                    type="number"
+                    id="max_spo2"
+                    value={formData.max_spo2}
+                    onChange={(e) => handleInputChange('max_spo2', e.target.value)}
+                    min="90"
+                    max="100"
+                  />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="min_bpm">Min Heart Rate (BPM)</label>
+                  <input
+                    type="number"
+                    id="min_bpm"
+                    value={formData.min_bpm}
+                    onChange={(e) => handleInputChange('min_bpm', e.target.value)}
+                    min="40"
+                    max="100"
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="max_bpm">Max Heart Rate (BPM)</label>
+                  <input
+                    type="number"
+                    id="max_bpm"
+                    value={formData.max_bpm}
+                    onChange={(e) => handleInputChange('max_bpm', e.target.value)}
+                    min="100"
+                    max="220"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="settings-section">
+              <h2>External Alarm Configuration</h2>
+              <form onSubmit={handleGpioSubmit} className="gpio-settings-form">
+                <div className="gpio-settings-card" style={{ background: 'rgba(30,32,40,0.9)', borderRadius: 18, padding: 32, marginBottom: 24 }}>
+                  <h3>RJ9 Alarm Settings</h3>
+                  {gpioError && <div className="error-message">{gpioError}</div>}
+                  {gpioSuccess && <div className="success-message">Settings saved successfully!</div>}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px 32px', alignItems: 'center' }}>
+                    <div style={{ gridColumn: '1 / span 2', marginBottom: 8 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', fontSize: '1.2em' }}>
+                        <input
+                          type="checkbox"
+                          name="gpio_enabled"
+                          checked={gpioSettings.gpio_enabled}
+                          onChange={handleGpioChange}
+                          style={{ marginRight: 12, transform: 'scale(1.5)' }}
+                        />
+                        Enable GPIO Monitoring
+                      </label>
+                    </div>
+                    <div className="setting-group">
+                      <label>RJ9 Port #1 Device Type:</label>
+                      <select 
+                        name="alarm1_device"
+                        value={gpioSettings.alarm1_device}
+                        onChange={handleGpioChange}
+                      >
+                        <option value="vent">Ventilator</option>
+                        <option value="pulseox">Pulse Oximeter</option>
+                        <option value="other">Other Device</option>
+                      </select>
+                    </div>
+                    <div className="setting-group">
+                      <label>RJ9 Port #1 Recovery Time (seconds):</label>
+                      <input
+                        type="number"
+                        name="alarm1_recovery_time"
+                        value={gpioSettings.alarm1_recovery_time}
+                        onChange={handleGpioChange}
+                        min="5"
+                        max="300"
+                      />
+                    </div>
+                    <div className="setting-group">
+                      <label>RJ9 Port #2 Device Type:</label>
+                      <select 
+                        name="alarm2_device"
+                        value={gpioSettings.alarm2_device}
+                        onChange={handleGpioChange}
+                      >
+                        <option value="vent">Ventilator</option>
+                        <option value="pulseox">Pulse Oximeter</option>
+                        <option value="other">Other Device</option>
+                      </select>
+                    </div>
+                    <div className="setting-group">
+                      <label>RJ9 Port #2 Recovery Time (seconds):</label>
+                      <input
+                        type="number"
+                        name="alarm2_recovery_time"
+                        value={gpioSettings.alarm2_recovery_time}
+                        onChange={handleGpioChange}
+                        min="5"
+                        max="300"
+                      />
+                    </div>
+                  </div>
+                  <div className="button-row" style={{ marginTop: 24 }}>
+                    <button 
+                      className="primary-button"
+                      disabled={gpioLoading}
+                      type="submit"
+                    >
+                      {gpioLoading ? 'Saving...' : 'Save Settings'}
+                    </button>
+                  </div>
+                  <div className="info-section" style={{ marginTop: 24 }}>
+                    <h4>About RJ9 Alarm Connections</h4>
+                    <p>
+                      These settings configure how external device alarms connected via RJ9 phone lines
+                      are processed. For each port, you can specify the device type and recovery time
+                      (how long to wait before accepting a new alarm after an alert ends).
+                    </p>
+                    <p>
+                      <strong>Note:</strong> Changes will take effect immediately without requiring a system restart.
+                    </p>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </>
+        )}
+        {error && <div className="error-message">{error}</div>}
+        {success && <div className="success-message">Settings saved successfully!</div>}
+        <div className="form-actions">
+          <button type="submit" className="button primary" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving...' : 'Save Settings'}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 };
 
