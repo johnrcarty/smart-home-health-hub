@@ -216,15 +216,10 @@ def temperature_history(limit: int = 100):
 async def add_manual_vitals(vital_data: dict):
     db = next(get_db())
     try:
-        # Extract data from the request
         datetime_val = vital_data.get("datetime")
-        bp = vital_data.get("bp", {})
-        temp = vital_data.get("temp", {})
-        nutrition = vital_data.get("nutrition", {})
-        weight = vital_data.get("weight")
         notes = vital_data.get("notes")
-        
-        # Handle BP data - use existing table
+        # Handle blood pressure
+        bp = vital_data.get("bp", {})
         if bp and (bp.get("systolic_bp") or bp.get("diastolic_bp")):
             systolic = bp.get("systolic_bp")
             diastolic = bp.get("diastolic_bp")
@@ -237,30 +232,30 @@ async def add_manual_vitals(vital_data: dict):
                     map_value=map_bp or 0,
                     raw_data=json.dumps(bp)
                 )
-        
-        # Handle temperature data - use existing table
+        # Handle temperature
+        temp = vital_data.get("temp", {})
         if temp and temp.get("body_temp"):
             body_temp = temp.get("body_temp")
             save_temperature(
                 db,
-                skin_temp=None,  # Only capturing body temp manually
+                skin_temp=None,
                 body_temp=body_temp,
                 raw_data=json.dumps(temp)
             )
-        
-        # Handle other vitals using the new generic vitals table
-        if nutrition and nutrition.get("calories"):
-            save_vital(db, "calories", nutrition.get("calories"), datetime_val, notes)
-        
-        if nutrition and nutrition.get("water_ml"):
-            save_vital(db, "water", nutrition.get("water_ml"), datetime_val, notes)
-        
-        if weight:
-            save_vital(db, "weight", weight, datetime_val, notes)
-        
-        # Force state update to include new readings
+        # Dynamically handle all other vitals
+        for key, value in vital_data.items():
+            if key in ["datetime", "bp", "temp", "notes"]:
+                continue
+            if value is None or value == "":
+                continue
+            # If value is a dict, flatten it
+            if isinstance(value, dict):
+                for subkey, subval in value.items():
+                    if subval is not None and subval != "":
+                        save_vital(db, f"{key}_{subkey}", subval, datetime_val, notes)
+            else:
+                save_vital(db, key, value, datetime_val, notes)
         broadcast_state()
-        
         return {"status": "success", "message": "Vitals saved successfully"}
     except Exception as e:
         print(f"Error saving manual vitals: {str(e)}")
