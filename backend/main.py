@@ -63,8 +63,6 @@ async def startup_event():
     
     
     # Initialize default settings if they don't exist
-    from crud import save_setting, get_setting
-    from db import get_db
     db = next(get_db())
     reset_sensor_state()
     
@@ -501,7 +499,8 @@ async def api_add_equipment(data: dict = Body(...)):
 @app.get("/api/equipment")
 async def api_get_equipment():
     """Get equipment list sorted by due next."""
-    return get_equipment_list()
+    db = next(get_db())
+    return get_equipment_list(db)
 
 @app.post("/api/equipment/{equipment_id}/change")
 async def api_log_equipment_change(equipment_id: int, data: dict = Body(...)):
