@@ -242,19 +242,23 @@ async def add_manual_vitals(vital_data: dict):
                 body_temp=body_temp,
                 raw_data=json.dumps(temp)
             )
+        # Handle bathroom
+        bathroom_type = vital_data.get("bathroom_type")
+        bathroom_size = vital_data.get("bathroom_size")
+        bathroom_size_map = ["smear", "s", "m", "l", "xl"]
+        if bathroom_type and bathroom_size:
+            try:
+                value = bathroom_size_map.index(bathroom_size)
+            except ValueError:
+                value = None
+            save_vital(db, "bathroom", value, datetime_val, notes, vital_group=bathroom_type)
         # Dynamically handle all other vitals
         for key, value in vital_data.items():
-            if key in ["datetime", "bp", "temp", "notes"]:
+            if key in ["datetime", "bp", "temp", "notes", "bathroom_type", "bathroom_size"]:
                 continue
             if value is None or value == "":
                 continue
-            # If value is a dict, flatten it
-            if isinstance(value, dict):
-                for subkey, subval in value.items():
-                    if subval is not None and subval != "":
-                        save_vital(db, f"{key}_{subkey}", subval, datetime_val, notes)
-            else:
-                save_vital(db, key, value, datetime_val, notes)
+            save_vital(db, key, value, datetime_val, notes)
         broadcast_state()
         return {"status": "success", "message": "Vitals saved successfully"}
     except Exception as e:

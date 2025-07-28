@@ -35,78 +35,77 @@ const VitalsForm = ({ onSave, onClose }) => {
     }
   };
 
+  const buildPayload = () => {
+    const payload = { datetime: new Date().toISOString() };
+    // Blood Pressure
+    if (formData.bloodPressure.systolic || formData.bloodPressure.diastolic) {
+      payload.bp = {
+        systolic_bp: formData.bloodPressure.systolic ? parseInt(formData.bloodPressure.systolic) : null,
+        diastolic_bp: formData.bloodPressure.diastolic ? parseInt(formData.bloodPressure.diastolic) : null,
+        map_bp: calculateMAP(formData.bloodPressure.systolic, formData.bloodPressure.diastolic)
+      };
+    }
+    // Temperature
+    if (formData.temperature.body) {
+      payload.temp = {
+        body_temp: parseFloat(formData.temperature.body)
+      };
+    }
+    // Nutrition
+    if (formData.nutrition.calories) {
+      payload.calories = parseInt(formData.nutrition.calories);
+    }
+    if (formData.nutrition.water) {
+      payload.water_ml = parseInt(formData.nutrition.water);
+    }
+    // Weight
+    if (formData.weight) {
+      payload.weight = parseFloat(formData.weight);
+    }
+    // Notes
+    if (formData.notes) {
+      payload.notes = formData.notes;
+    }
+    // Bathroom
+    if (formData.bathroom.type) {
+      payload.bathroom_type = formData.bathroom.type;
+    }
+    if (formData.bathroom.size) {
+      payload.bathroom_size = formData.bathroom.size;
+    }
+    return payload;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
     setIsSubmitting(true);
-    
     try {
-      // Prepare the data in the format expected by the API
-      const payload = {
-        datetime: new Date().toISOString(),
-        bp: {
-          systolic_bp: formData.bloodPressure.systolic ? parseInt(formData.bloodPressure.systolic) : null,
-          diastolic_bp: formData.bloodPressure.diastolic ? parseInt(formData.bloodPressure.diastolic) : null,
-          map_bp: calculateMAP(formData.bloodPressure.systolic, formData.bloodPressure.diastolic)
-        },
-        temp: {
-          body_temp: formData.temperature.body ? parseFloat(formData.temperature.body) : null,
-        },
-        nutrition: {
-          calories: formData.nutrition.calories ? parseInt(formData.nutrition.calories) : null,
-          water_ml: formData.nutrition.water ? parseInt(formData.nutrition.water) : null,
-        },
-        weight: formData.weight ? parseFloat(formData.weight) : null,
-        notes: formData.notes
-      };
-      
+      const payload = buildPayload();
       console.log("Submitting vitals payload:", payload);
-      
-      // Send data to API
       const response = await fetch(`${config.apiUrl}/api/vitals/manual`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      
       const responseData = await response.json();
-      
       if (!response.ok) {
         throw new Error(responseData.message || `Error saving vitals: ${response.statusText}`);
       }
-      
-      console.log("Vitals saved successfully:", responseData);
-      
       setSuccess(true);
-      if (onSave) {
-        onSave(responseData);
-      }
-      
-      // Reset form after successful submission
+      if (onSave) onSave(responseData);
       setTimeout(() => {
         setFormData({
-          bloodPressure: {
-            systolic: '',
-            diastolic: '',
-          },
-          temperature: {
-            body: '',
-          },
-          nutrition: {
-            calories: '',
-            water: '',
-          },
+          bloodPressure: { systolic: '', diastolic: '' },
+          temperature: { body: '' },
+          nutrition: { calories: '', water: '' },
           weight: '',
           notes: '',
-          bathroom: { type: '', size: '' } // <-- Ensure bathroom field is always present
+          bathroom: { type: '', size: '' }
         });
         setSuccess(false);
       }, 2000);
-      
     } catch (err) {
-      console.error("Error saving vitals:", err);
       setError(err.message || "Error saving vitals. Please try again.");
     } finally {
       setIsSubmitting(false);
