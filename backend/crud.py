@@ -70,9 +70,8 @@ def save_vital(db: Session, vital_type, value, timestamp=None, notes=None, vital
 
 # --- Get Distinct Vital Types ---
 def get_distinct_vital_types(db: Session):
-    """
-    Get a distinct list of vital_type values from the vitals table
-    """
+    logger.info(f"DB connection: {db.bind.url}")
+    logger.info("Fetching distinct vital types...")
     types = db.query(Vital.vital_type).filter(Vital.vital_type.isnot(None)).filter(Vital.vital_type != '').distinct().all()
     logger.info(f"Distinct vital types fetched: {types}")
     return [t[0] for t in types]
