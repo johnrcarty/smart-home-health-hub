@@ -196,7 +196,7 @@ def check_thresholds(spo2, bpm):
     Returns:
         tuple: (spo2_alarm, hr_alarm) boolean flags
     """
-    from db import get_setting
+    from crud import get_setting
     
     # Get threshold settings, ensuring they're integers
     min_spo2 = int(get_setting('min_spo2', 90))
@@ -247,7 +247,7 @@ def broadcast_state():
     temp_history = get_last_n_temperature(5)
     
     # Get all settings
-    from db import get_all_settings, get_unacknowledged_alerts_count, get_equipment_due_count
+    from crud import get_all_settings, get_unacknowledged_alerts_count, get_equipment_due_count
     settings = get_all_settings()
     alerts_count = get_unacknowledged_alerts_count()
     equipment_due_count = get_equipment_due_count()
@@ -582,7 +582,7 @@ def store_event_data_for_alert(alert_id, data_points):
         alert_id: ID of the alert
         data_points: List of data points to store
     """
-    from db import save_pulse_ox_data
+    from crud import save_pulse_ox_data
 
     print(f"[state_manager] Storing {len(data_points)} data points for alert {alert_id}")
 
@@ -640,8 +640,8 @@ def broadcast_alert_updates():
         return
 
     # Get counts of active alarms
-    from db import get_unacknowledged_alerts_count
-    from db import get_active_ventilator_alerts_count
+    from crud import get_unacknowledged_alerts_count
+    from crud import get_active_ventilator_alerts_count
     
     # Get the counts
     pulse_ox_alerts = get_unacknowledged_alerts_count()
@@ -743,7 +743,7 @@ def broadcast_state():
     temp_history = get_last_n_temperature(5)
     
     # Get all settings
-    from db import get_all_settings, get_unacknowledged_alerts_count, get_equipment_due_count
+    from crud import get_all_settings, get_unacknowledged_alerts_count, get_equipment_due_count
     settings = get_all_settings()
     alerts_count = get_unacknowledged_alerts_count()
     equipment_due_count = get_equipment_due_count()

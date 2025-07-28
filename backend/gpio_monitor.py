@@ -23,7 +23,7 @@ alarm_states = {"alarm1": False, "alarm2": False}
 
 def get_device_settings():
     try:
-        from db import get_setting
+        from crud import get_setting
         alarm1_device = get_setting("alarm1_device", "vent")
         alarm2_device = get_setting("alarm2_device", "pulseox")
         alarm1_recovery = int(get_setting("alarm1_recovery_time", DEFAULT_RECOVERY_TIME))
@@ -66,7 +66,7 @@ def gpio_callback(gpio, level, tick):
 
 def handle_vent_alarm(device, gpio):
     try:
-        from db import record_ventilator_alarm
+        from crud import record_ventilator_alarm
         record_ventilator_alarm(device, gpio)
         logger.info(f"Ventilator alarm recorded for {device} on pin {gpio}")
     except Exception as e:
@@ -74,7 +74,7 @@ def handle_vent_alarm(device, gpio):
 
 def handle_pulseox_alarm(device, gpio):
     try:
-        from db import record_external_pulse_ox_alarm
+        from crud import record_external_pulse_ox_alarm
         record_external_pulse_ox_alarm(device, gpio)
         logger.info(f"Pulse oximeter alarm recorded for {device} on pin {gpio}")
     except Exception as e:
