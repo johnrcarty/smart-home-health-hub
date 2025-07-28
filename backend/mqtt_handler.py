@@ -3,7 +3,7 @@ import os
 import paho.mqtt.client as mqtt
 from sensor_manager import SENSOR_DEFINITIONS
 from state_manager import get_websocket_clients, update_sensor, broadcast_state
-from db import save_blood_pressure, save_temperature  # Add save_temperature import
+from crud import save_blood_pressure, save_temperature  # Add save_temperature import
 
 from dotenv import load_dotenv
 import asyncio

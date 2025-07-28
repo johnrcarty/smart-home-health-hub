@@ -2,8 +2,8 @@ import logging
 import json
 from datetime import datetime
 from sqlalchemy.orm import Session
-from .db import get_db
-from .models import (BloodPressure, Temperature, Vital, Setting, PulseOxData,
+from db import get_db
+from models import (BloodPressure, Temperature, Vital, Setting, PulseOxData,
     MonitoringAlert, Equipment, EquipmentChangeLog, VentilatorAlert, ExternalAlarm)
 
 logger = logging.getLogger('crud')

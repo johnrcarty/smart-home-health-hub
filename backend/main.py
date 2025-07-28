@@ -13,7 +13,7 @@ from state_manager import (
     broadcast_state  # Make sure to import this too
 )
 from crud import (get_latest_blood_pressure, get_blood_pressure_history, get_last_n_temperature, save_blood_pressure,
-                  save_temperature, save_vital, get_all_settings, get_setting, save_setting, delete_setting,
+                  save_temperature, save_vital, get_vitals_by_type, get_all_settings, get_setting, save_setting, delete_setting,
                   add_equipment, get_equipment_list, log_equipment_change, get_equipment_change_history)
 from mqtt_discovery import send_mqtt_discovery
 from pydantic import BaseModel
@@ -23,6 +23,7 @@ from state_manager import reset_sensor_state
 import logging
 from fastapi.responses import JSONResponse
 from gpio_monitor import start_gpio_monitoring, stop_gpio_monitoring, set_alarm_states
+from db import get_db
 
 load_dotenv()
 
@@ -59,57 +60,56 @@ async def startup_event():
     set_event_loop(asyncio.get_event_loop())
     print("[main] Event loop registered with state manager")
     
-    # Initialize database
-    init_db()
     
     # Initialize default settings if they don't exist
-    from db import save_setting, get_setting
-
+    from crud import save_setting, get_setting
+    from db import get_db
+    db = next(get_db())
     reset_sensor_state()
     
     # Device settings
-    if get_setting("device_name") is None:
-        save_setting("device_name", "Smart Home Health Monitor", "string", "Device name")
+    if get_setting(db, "device_name", None) is None:
+        save_setting(db, "device_name", "Smart Home Health Monitor", "string", "Device name")
     
-    if get_setting("device_location") is None:
-        save_setting("device_location", "Bedroom", "string", "Device location")
+    if get_setting(db, "device_location", None) is None:
+        save_setting(db, "device_location", "Bedroom", "string", "Device location")
     
     # Alert thresholds - use environment variables as defaults if available
-    if get_setting("min_spo2") is None:
-        save_setting("min_spo2", os.getenv("MIN_SPO2", 90), "int", "Minimum SpO2 threshold")
+    if get_setting(db, "min_spo2", None) is None:
+        save_setting(db, "min_spo2", os.getenv("MIN_SPO2", 90), "int", "Minimum SpO2 threshold")
     
-    if get_setting("max_spo2") is None:
-        save_setting("max_spo2", os.getenv("MAX_SPO2", 100), "int", "Maximum SpO2 threshold")
+    if get_setting(db, "max_spo2", None) is None:
+        save_setting(db, "max_spo2", os.getenv("MAX_SPO2", 100), "int", "Maximum SpO2 threshold")
     
-    if get_setting("min_bpm") is None:
-        save_setting("min_bpm", os.getenv("MIN_BPM", 55), "int", "Minimum heart rate threshold")
+    if get_setting(db, "min_bpm", None) is None:
+        save_setting(db, "min_bpm", os.getenv("MIN_BPM", 55), "int", "Minimum heart rate threshold")
     
-    if get_setting("max_bpm") is None:
-        save_setting("max_bpm", os.getenv("MAX_BPM", 155), "int", "Maximum heart rate threshold")
+    if get_setting(db, "max_bpm", None) is None:
+        save_setting(db, "max_bpm", os.getenv("MAX_BPM", 155), "int", "Maximum heart rate threshold")
     
     # Display settings
-    if get_setting("temp_unit") is None:
-        save_setting("temp_unit", "F", "string", "Temperature unit (F or C)")
+    if get_setting(db, "temp_unit", None) is None:
+        save_setting(db, "temp_unit", "F", "string", "Temperature unit (F or C)")
     
-    if get_setting("weight_unit") is None:
-        save_setting("weight_unit", "lbs", "string", "Weight unit (lbs or kg)")
+    if get_setting(db, "weight_unit", None) is None:
+        save_setting(db, "weight_unit", "lbs", "string", "Weight unit (lbs or kg)")
     
-    if get_setting("dark_mode") is None:
-        save_setting("dark_mode", True, "bool", "Dark mode enabled")
+    if get_setting(db, "dark_mode", None) is None:
+        save_setting(db, "dark_mode", True, "bool", "Dark mode enabled")
     
 
     # Initialize default GPIO alarm settings if they don't exist
-    if get_setting("alarm1_device") is None:
-        save_setting("alarm1_device", "vent", "string", "Device type for Alarm 1 RJ9 port")
+    if get_setting(db, "alarm1_device", None) is None:
+        save_setting(db, "alarm1_device", "vent", "string", "Device type for Alarm 1 RJ9 port")
     
-    if get_setting("alarm2_device") is None:
-        save_setting("alarm2_device", "pulseox", "string", "Device type for Alarm 2 RJ9 port")
+    if get_setting(db, "alarm2_device", None) is None:
+        save_setting(db, "alarm2_device", "pulseox", "string", "Device type for Alarm 2 RJ9 port")
 
-    if get_setting("alarm1_recovery_time") is None:
-        save_setting("alarm1_recovery_time", 30, "int", "Recovery time in seconds for Alarm 1")
+    if get_setting(db, "alarm1_recovery_time", None) is None:
+        save_setting(db, "alarm1_recovery_time", 30, "int", "Recovery time in seconds for Alarm 1")
     
-    if get_setting("alarm2_recovery_time") is None:
-        save_setting("alarm2_recovery_time", 30, "int", "Recovery time in seconds for Alarm 2")
+    if get_setting(db, "alarm2_recovery_time", None) is None:
+        save_setting(db, "alarm2_recovery_time", 30, "int", "Recovery time in seconds for Alarm 2")
         
     # 1) Wire in MQTT - only create one client
     mqtt = get_mqtt_client(loop)
@@ -141,7 +141,7 @@ async def startup_event():
     threading.Thread(target=serial_loop, daemon=True).start()
 
     # Start GPIO monitoring only if enabled
-    gpio_enabled = get_setting("gpio_enabled", False)
+    gpio_enabled = get_setting(db, "gpio_enabled", False)
     if gpio_enabled in [True, "true", "True", 1, "1"]:
         start_gpio_monitoring()
     else:
@@ -191,28 +191,33 @@ def get_limits():
 # Add new endpoints to access blood pressure data
 @app.get("/blood-pressure/latest")
 def latest_blood_pressure():
-    return get_latest_blood_pressure() or {"message": "No data available"}
+    db = next(get_db())
+    return get_latest_blood_pressure(db) or {"message": "No data available"}
 
 @app.get("/blood-pressure/history")
 def blood_pressure_history(limit: int = 100):
-    return get_blood_pressure_history(limit)
+    db = next(get_db())
+    return get_blood_pressure_history(db, limit)
 
 # Add new endpoints to access temperature data
 @app.get("/temperature/latest")
 def latest_temperature():
-    temps = get_last_n_temperature(1)
+    db = next(get_db())
+    temps = get_last_n_temperature(db, 1)
     return temps[0] if temps else {"message": "No data available"}
 
 @app.get("/temperature/history")
 def temperature_history(limit: int = 100):
-    return get_last_n_temperature(limit)
+    db = next(get_db())
+    return get_last_n_temperature(db, limit)
 
 # Add this new route to handle manual vitals
 @app.post("/api/vitals/manual")
 async def add_manual_vitals(vital_data: dict):
+    db = next(get_db())
     try:
         # Extract data from the request
-        datetime = vital_data.get("datetime")
+        datetime_val = vital_data.get("datetime")
         bp = vital_data.get("bp", {})
         temp = vital_data.get("temp", {})
         nutrition = vital_data.get("nutrition", {})
@@ -226,6 +231,7 @@ async def add_manual_vitals(vital_data: dict):
             map_bp = bp.get("map_bp")
             if systolic and diastolic:
                 save_blood_pressure(
+                    db,
                     systolic=systolic,
                     diastolic=diastolic,
                     map_value=map_bp or 0,
@@ -236,6 +242,7 @@ async def add_manual_vitals(vital_data: dict):
         if temp and temp.get("body_temp"):
             body_temp = temp.get("body_temp")
             save_temperature(
+                db,
                 skin_temp=None,  # Only capturing body temp manually
                 body_temp=body_temp,
                 raw_data=json.dumps(temp)
@@ -243,13 +250,13 @@ async def add_manual_vitals(vital_data: dict):
         
         # Handle other vitals using the new generic vitals table
         if nutrition and nutrition.get("calories"):
-            save_vital("calories", nutrition.get("calories"), datetime, notes)
-            
+            save_vital(db, "calories", nutrition.get("calories"), datetime_val, notes)
+        
         if nutrition and nutrition.get("water_ml"):
-            save_vital("water", nutrition.get("water_ml"), datetime, notes)
-            
+            save_vital(db, "water", nutrition.get("water_ml"), datetime_val, notes)
+        
         if weight:
-            save_vital("weight", weight, datetime, notes)
+            save_vital(db, "weight", weight, datetime_val, notes)
         
         # Force state update to include new readings
         broadcast_state()
@@ -270,13 +277,13 @@ def get_vital_history(vital_type: str, limit: int = 100):
         vital_type: Type of vital (weight, calories, water, etc.)
         limit: Maximum number of records to return
     """
-    from db import get_vitals_by_type
+    # from crud import get_vitals_by_type
     return get_vitals_by_type(vital_type, limit)
 
 @app.get("/api/vitals/nutrition")
 def get_nutrition_history(limit: int = 100):
     """Get combined nutrition history (calories and water)"""
-    from db import get_vitals_by_type
+    from crud import get_vitals_by_type
     return {
         "calories": get_vitals_by_type("calories", limit),
         "water": get_vitals_by_type("water", limit)
@@ -287,7 +294,7 @@ def get_vital_types():
     """
     Get a distinct list of vital_type values from the vitals table
     """
-    from db import get_distinct_vital_types
+    from crud import get_distinct_vital_types
     return get_distinct_vital_types()
 
 @app.get("/api/vitals/history")
@@ -295,7 +302,7 @@ def get_vital_history_paginated(vital_type: str, page: int = 1, page_size: int =
     """
     Get paginated history for a specific vital type
     """
-    from db import get_vitals_by_type_paginated
+    from crud import get_vitals_by_type_paginated
     return get_vitals_by_type_paginated(vital_type, page, page_size)
 
 # Add these imports
@@ -316,14 +323,16 @@ class SettingUpdate(BaseModel):
 @app.get("/api/settings")
 async def get_all_settings():
     """Get all settings"""
-    from db import get_all_settings
-    return get_all_settings()
+    from crud import get_all_settings
+    db = next(get_db())
+    return get_all_settings(db)
 
 @app.get("/api/settings/{key}")
 async def get_setting(key: str, default: Optional[str] = None):
     """Get a specific setting by key"""
-    from db import get_setting
-    value = get_setting(key, default)
+    from crud import get_setting
+    db = next(get_db())
+    value = get_setting(db, key, default)
     if value is None and default is None:
         raise HTTPException(status_code=404, detail=f"Setting {key} not found")
     return {"key": key, "value": value}
@@ -331,8 +340,10 @@ async def get_setting(key: str, default: Optional[str] = None):
 @app.post("/api/settings/{key}")
 async def set_setting(key: str, setting: SettingIn):
     """Set a specific setting"""
-    from db import save_setting
+    from crud import save_setting
+    db = next(get_db())
     success = save_setting(
+        db,
         key=key,
         value=setting.value,
         data_type=setting.data_type,
@@ -340,16 +351,14 @@ async def set_setting(key: str, setting: SettingIn):
     )
     if not success:
         raise HTTPException(status_code=500, detail="Failed to save setting")
-    
-    # Use broadcast_state instead of broadcast_settings
     broadcast_state()
-    
     return {"key": key, "value": setting.value, "status": "success"}
 
 @app.post("/api/settings")
 async def update_multiple_settings(settings: SettingUpdate):
     """Update multiple settings at once"""
-    from db import save_setting
+    from crud import save_setting
+    db = next(get_db())
     results = {}
     gpio_enabled_changed = False
     gpio_enabled_new = None
@@ -357,41 +366,32 @@ async def update_multiple_settings(settings: SettingUpdate):
         if key == "gpio_enabled":
             gpio_enabled_new = value if not isinstance(value, dict) else value.get("value")
             gpio_enabled_changed = True
-        # Handle both simple values and complete setting objects
         if isinstance(value, dict) and "value" in value:
             data_type = value.get("data_type", "string")
             description = value.get("description")
             actual_value = value["value"]
-            success = save_setting(key, actual_value, data_type, description)
+            success = save_setting(db, key, actual_value, data_type, description)
         else:
-            success = save_setting(key, value)
-        
+            success = save_setting(db, key, value)
         results[key] = "success" if success else "failed"
-    
-    # Use broadcast_state instead of broadcast_settings
     broadcast_state()
-    
-    # Handle GPIO enable/disable
     if gpio_enabled_changed:
         if gpio_enabled_new in [True, "true", "True", 1, "1"]:
             start_gpio_monitoring()
         else:
             stop_gpio_monitoring()
             set_alarm_states({"alarm1": False, "alarm2": False})
-    
     return results
 
 @app.delete("/api/settings/{key}")
 async def delete_setting_endpoint(key: str):
     """Delete a setting"""
-    from db import delete_setting
-    success = delete_setting(key)
+    from crud import delete_setting
+    db = next(get_db())
+    success = delete_setting(db, key)
     if not success:
         raise HTTPException(status_code=404, detail=f"Setting {key} not found")
-    
-    # Use broadcast_state instead of broadcast_settings
     broadcast_state()
-    
     return {"status": "success", "message": f"Setting {key} deleted"}
 
 # Add these endpoints
@@ -403,13 +403,13 @@ async def get_monitoring_alerts_endpoint(
     detailed: bool = False
 ):
     """Get monitoring alerts"""
-    from db import get_monitoring_alerts
+    from crud import get_monitoring_alerts
     return get_monitoring_alerts(limit, include_acknowledged, detailed)
 
 @app.get("/api/monitoring/alerts/count")
 async def get_unacknowledged_alerts_count_endpoint():
     """Get count of unacknowledged alerts"""
-    from db import get_unacknowledged_alerts_count
+    from crud import get_unacknowledged_alerts_count
     return {"count": get_unacknowledged_alerts_count()}
 
 @app.post("/api/monitoring/alerts/{alert_id}/acknowledge")
@@ -433,7 +433,7 @@ async def acknowledge_alert(alert_id: int, data: dict = Body(...)):
             oxygen_highest = None
         
         # Update the alert with oxygen information
-        from db import update_monitoring_alert, acknowledge_alert
+        from crud import update_monitoring_alert, acknowledge_alert
         success = update_monitoring_alert(
             alert_id,
             oxygen_used=oxygen_used,
@@ -485,7 +485,7 @@ async def get_pulse_ox_data_endpoint(
 @app.get("/api/monitoring/alerts/{alert_id}/data")
 async def get_alert_data(alert_id: int):
     """Get detailed data for a specific alert event"""
-    from db import get_pulse_ox_data_for_alert
+    from crud import get_pulse_ox_data_for_alert
     
     try:
         data = get_pulse_ox_data_for_alert(alert_id)
@@ -493,7 +493,7 @@ async def get_alert_data(alert_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving alert data: {str(e)}")
 
-from db import add_equipment, get_equipment_list, log_equipment_change, get_equipment_change_history
+from crud import add_equipment, get_equipment_list, log_equipment_change, get_equipment_change_history
 
 @app.post("/api/equipment")
 async def api_add_equipment(data: dict = Body(...)):

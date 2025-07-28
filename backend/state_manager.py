@@ -4,7 +4,7 @@ import asyncio
 import json
 from sensor_manager import SENSOR_DEFINITIONS
 import os
-from db import get_last_n_blood_pressure, get_last_n_temperature
+from crud import get_last_n_blood_pressure, get_last_n_temperature
 from datetime import datetime
 import time
 from collections import deque
@@ -34,7 +34,7 @@ event_loop = None
 
 _serial_mode_callbacks = []
 
-from db import get_unacknowledged_alerts_count, save_pulse_ox_data, start_monitoring_alert, update_monitoring_alert
+from crud import get_unacknowledged_alerts_count, save_pulse_ox_data, start_monitoring_alert, update_monitoring_alert
 
 # Add these global variables to track the current alert state
 current_alert_id = None
