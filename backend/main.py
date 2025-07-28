@@ -14,7 +14,8 @@ from state_manager import (
 )
 from crud import (get_latest_blood_pressure, get_blood_pressure_history, get_last_n_temperature, save_blood_pressure,
                   save_temperature, save_vital, get_vitals_by_type, get_all_settings, get_setting, save_setting, delete_setting,
-                  add_equipment, get_equipment_list, log_equipment_change, get_equipment_change_history)
+                  add_equipment, get_equipment_list, log_equipment_change, get_equipment_change_history, get_distinct_vital_types,
+                  get_vitals_by_type_paginated)
 from mqtt_discovery import send_mqtt_discovery
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
@@ -287,7 +288,6 @@ def get_vital_types():
     Get a distinct list of vital_type values from the vitals table
     """
     db = next(get_db())
-    from crud import get_distinct_vital_types
     return get_distinct_vital_types(db)
 
 @app.get("/api/vitals/history")
@@ -295,7 +295,6 @@ def get_vital_history_paginated(vital_type: str, page: int = 1, page_size: int =
     """
     Get paginated history for a specific vital type
     """
-    from crud import get_vitals_by_type_paginated
     return get_vitals_by_type_paginated(vital_type, page, page_size)
 
 # Add these imports
