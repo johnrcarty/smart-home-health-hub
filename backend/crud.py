@@ -48,7 +48,7 @@ def save_temperature(db: Session, skin_temp, body_temp, raw_data):
     return temp.id
 
 # --- Generic Vital CRUD ---
-def save_vital(db: Session, vital_type, value, timestamp=None, notes=None):
+def save_vital(db: Session, vital_type, value, timestamp=None, notes=None, vital_group=None):
     """
     Save a generic vital reading to database (Postgres)
     """
@@ -59,12 +59,13 @@ def save_vital(db: Session, vital_type, value, timestamp=None, notes=None):
         vital_type=vital_type,
         value=value,
         notes=notes,
+        vital_group=vital_group,
         created_at=now
     )
     db.add(vital)
     db.commit()
     db.refresh(vital)
-    logger.info(f"Vital saved: {vital_type}={value}")
+    logger.info(f"Vital saved: {vital_type}={value}, group={vital_group}")
     return vital.id
 
 # --- Get Distinct Vital Types ---
