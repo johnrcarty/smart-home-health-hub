@@ -269,15 +269,8 @@ async def add_manual_vitals(vital_data: dict):
 
 @app.get("/api/vitals/{vital_type}")
 def get_vital_history(vital_type: str, limit: int = 100):
-    """
-    Get history for a specific vital type
-    
-    Args:
-        vital_type: Type of vital (weight, calories, water, etc.)
-        limit: Maximum number of records to return
-    """
-    # from crud import get_vitals_by_type
-    return get_vitals_by_type(vital_type, limit)
+    db = next(get_db())
+    return get_vitals_by_type(db, vital_type, limit)
 
 @app.get("/api/vitals/nutrition")
 def get_nutrition_history(limit: int = 100):
