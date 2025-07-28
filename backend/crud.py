@@ -73,7 +73,7 @@ def get_distinct_vital_types(db: Session):
     """
     Get a distinct list of vital_type values from the vitals table
     """
-    types = db.query(Vital.vital_type).distinct().all()
+    types = db.query(Vital.vital_type).filter(Vital.vital_type.isnot(None)).filter(Vital.vital_type != '').distinct().all()
     return [t[0] for t in types]
 
 # --- Paginated Vital History ---
