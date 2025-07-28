@@ -293,8 +293,9 @@ def get_vital_types():
     """
     Get a distinct list of vital_type values from the vitals table
     """
+    db = next(get_db())
     from crud import get_distinct_vital_types
-    return get_distinct_vital_types()
+    return get_distinct_vital_types(db)
 
 @app.get("/api/vitals/history")
 def get_vital_history_paginated(vital_type: str, page: int = 1, page_size: int = 20):
