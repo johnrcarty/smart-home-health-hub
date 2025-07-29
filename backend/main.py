@@ -297,6 +297,16 @@ def get_vital_types():
     """
     db = next(get_db())
     logger.info(f"API endpoint: get_vital_types called with db session: {db}")
+    
+    # Test the database connection
+    try:
+        from models import Vital
+        test_count = db.query(Vital).count()
+        logger.info(f"API endpoint: Total vitals count from API: {test_count}")
+    except Exception as e:
+        logger.error(f"API endpoint: Database connection test failed: {e}")
+        return {"error": "Database connection failed", "details": str(e)}
+    
     result = get_distinct_vital_types(db)
     logger.info(f"API endpoint: get_distinct_vital_types returned: {result}")
     return result
