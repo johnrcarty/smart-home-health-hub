@@ -2,7 +2,8 @@ import threading
 from serial_reader import serial_loop
 import asyncio
 import json  # Add this import
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends
+from sqlalchemy.orm import Session
 from mqtt_handler import get_mqtt_client
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -294,11 +295,11 @@ def get_nutrition_history(limit: int = 100):
 
 
 @app.get("/api/vitals/history")
-def get_vital_history_paginated(vital_type: str, page: int = 1, page_size: int = 20):
+def get_vital_history_paginated(vital_type: str, page: int = 1, page_size: int = 20, db: Session = Depends(get_db)):
     """
     Get paginated history for a specific vital type
     """
-    return get_vitals_by_type_paginated(vital_type, page, page_size)
+    return get_vitals_by_type_paginated(db, vital_type, page, page_size)
 
 
 @app.get("/api/vitals/{vital_type}")
