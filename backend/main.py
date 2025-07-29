@@ -274,10 +274,13 @@ async def add_manual_vitals(vital_data: dict):
 
 # Add these endpoints after your existing endpoints
 
-@app.get("/api/vitals/{vital_type}")
-def get_vital_history(vital_type: str, limit: int = 100):
-    db = next(get_db())
-    return get_vitals_by_type(db, vital_type, limit)
+@app.get("/api/vitals/types")
+def get_vital_types():
+    """
+    Get a distinct list of vital_type values from the vitals table
+    """
+    print("=== API ENDPOINT CALLED: /api/vitals/types ===")
+    return ["DEBUG_TEST"]  # Temporary hardcoded response
 
 
 @app.get("/api/vitals/nutrition")
@@ -290,21 +293,18 @@ def get_nutrition_history(limit: int = 100):
     }
 
 
-@app.get("/api/vitals/types")
-def get_vital_types():
-    """
-    Get a distinct list of vital_type values from the vitals table
-    """
-    print("=== API ENDPOINT CALLED: /api/vitals/types ===")
-    return ["DEBUG_TEST"]  # Temporary hardcoded response
-
-
 @app.get("/api/vitals/history")
 def get_vital_history_paginated(vital_type: str, page: int = 1, page_size: int = 20):
     """
     Get paginated history for a specific vital type
     """
     return get_vitals_by_type_paginated(vital_type, page, page_size)
+
+
+@app.get("/api/vitals/{vital_type}")
+def get_vital_history(vital_type: str, limit: int = 100):
+    db = next(get_db())
+    return get_vitals_by_type(db, vital_type, limit)
 
 
 # Add these imports
