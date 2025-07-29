@@ -67,46 +67,46 @@ async def startup_event():
     reset_sensor_state()
 
     # Device settings
-    if get_setting(db, "device_name", None) is None:
+    if get_setting(db, "device_name") is None:
         save_setting(db, "device_name", "Smart Home Health Monitor", "string", "Device name")
 
-    if get_setting(db, "device_location", None) is None:
+    if get_setting(db, "device_location") is None:
         save_setting(db, "device_location", "Bedroom", "string", "Device location")
 
     # Alert thresholds - use environment variables as defaults if available
-    if get_setting(db, "min_spo2", None) is None:
+    if get_setting(db, "min_spo2") is None:
         save_setting(db, "min_spo2", os.getenv("MIN_SPO2", 90), "int", "Minimum SpO2 threshold")
 
-    if get_setting(db, "max_spo2", None) is None:
+    if get_setting(db, "max_spo2") is None:
         save_setting(db, "max_spo2", os.getenv("MAX_SPO2", 100), "int", "Maximum SpO2 threshold")
 
-    if get_setting(db, "min_bpm", None) is None:
+    if get_setting(db, "min_bpm") is None:
         save_setting(db, "min_bpm", os.getenv("MIN_BPM", 55), "int", "Minimum heart rate threshold")
 
-    if get_setting(db, "max_bpm", None) is None:
+    if get_setting(db, "max_bpm") is None:
         save_setting(db, "max_bpm", os.getenv("MAX_BPM", 155), "int", "Maximum heart rate threshold")
 
     # Display settings
-    if get_setting(db, "temp_unit", None) is None:
+    if get_setting(db, "temp_unit") is None:
         save_setting(db, "temp_unit", "F", "string", "Temperature unit (F or C)")
 
-    if get_setting(db, "weight_unit", None) is None:
+    if get_setting(db, "weight_unit") is None:
         save_setting(db, "weight_unit", "lbs", "string", "Weight unit (lbs or kg)")
 
-    if get_setting(db, "dark_mode", None) is None:
+    if get_setting(db, "dark_mode") is None:
         save_setting(db, "dark_mode", True, "bool", "Dark mode enabled")
 
     # Initialize default GPIO alarm settings if they don't exist
-    if get_setting(db, "alarm1_device", None) is None:
+    if get_setting(db, "alarm1_device") is None:
         save_setting(db, "alarm1_device", "vent", "string", "Device type for Alarm 1 RJ9 port")
 
-    if get_setting(db, "alarm2_device", None) is None:
+    if get_setting(db, "alarm2_device") is None:
         save_setting(db, "alarm2_device", "pulseox", "string", "Device type for Alarm 2 RJ9 port")
 
-    if get_setting(db, "alarm1_recovery_time", None) is None:
+    if get_setting(db, "alarm1_recovery_time") is None:
         save_setting(db, "alarm1_recovery_time", 30, "int", "Recovery time in seconds for Alarm 1")
 
-    if get_setting(db, "alarm2_recovery_time", None) is None:
+    if get_setting(db, "alarm2_recovery_time") is None:
         save_setting(db, "alarm2_recovery_time", 30, "int", "Recovery time in seconds for Alarm 2")
 
     # 1) Wire in MQTT - only create one client
