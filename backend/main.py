@@ -279,8 +279,8 @@ def get_vital_types():
     """
     Get a distinct list of vital_type values from the vitals table
     """
-    print("=== API ENDPOINT CALLED: /api/vitals/types ===")
-    return ["DEBUG_TEST"]  # Temporary hardcoded response
+    db = next(get_db())
+    return get_distinct_vital_types(db)
 
 
 @app.get("/api/vitals/nutrition")
@@ -546,7 +546,3 @@ async def api_get_equipment_history(equipment_id: int):
 
 
 # Add a test endpoint to verify server is working
-@app.get("/api/test")
-def test_endpoint():
-    print("=== TEST ENDPOINT CALLED ===")
-    return {"message": "test endpoint working", "data": ["bathroom"]}
