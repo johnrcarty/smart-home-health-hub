@@ -543,3 +543,10 @@ async def api_log_equipment_change(equipment_id: int, data: dict = Body(...)):
 async def api_get_equipment_history(equipment_id: int):
     """Get change history for equipment."""
     return get_equipment_change_history(equipment_id)
+
+
+# Add a test endpoint to verify server is working
+@app.get("/api/test")
+def test_endpoint():
+    print("=== TEST ENDPOINT CALLED ===")
+    return {"message": "test endpoint working", "data": ["bathroom"]}
