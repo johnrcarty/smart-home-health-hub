@@ -90,7 +90,8 @@ def get_vitals_by_type_paginated(db: Session, vital_type, page=1, page_size=20):
             {
                 'datetime': v.timestamp,
                 'value': v.value,
-                'notes': v.notes
+                'notes': v.notes,
+                'vital_group': v.vital_group
             } for v in records
         ],
         'total': total,
@@ -198,7 +199,8 @@ def get_vitals_by_type(db: Session, vital_type, limit=100):
             {
                 'datetime': row.timestamp,
                 'value': row.value,
-                'notes': row.notes
+                'notes': row.notes,
+                'vital_group': row.vital_group
             }
             for row in results
         ]

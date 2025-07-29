@@ -47,12 +47,29 @@ const HistoryModal = ({ onClose }) => {
     if (page < totalPages) setPage(page + 1);
   };
 
+  // Bathroom size mapping for display
+  const getBathroomSizeDisplay = (value, vitalGroup) => {
+    if (vitalGroup === 'bathroom' && value !== null && value !== undefined) {
+      const sizeMap = {
+        0: 'Smear',
+        1: 'Small',
+        2: 'Medium', 
+        3: 'Large',
+        4: 'Extra Large'
+      };
+      return sizeMap[value] || value;
+    }
+    return value;
+  };
+
+  // Group display formatting
+  const getGroupDisplay = (vitalGroup) => {
+    if (!vitalGroup) return '-';
+    return vitalGroup.charAt(0).toUpperCase() + vitalGroup.slice(1);
+  };
+
   return (
     <div className="history-modal">
-      <div className="modal-header">
-        <h2>Vital History</h2>
-        <button onClick={onClose}>Close</button>
-      </div>
       <div className="modal-body">
         <div className="vital-type-buttons" style={{ 
           display: 'flex', 
@@ -143,6 +160,15 @@ const HistoryModal = ({ onClose }) => {
                           fontWeight: '600',
                           fontSize: '14px'
                         }}>
+                          Group
+                        </th>
+                        <th style={{ 
+                          padding: '16px', 
+                          color: '#fff', 
+                          textAlign: 'left',
+                          fontWeight: '600',
+                          fontSize: '14px'
+                        }}>
                           Notes
                         </th>
                       </tr>
@@ -150,7 +176,7 @@ const HistoryModal = ({ onClose }) => {
                     <tbody>
                       {records.length === 0 ? (
                         <tr>
-                          <td colSpan={3} style={{ 
+                          <td colSpan={4} style={{ 
                             textAlign: "center", 
                             padding: '40px',
                             color: '#666',
@@ -182,7 +208,14 @@ const HistoryModal = ({ onClose }) => {
                               fontSize: '14px',
                               fontWeight: '500'
                             }}>
-                              {rec.value}
+                              {getBathroomSizeDisplay(rec.value, rec.vital_group)}
+                            </td>
+                            <td style={{ 
+                              padding: '12px 16px', 
+                              color: '#666',
+                              fontSize: '14px'
+                            }}>
+                              {getGroupDisplay(rec.vital_group)}
                             </td>
                             <td style={{ 
                               padding: '12px 16px', 
