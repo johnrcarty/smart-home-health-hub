@@ -296,7 +296,10 @@ def get_vital_types():
     Get a distinct list of vital_type values from the vitals table
     """
     db = next(get_db())
-    return get_distinct_vital_types(db)
+    logger.info(f"API endpoint: get_vital_types called with db session: {db}")
+    result = get_distinct_vital_types(db)
+    logger.info(f"API endpoint: get_distinct_vital_types returned: {result}")
+    return result
 
 
 @app.get("/api/vitals/history")
