@@ -67,46 +67,46 @@ async def startup_event():
     reset_sensor_state()
 
     # Device settings
-    if await get_setting(db, "device_name") is None:
+    if get_setting(db, "device_name") is None:
         save_setting(db, "device_name", "Smart Home Health Monitor", "string", "Device name")
 
-    if await get_setting(db, "device_location") is None:
+    if get_setting(db, "device_location") is None:
         save_setting(db, "device_location", "Bedroom", "string", "Device location")
 
     # Alert thresholds - use environment variables as defaults if available
-    if await get_setting(db, "min_spo2") is None:
+    if get_setting(db, "min_spo2") is None:
         save_setting(db, "min_spo2", os.getenv("MIN_SPO2", 90), "int", "Minimum SpO2 threshold")
 
-    if await get_setting(db, "max_spo2") is None:
+    if get_setting(db, "max_spo2") is None:
         save_setting(db, "max_spo2", os.getenv("MAX_SPO2", 100), "int", "Maximum SpO2 threshold")
 
-    if await get_setting(db, "min_bpm") is None:
+    if get_setting(db, "min_bpm") is None:
         save_setting(db, "min_bpm", os.getenv("MIN_BPM", 55), "int", "Minimum heart rate threshold")
 
-    if await get_setting(db, "max_bpm") is None:
+    if get_setting(db, "max_bpm") is None:
         save_setting(db, "max_bpm", os.getenv("MAX_BPM", 155), "int", "Maximum heart rate threshold")
 
     # Display settings
-    if await get_setting(db, "temp_unit") is None:
+    if get_setting(db, "temp_unit") is None:
         save_setting(db, "temp_unit", "F", "string", "Temperature unit (F or C)")
 
-    if await get_setting(db, "weight_unit") is None:
+    if get_setting(db, "weight_unit") is None:
         save_setting(db, "weight_unit", "lbs", "string", "Weight unit (lbs or kg)")
 
-    if await get_setting(db, "dark_mode") is None:
+    if get_setting(db, "dark_mode") is None:
         save_setting(db, "dark_mode", True, "bool", "Dark mode enabled")
 
     # Initialize default GPIO alarm settings if they don't exist
-    if await get_setting(db, "alarm1_device") is None:
+    if get_setting(db, "alarm1_device") is None:
         save_setting(db, "alarm1_device", "vent", "string", "Device type for Alarm 1 RJ9 port")
 
-    if await get_setting(db, "alarm2_device") is None:
+    if get_setting(db, "alarm2_device") is None:
         save_setting(db, "alarm2_device", "pulseox", "string", "Device type for Alarm 2 RJ9 port")
 
-    if await get_setting(db, "alarm1_recovery_time") is None:
+    if get_setting(db, "alarm1_recovery_time") is None:
         save_setting(db, "alarm1_recovery_time", 30, "int", "Recovery time in seconds for Alarm 1")
 
-    if await get_setting(db, "alarm2_recovery_time") is None:
+    if get_setting(db, "alarm2_recovery_time") is None:
         save_setting(db, "alarm2_recovery_time", 30, "int", "Recovery time in seconds for Alarm 2")
 
     # 1) Wire in MQTT - only create one client
@@ -139,7 +139,7 @@ async def startup_event():
     threading.Thread(target=serial_loop, daemon=True).start()
 
     # Start GPIO monitoring only if enabled
-    gpio_enabled = await get_setting(db, "gpio_enabled", default=False)
+    gpio_enabled = get_setting(db, "gpio_enabled", default=False)
     if gpio_enabled in [True, "true", "True", 1, "1"]:
         start_gpio_monitoring()
     else:
@@ -334,11 +334,11 @@ async def get_all_settings():
 
 
 @app.get("/api/settings/{key}")
-async def get_setting(key: str, default: Optional[str] = None):
+async def get_setting_api(key: str, default: Optional[str] = None):
     """Get a specific setting by key"""
     from crud import get_setting
     db = next(get_db())
-    value = get_setting(key, default)
+    value = get_setting(db, key, default)
     if value is None and default is None:
         raise HTTPException(status_code=404, detail=f"Setting {key} not found")
     return {"key": key, "value": value}
