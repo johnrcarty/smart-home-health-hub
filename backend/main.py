@@ -296,25 +296,7 @@ def get_vital_types():
     Get a distinct list of vital_type values from the vitals table
     """
     print("=== API ENDPOINT CALLED: /api/vitals/types ===")
-    db = next(get_db())
-    print(f"Database session created: {db}")
-    logger.info(f"API endpoint: get_vital_types called with db session: {db}")
-    
-    # Test the database connection
-    try:
-        from models import Vital
-        test_count = db.query(Vital).count()
-        print(f"Total vitals count from API: {test_count}")
-        logger.info(f"API endpoint: Total vitals count from API: {test_count}")
-    except Exception as e:
-        print(f"Database connection test failed: {e}")
-        logger.error(f"API endpoint: Database connection test failed: {e}")
-        return {"error": "Database connection failed", "details": str(e)}
-    
-    result = get_distinct_vital_types(db)
-    print(f"get_distinct_vital_types returned: {result}")
-    logger.info(f"API endpoint: get_distinct_vital_types returned: {result}")
-    return result
+    return ["DEBUG_TEST"]  # Temporary hardcoded response
 
 
 @app.get("/api/vitals/history")
