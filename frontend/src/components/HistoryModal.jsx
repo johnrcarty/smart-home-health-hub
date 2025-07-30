@@ -1,5 +1,111 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import config from '../config';
+import ModalBase from './ModalBase';
+import SimpleEventChart from './SimpleEventChart';
+import Chart from 'chart.js/auto';
+import 'chartjs-adapter-date-fns';
+
+// Specialized chart component for bathroom history with multiple groups
+const BathroomHistoryChart = ({ data, title }) => {
+  const chartRef = useRef(null);
+  const chartInstance = useRef(null);
+
+  useEffect(() => {
+    if (!data || data.length === 0 || !chartRef.current) {
+      return;
+    }
+
+    // Destroy existing chart
+    if (chartInstance.current) {
+      chartInstance.current.destroy();
+      chartInstance.current = null;
+    }
+
+    const ctx = chartRef.current.getContext('2d');
+    
+    chartInstance.current = new Chart(ctx, {
+      type: 'scatter',
+      data: {
+        datasets: data
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            position: 'top',
+            labels: {
+              color: '#fff',
+              usePointStyle: true
+            }
+          },
+          title: {
+            display: true,
+            text: title,
+            color: '#fff',
+            font: {
+              size: 16
+            }
+          }
+        },
+        scales: {
+          x: {
+            type: 'time',
+            time: {
+              displayFormats: {
+                day: 'MMM dd',
+                hour: 'MMM dd HH:mm'
+              }
+            },
+            title: {
+              display: true,
+              text: 'Date',
+              color: '#ccc'
+            },
+            ticks: {
+              color: '#ccc'
+            },
+            grid: {
+              color: '#444'
+            }
+          },
+          y: {
+            type: 'category',
+            labels: ['Smear', 'Small', 'Medium', 'Large', 'Extra Large'],
+            title: {
+              display: true,
+              text: 'Size',
+              color: '#ccc'
+            },
+            ticks: {
+              color: '#ccc'
+            },
+            grid: {
+              color: '#444'
+            }
+          }
+        },
+        interaction: {
+          intersect: false,
+          mode: 'nearest'
+        }
+      }
+    });
+
+    return () => {
+      if (chartInstance.current) {
+        chartInstance.current.destroy();
+      }
+    };
+  }, [data, title]);
+
+  return (
+    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+      <canvas ref={chartRef} />
+    </div>
+  );
+};
 
 const HistoryModal = ({ onClose }) => {
   const [vitalTypes, setVitalTypes] = useState([]);
@@ -49,7 +155,13 @@ const HistoryModal = ({ onClose }) => {
 
   // Bathroom size mapping for display
   const getBathroomSizeDisplay = (value, vitalGroup) => {
-    if (vitalGroup === 'bathroom' && value !== null && value !== undefined) {
+    console.log('getBathroomSizeDisplay called with:', { value, vitalGroup, type: typeof value });
+    
+    // Check if this is a bathroom-related group (any bathroom type, not just 'bathroom')
+    const bathroomGroups = ['bathroom', 'mix', 'wet', 'dry', 'solid', 'liquid'];
+    const isBathroomGroup = vitalGroup && bathroomGroups.includes(vitalGroup.toLowerCase());
+    
+    if (isBathroomGroup && value !== null && value !== undefined && typeof value === 'number') {
       const sizeMap = {
         0: 'Smear',
         1: 'Small',
@@ -57,7 +169,9 @@ const HistoryModal = ({ onClose }) => {
         3: 'Large',
         4: 'Extra Large'
       };
-      return sizeMap[value] || value;
+      const result = sizeMap[value] || value;
+      console.log('Mapping result:', result);
+      return result;
     }
     return value;
   };
@@ -68,16 +182,79 @@ const HistoryModal = ({ onClose }) => {
     return vitalGroup.charAt(0).toUpperCase() + vitalGroup.slice(1);
   };
 
+  // Prepare chart data based on vital type
+  const chartData = useMemo(() => {
+    if (!records || records.length === 0) return [];
+    
+    // Check if this is a bathroom-related vital type
+    const isBathroomType = selectedType && selectedType.toLowerCase().includes('bathroom');
+    
+    if (isBathroomType) {
+      // For bathroom types, group by vital_group and create separate datasets
+      const groupedData = {};
+      const bathroomGroups = ['bathroom', 'mix', 'wet', 'dry', 'solid', 'liquid'];
+      
+      records.forEach(record => {
+        const group = record.vital_group || 'unknown';
+        if (!groupedData[group]) {
+          groupedData[group] = [];
+        }
+        
+        // Convert numeric bathroom values to English labels for Y-axis
+        let yValue = record.value;
+        if (typeof record.value === 'number' && bathroomGroups.includes(group.toLowerCase())) {
+          const sizeMap = { 0: 'Smear', 1: 'Small', 2: 'Medium', 3: 'Large', 4: 'Extra Large' };
+          yValue = sizeMap[record.value] || record.value;
+        }
+        
+        groupedData[group].push({
+          x: new Date(record.datetime),
+          y: yValue
+        });
+      });
+      
+      // Convert to datasets with different colors for each group
+      const colors = {
+        'mix': '#8B4513',      // Brown
+        'wet': '#4169E1',      // Royal Blue  
+        'dry': '#DAA520',      // Goldenrod
+        'solid': '#8B4513',    // Brown
+        'liquid': '#4169E1',   // Royal Blue
+        'bathroom': '#6B46C1', // Purple
+        'unknown': '#6B7280'   // Gray
+      };
+      
+      return Object.entries(groupedData).map(([group, data]) => ({
+        label: getGroupDisplay(group),
+        data: data,
+        borderColor: colors[group.toLowerCase()] || '#6B7280',
+        backgroundColor: colors[group.toLowerCase()] || '#6B7280',
+        fill: false
+      }));
+    } else {
+      // For non-bathroom types, simple single dataset
+      return [{
+        label: selectedType,
+        data: records.map(record => ({
+          x: new Date(record.datetime),
+          y: record.value
+        })),
+        borderColor: '#007bff',
+        backgroundColor: '#007bff',
+        fill: false
+      }];
+    }
+  }, [records, selectedType]);
+
   return (
-    <div className="history-modal">
-      <div className="modal-body">
-        <div className="vital-type-buttons" style={{ 
-          display: 'flex', 
-          gap: '10px', 
-          marginBottom: '20px',
-          flexWrap: 'wrap'
-        }}>
-          {vitalTypes.map((type) => (
+    <ModalBase isOpen={true} onClose={onClose} title="History">
+      <div className="vital-type-buttons" style={{ 
+        display: 'flex', 
+        gap: '10px', 
+        marginBottom: '20px',
+        flexWrap: 'wrap'
+      }}>
+        {vitalTypes.map((type) => (
             <button
               key={type}
               className={type === selectedType ? "active" : ""}
@@ -98,19 +275,37 @@ const HistoryModal = ({ onClose }) => {
         </div>
         {selectedType && (
           <>
-            <div className="chart-placeholder" style={{ 
-              height: 200, 
-              background: "#f0f0f0", 
+            <div className="chart-container" style={{ 
+              height: 300, 
               margin: "20px 0",
-              border: "2px dashed #ccc",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: "4px"
+              background: "#161e2e",
+              borderRadius: "8px",
+              padding: "10px"
             }}>
-              <p style={{ textAlign: "center", color: "#666", margin: 0 }}>
-                Chart for <b>{selectedType}</b> (coming soon)
-              </p>
+              {records.length > 0 ? (
+                selectedType.toLowerCase().includes('bathroom') ? (
+                  <BathroomHistoryChart data={chartData} title={`${selectedType} History`} />
+                ) : (
+                  <SimpleEventChart
+                    title={`${selectedType} History`}
+                    color="#007bff"
+                    unit=""
+                    data={chartData[0]?.data || []}
+                  />
+                )
+              ) : (
+                <div style={{ 
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  height: "100%",
+                  color: "#ccc"
+                }}>
+                  <p style={{ textAlign: "center", margin: 0 }}>
+                    No data available to chart for <b>{selectedType}</b>
+                  </p>
+                </div>
+              )}
             </div>
             <div className="history-table">
               {loading ? (
@@ -151,7 +346,7 @@ const HistoryModal = ({ onClose }) => {
                           fontWeight: '600',
                           fontSize: '14px'
                         }}>
-                          Value
+                          Group
                         </th>
                         <th style={{ 
                           padding: '16px', 
@@ -160,7 +355,7 @@ const HistoryModal = ({ onClose }) => {
                           fontWeight: '600',
                           fontSize: '14px'
                         }}>
-                          Group
+                          Value
                         </th>
                         <th style={{ 
                           padding: '16px', 
@@ -204,18 +399,18 @@ const HistoryModal = ({ onClose }) => {
                             </td>
                             <td style={{ 
                               padding: '12px 16px', 
+                              color: '#666',
+                              fontSize: '14px'
+                            }}>
+                              {getGroupDisplay(rec.vital_group)}
+                            </td>
+                            <td style={{ 
+                              padding: '12px 16px', 
                               color: '#333',
                               fontSize: '14px',
                               fontWeight: '500'
                             }}>
                               {getBathroomSizeDisplay(rec.value, rec.vital_group)}
-                            </td>
-                            <td style={{ 
-                              padding: '12px 16px', 
-                              color: '#666',
-                              fontSize: '14px'
-                            }}>
-                              {getGroupDisplay(rec.vital_group)}
                             </td>
                             <td style={{ 
                               padding: '12px 16px', 
@@ -289,8 +484,7 @@ const HistoryModal = ({ onClose }) => {
             </div>
           </>
         )}
-      </div>
-    </div>
+    </ModalBase>
   );
 };
 

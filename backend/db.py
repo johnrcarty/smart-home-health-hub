@@ -19,7 +19,17 @@ logger = logging.getLogger('db')
 # Database configuration
 DB_PATH = os.getenv('DB_PATH', 'sensor_data.db')
 SQLALCHEMY_DATABASE_URL = os.getenv('DATABASE_URL')
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+
+# Create engine with better connection pool settings
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    pool_size=20,  # Increase pool size
+    max_overflow=30,  # Increase overflow
+    pool_timeout=60,  # Increase timeout
+    pool_recycle=3600,  # Recycle connections every hour
+    pool_pre_ping=True,  # Validate connections before use
+    echo=False  # Set to True for SQL debugging
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

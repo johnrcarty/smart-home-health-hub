@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import SimpleEventChart from './SimpleEventChart';
 import config from '../config';
+import ModalBase from './ModalBase';
 
 const AlertDetailModal = ({ alert, onClose, onAcknowledge, initiateAcknowledge = false }) => {
   const [eventData, setEventData] = useState(null);
@@ -207,15 +208,9 @@ const AlertDetailModal = ({ alert, onClose, onAcknowledge, initiateAcknowledge =
   };
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal-content alert-detail-modal">
-        <div className="modal-header">
-          <h2>Alert Event Details</h2>
-          <button className="close-button" onClick={onClose}>×</button>
-        </div>
-
-        <div className="modal-body compact">
-          <div className="alert-info-grid">
+    <ModalBase isOpen={true} onClose={onClose} title="Alert Event Details">
+      <div className="alert-detail-content">
+        <div className="alert-info-grid">
             <div className="info-item">
               <span className="label">Start Time:</span>
               <span className="value">{formatDateTime(alert.start_time)}</span>
@@ -323,8 +318,8 @@ const AlertDetailModal = ({ alert, onClose, onAcknowledge, initiateAcknowledge =
         
         {/* Render the oxygen form if shown */}
         {showOxygenForm && renderOxygenUsageForm()}
-      </div>
-    </div>
+      
+    </ModalBase>
   );
 };
 

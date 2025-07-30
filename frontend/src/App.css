@@ -202,25 +202,25 @@ html, body, #root {
   left: 25%; /* Start after the values column */
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.75);
+  background-color: rgba(0, 0, 0, 0.95);
   display: flex;
-  justify-content: center;
-  align-items: center;
+  justify-content: stretch;
+  align-items: stretch;
   z-index: 1000;
   backdrop-filter: blur(2px);
 }
 
 .modal-container {
-  width: 85%; /* Slightly less than full width of covered area */
-  height: 80%;
-  max-height: 80%;
+  width: 100%; /* Fill the entire available space */
+  height: 100%;
+  max-height: 100%;
   background-color: #161e2e;
-  border-radius: 8px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+  border-radius: 0; /* Remove border radius to fill space completely */
+  box-shadow: none; /* Remove shadow since it fills the space */
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: none; /* Remove border for seamless integration */
 }
 
 .modal-header {
@@ -228,7 +228,8 @@ html, body, #root {
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid #30363d;
+  border-bottom: 2px solid #4a5568; /* Make the border more visible */
+  background-color: #1a202c; /* Slightly different background for better separation */
 }
 
 .modal-title {

@@ -567,25 +567,13 @@ export default function App() {
       </ModalBase>
 
       {/* Pulse Oximeter Modal - Example */}
-      <ModalBase
-        isOpen={isPulseOxModalOpen}
-        onClose={() => setIsPulseOxModalOpen(false)}
-        title="Alerts"
-      >
+      {isPulseOxModalOpen && (
         <PulseOxModal
           onClose={() => setIsPulseOxModalOpen(false)}
           alertsCount={pulseOxAlerts}
           onAlertAcknowledged={handleAlertAcknowledged}
         />
-        <div style={{ textAlign: 'right', marginTop: 16 }}>
-          <button className="primary-button" onClick={acknowledgeAllAlerts} disabled={acknowledgeAllLoading}>
-            {acknowledgeAllLoading ? 'Acknowledging...' : 'Acknowledge All'}
-          </button>
-          {acknowledgeAllLoading && (
-            <span className="spinner" style={{ marginLeft: 8 }}></span>
-          )}
-        </div>
-      </ModalBase>
+      )}
 
       {/* Manual Vitals Entry Modal */}
       <ModalBase
@@ -603,13 +591,9 @@ export default function App() {
       </ModalBase>
 
       {/* History Modal */}
-      <ModalBase
-        isOpen={isHistoryModalOpen}
-        onClose={() => setIsHistoryModalOpen(false)}
-        title="History"
-      >
+      {isHistoryModalOpen && (
         <HistoryModal onClose={() => setIsHistoryModalOpen(false)} />
-      </ModalBase>
+      )}
     </div>
   );
 }

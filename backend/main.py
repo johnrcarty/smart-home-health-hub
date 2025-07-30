@@ -193,35 +193,30 @@ def get_limits():
 
 # Add new endpoints to access blood pressure data
 @app.get("/blood-pressure/latest")
-def latest_blood_pressure():
-    db = next(get_db())
+def latest_blood_pressure(db: Session = Depends(get_db)):
     return get_latest_blood_pressure(db) or {"message": "No data available"}
 
 
 @app.get("/blood-pressure/history")
-def blood_pressure_history(limit: int = 100):
-    db = next(get_db())
+def blood_pressure_history(limit: int = 100, db: Session = Depends(get_db)):
     return get_blood_pressure_history(db, limit)
 
 
 # Add new endpoints to access temperature data
 @app.get("/temperature/latest")
-def latest_temperature():
-    db = next(get_db())
+def latest_temperature(db: Session = Depends(get_db)):
     temps = get_last_n_temperature(db, 1)
     return temps[0] if temps else {"message": "No data available"}
 
 
 @app.get("/temperature/history")
-def temperature_history(limit: int = 100):
-    db = next(get_db())
+def temperature_history(limit: int = 100, db: Session = Depends(get_db)):
     return get_last_n_temperature(db, limit)
 
 
 # Add this new route to handle manual vitals
 @app.post("/api/vitals/manual")
-async def add_manual_vitals(vital_data: dict):
-    db = next(get_db())
+async def add_manual_vitals(vital_data: dict, db: Session = Depends(get_db)):
     try:
         datetime_val = vital_data.get("datetime")
         notes = vital_data.get("notes")
@@ -276,11 +271,10 @@ async def add_manual_vitals(vital_data: dict):
 # Add these endpoints after your existing endpoints
 
 @app.get("/api/vitals/types")
-def get_vital_types():
+def get_vital_types(db: Session = Depends(get_db)):
     """
     Get a distinct list of vital_type values from the vitals table
     """
-    db = next(get_db())
     return get_distinct_vital_types(db)
 
 
@@ -303,8 +297,7 @@ def get_vital_history_paginated(vital_type: str, page: int = 1, page_size: int =
 
 
 @app.get("/api/vitals/{vital_type}")
-def get_vital_history(vital_type: str, limit: int = 100):
-    db = next(get_db())
+def get_vital_history(vital_type: str, limit: int = 100, db: Session = Depends(get_db)):
     return get_vitals_by_type(db, vital_type, limit)
 
 
@@ -327,18 +320,16 @@ class SettingUpdate(BaseModel):
 
 # Add these endpoints
 @app.get("/api/settings")
-async def get_all_settings():
+async def get_all_settings(db: Session = Depends(get_db)):
     """Get all settings"""
     from crud import get_all_settings
-    db = next(get_db())
     return get_all_settings(db)
 
 
 @app.get("/api/settings/{key}")
-async def get_setting_api(key: str, default: Optional[str] = None):
+async def get_setting_api(key: str, default: Optional[str] = None, db: Session = Depends(get_db)):
     """Get a specific setting by key"""
     from crud import get_setting
-    db = next(get_db())
     value = get_setting(db, key, default)
     if value is None and default is None:
         raise HTTPException(status_code=404, detail=f"Setting {key} not found")
@@ -346,10 +337,9 @@ async def get_setting_api(key: str, default: Optional[str] = None):
 
 
 @app.post("/api/settings/{key}")
-async def set_setting(key: str, setting: SettingIn):
+async def set_setting(key: str, setting: SettingIn, db: Session = Depends(get_db)):
     """Set a specific setting"""
     from crud import save_setting
-    db = next(get_db())
     success = save_setting(
         db,
         key=key,
@@ -364,10 +354,9 @@ async def set_setting(key: str, setting: SettingIn):
 
 
 @app.post("/api/settings")
-async def update_multiple_settings(settings: SettingUpdate):
+async def update_multiple_settings(settings: SettingUpdate, db: Session = Depends(get_db)):
     """Update multiple settings at once"""
     from crud import save_setting
-    db = next(get_db())
     results = {}
     gpio_enabled_changed = False
     gpio_enabled_new = None
@@ -394,10 +383,9 @@ async def update_multiple_settings(settings: SettingUpdate):
 
 
 @app.delete("/api/settings/{key}")
-async def delete_setting_endpoint(key: str):
+async def delete_setting_endpoint(key: str, db: Session = Depends(get_db)):
     """Delete a setting"""
     from crud import delete_setting
-    db = next(get_db())
     success = delete_setting(db, key)
     if not success:
         raise HTTPException(status_code=404, detail=f"Setting {key} not found")
@@ -524,9 +512,8 @@ async def api_add_equipment(data: dict = Body(...)):
 
 
 @app.get("/api/equipment")
-async def api_get_equipment():
+async def api_get_equipment(db: Session = Depends(get_db)):
     """Get equipment list sorted by due next."""
-    db = next(get_db())
     return get_equipment_list(db)
 
 
