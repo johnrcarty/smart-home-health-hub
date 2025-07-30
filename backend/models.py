@@ -104,8 +104,10 @@ class Equipment(Base):
     __tablename__ = 'equipment'
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String, nullable=False)
-    last_changed = Column(TIMESTAMP(timezone=True), nullable=False)
-    useful_days = Column(Integer, nullable=False)
+    quantity = Column(Integer, nullable=False, default=1)
+    scheduled_replacement = Column(Boolean, nullable=False, default=True)
+    last_changed = Column(TIMESTAMP(timezone=True), nullable=True)  # Nullable when scheduled_replacement is False
+    useful_days = Column(Integer, nullable=True)  # Nullable when scheduled_replacement is False
     change_logs = relationship('EquipmentChangeLog', back_populates='equipment')
 
 class EquipmentChangeLog(Base):

@@ -637,12 +637,14 @@ def get_monitoring_alerts(db: Session, limit=50, include_acknowledged=False, det
         logger.error(f"Error fetching monitoring alerts: {e}")
         return []
 
-def add_equipment(db: Session, name, last_changed, useful_days):
+def add_equipment(db: Session, name, quantity=1, scheduled_replacement=True, last_changed=None, useful_days=None):
     try:
         equipment = Equipment(
             name=name,
-            last_changed=last_changed,
-            useful_days=useful_days
+            quantity=quantity,
+            scheduled_replacement=scheduled_replacement,
+            last_changed=last_changed if scheduled_replacement else None,
+            useful_days=useful_days if scheduled_replacement else None
         )
         db.add(equipment)
         db.commit()
@@ -655,15 +657,41 @@ def add_equipment(db: Session, name, last_changed, useful_days):
 def get_equipment_list(db: Session):
     try:
         equipment = db.query(Equipment).all()
-        # Calculate due date for each
+        result = []
         for item in equipment:
-            from datetime import datetime, timedelta
-            last = datetime.fromisoformat(item.last_changed)
-            due = last + timedelta(days=item.useful_days)
-            item.due_date = due.isoformat()
-        # Sort by due_date
-        equipment.sort(key=lambda x: x.due_date)
-        return equipment
+            item_dict = {
+                'id': item.id,
+                'name': item.name,
+                'quantity': item.quantity,
+                'scheduled_replacement': item.scheduled_replacement,
+                'last_changed': item.last_changed,
+                'useful_days': item.useful_days,
+                'due_date': None
+            }
+            
+            # Only calculate due date if scheduled replacement is enabled
+            if item.scheduled_replacement and item.last_changed and item.useful_days:
+                from datetime import datetime, timedelta
+                if isinstance(item.last_changed, str):
+                    last = datetime.fromisoformat(item.last_changed)
+                else:
+                    last = item.last_changed
+                due = last + timedelta(days=item.useful_days)
+                item_dict['due_date'] = due.isoformat()
+            
+            result.append(item_dict)
+        
+        # Sort by due_date (scheduled items first, then by due date)
+        def sort_key(x):
+            if not x['scheduled_replacement']:
+                return (1, x['name'])  # Non-scheduled items go to end, sorted by name
+            elif x['due_date']:
+                return (0, x['due_date'])  # Scheduled items sorted by due date
+            else:
+                return (0, '9999-12-31')  # Scheduled items without due date go to end of scheduled
+        
+        result.sort(key=sort_key)
+        return result
     except Exception as e:
         logger.error(f"Error fetching equipment: {e}")
         return []
@@ -840,15 +868,19 @@ def clear_external_alarm(db: Session, device_id):
 def get_equipment_due_count(db: Session):
     """Return the count of equipment items where due_date is today or past."""
     try:
-        equipment = db.query(Equipment).all()
+        equipment = db.query(Equipment).filter(Equipment.scheduled_replacement == True).all()
         from datetime import datetime, timedelta
         due_count = 0
         today = datetime.now().date()
         for item in equipment:
-            last = datetime.fromisoformat(item.last_changed)
-            due = last + timedelta(days=item.useful_days)
-            if due.date() <= today:
-                due_count += 1
+            if item.last_changed and item.useful_days:
+                if isinstance(item.last_changed, str):
+                    last = datetime.fromisoformat(item.last_changed)
+                else:
+                    last = item.last_changed
+                due = last + timedelta(days=item.useful_days)
+                if due.date() <= today:
+                    due_count += 1
         return due_count
     except Exception as e:
         logger.error(f"Error calculating equipment due count: {e}")

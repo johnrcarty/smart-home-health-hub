@@ -56,7 +56,8 @@ const BathroomHistoryChart = ({ data, title }) => {
               displayFormats: {
                 day: 'MMM dd',
                 hour: 'MMM dd HH:mm'
-              }
+              },
+              unit: 'day'
             },
             title: {
               display: true,
@@ -64,7 +65,10 @@ const BathroomHistoryChart = ({ data, title }) => {
               color: '#ccc'
             },
             ticks: {
-              color: '#ccc'
+              color: '#ccc',
+              maxTicksLimit: 8,
+              maxRotation: 45,
+              minRotation: 0
             },
             grid: {
               color: '#444'
@@ -72,7 +76,7 @@ const BathroomHistoryChart = ({ data, title }) => {
           },
           y: {
             type: 'category',
-            labels: ['Smear', 'Small', 'Medium', 'Large', 'Extra Large'],
+            labels: ['Extra Large', 'Large', 'Medium', 'Small', 'Smear'],
             title: {
               display: true,
               text: 'Size',

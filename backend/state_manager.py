@@ -8,6 +8,18 @@ from crud import get_last_n_blood_pressure, get_last_n_temperature
 from datetime import datetime
 import time
 from collections import deque
+from contextlib import contextmanager
+from db import get_db
+
+# Database session wrapper for state_manager
+@contextmanager
+def get_db_session():
+    """Context manager for database sessions in state_manager"""
+    db = next(get_db())
+    try:
+        yield db
+    finally:
+        db.close()
 
 MIN_SPO2 = int(os.getenv("MIN_SPO2", 90))
 MAX_SPO2 = int(os.getenv("MAX_SPO2", 100))
@@ -241,16 +253,17 @@ def broadcast_state():
         return
 
     # Get the last 5 blood pressure readings
-    bp_history = get_last_n_blood_pressure(5)
-    
-    # Get the last 5 temperature readings
-    temp_history = get_last_n_temperature(5)
-    
-    # Get all settings
-    from crud import get_all_settings, get_unacknowledged_alerts_count, get_equipment_due_count
-    settings = get_all_settings()
-    alerts_count = get_unacknowledged_alerts_count()
-    equipment_due_count = get_equipment_due_count()
+    with get_db_session() as db:
+        bp_history = get_last_n_blood_pressure(db, 5)
+        
+        # Get the last 5 temperature readings
+        temp_history = get_last_n_temperature(db, 5)
+        
+        # Get all settings
+        from crud import get_all_settings, get_unacknowledged_alerts_count, get_equipment_due_count
+        settings = get_all_settings(db)
+        alerts_count = get_unacknowledged_alerts_count(db)
+        equipment_due_count = get_equipment_due_count(db)
     
     # Create a clean copy of the current state with only proper keys
     state_copy = {}
@@ -737,16 +750,17 @@ def broadcast_state():
         return
 
     # Get the last 5 blood pressure readings
-    bp_history = get_last_n_blood_pressure(5)
-    
-    # Get the last 5 temperature readings
-    temp_history = get_last_n_temperature(5)
-    
-    # Get all settings
-    from crud import get_all_settings, get_unacknowledged_alerts_count, get_equipment_due_count
-    settings = get_all_settings()
-    alerts_count = get_unacknowledged_alerts_count()
-    equipment_due_count = get_equipment_due_count()
+    with get_db_session() as db:
+        bp_history = get_last_n_blood_pressure(db, 5)
+        
+        # Get the last 5 temperature readings
+        temp_history = get_last_n_temperature(db, 5)
+        
+        # Get all settings
+        from crud import get_all_settings, get_unacknowledged_alerts_count, get_equipment_due_count
+        settings = get_all_settings(db)
+        alerts_count = get_unacknowledged_alerts_count(db)
+        equipment_due_count = get_equipment_due_count(db)
     
     # Create a clean copy of the current state with only proper keys
     state_copy = {}

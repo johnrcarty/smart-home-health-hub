@@ -116,3 +116,14 @@ export const HistoryIcon = () => (
     <circle cx="18" cy="7" r="0.8" />
   </svg>
 );
+
+export const MedicationIcon = () => (
+  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    {/* Capsule shape */}
+    <rect x="6" y="9" width="12" height="6" rx="3" ry="3" transform="rotate(45 12 12)" />
+
+    {/* Divider line for half color */}
+    <line x1="9.5" y1="14.5" x2="14.5" y2="9.5" />
+  </svg>
+);
