@@ -2,11 +2,22 @@ import React, { useState, useEffect } from 'react';
 import ModalBase from './ModalBase';
 
 const MedicationModal = ({ onClose }) => {
-  const [tab, setTab] = useState('scheduled');
-  const [medications, setMedications] = useState([]);
+  const [tab, setTab] = useState('active');
+  const [activeMedications, setActiveMedications] = useState([]);
+  const [inactiveMedications, setInactiveMedications] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingMed, setEditingMed] = useState(null);
-  
+  const [loading, setLoading] = useState(false);
+  const [showScheduleFor, setShowScheduleFor] = useState(null); // med id or null
+  const [scheduleMode, setScheduleMode] = useState('weekly'); // 'weekly' or 'monthly'
+  const [selectedDays, setSelectedDays] = useState([]); // for weekly
+  const [selectedDayOfMonth, setSelectedDayOfMonth] = useState(1); // for monthly
+  const [time, setTime] = useState('08:00');
+  const [ampm, setAmpm] = useState('AM');
+  const [newCron, setNewCron] = useState(''); // not used directly now
+
+  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
   // Remove endDate from formData
   const [formData, setFormData] = useState({
     name: '',
@@ -19,18 +30,33 @@ const MedicationModal = ({ onClose }) => {
     notes: ''
   });
 
-  // Load medications from localStorage on component mount
+  // Load medications from API on component mount
   useEffect(() => {
-    const savedMeds = localStorage.getItem('medications');
-    if (savedMeds) {
-      setMedications(JSON.parse(savedMeds));
-    }
+    fetchMedications();
   }, []);
 
-  // Save medications to localStorage whenever medications change
-  useEffect(() => {
-    localStorage.setItem('medications', JSON.stringify(medications));
-  }, [medications]);
+  const fetchMedications = async () => {
+    setLoading(true);
+    try {
+      const [activeRes, inactiveRes] = await Promise.all([
+        fetch('http://localhost:8000/api/medications/active'),
+        fetch('http://localhost:8000/api/medications/inactive')
+      ]);
+      
+      if (activeRes.ok && inactiveRes.ok) {
+        const active = await activeRes.json();
+        const inactive = await inactiveRes.json();
+        
+        // Ensure all meds have schedules array
+        setActiveMedications(active.map(med => ({ ...med, schedules: med.schedules || [] })));
+        setInactiveMedications(inactive.map(med => ({ ...med, schedules: med.schedules || [] })));
+      }
+    } catch (error) {
+      console.error('Error fetching medications:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const resetForm = () => {
     setFormData({
@@ -45,44 +71,114 @@ const MedicationModal = ({ onClose }) => {
     });
     setEditingMed(null);
     setShowAddForm(false);
+    setShowScheduleFor(null);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
     
-    const newMed = {
-      id: editingMed ? editingMed.id : Date.now(),
-      ...formData,
-      createdAt: editingMed ? editingMed.createdAt : new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      active: true
-    };
-
-    if (editingMed) {
-      setMedications(prev => prev.map(med => med.id === editingMed.id ? newMed : med));
-    } else {
-      setMedications(prev => [...prev, newMed]);
+    try {
+      if (editingMed) {
+        // Update existing medication
+        const response = await fetch(`http://localhost:8000/api/medications/${editingMed.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to update medication');
+        }
+      } else {
+        // Add new medication
+        const response = await fetch('http://localhost:8000/api/add/medication', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: formData.name,
+            concentration: formData.concentration,
+            quantity: formData.quantity,
+            quantity_unit: formData.quantityUnit,
+            instructions: formData.instructions,
+            start_date: formData.startDate,
+            as_needed: formData.asNeeded,
+            notes: formData.notes
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to add medication');
+        }
+      }
+      
+      // Refresh medications list
+      await fetchMedications();
+      resetForm();
+    } catch (error) {
+      console.error('Error saving medication:', error);
+      alert('Error saving medication. Please try again.');
+    } finally {
+      setLoading(false);
     }
-
-    resetForm();
   };
 
   const handleEdit = (med) => {
-    setFormData(med);
+    setFormData({
+      name: med.name,
+      concentration: med.concentration || '',
+      quantity: med.quantity || '',
+      quantityUnit: med.quantity_unit || 'tablets',
+      instructions: med.instructions || '',
+      startDate: med.start_date || '',
+      asNeeded: med.as_needed || false,
+      notes: med.notes || ''
+    });
     setEditingMed(med);
     setShowAddForm(true);
+    setShowScheduleFor(null);
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (confirm('Are you sure you want to delete this medication?')) {
-      setMedications(prev => prev.filter(med => med.id !== id));
+      setLoading(true);
+      try {
+        const response = await fetch(`http://localhost:8000/api/medications/${id}`, {
+          method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to delete medication');
+        }
+        
+        await fetchMedications();
+      } catch (error) {
+        console.error('Error deleting medication:', error);
+        alert('Error deleting medication. Please try again.');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
-  const toggleActive = (id) => {
-    setMedications(prev => prev.map(med => 
-      med.id === id ? { ...med, active: !med.active } : med
-    ));
+  const toggleActive = async (id) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`http://localhost:8000/api/medications/${id}/toggle-active`, {
+        method: 'POST'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to toggle medication status');
+      }
+      
+      await fetchMedications();
+    } catch (error) {
+      console.error('Error toggling medication status:', error);
+      alert('Error updating medication status. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const formatSchedule = (med) => {
@@ -97,8 +193,145 @@ const MedicationModal = ({ onClose }) => {
     return 'No schedule set';
   };
 
-  const activeMedications = medications.filter(med => med.active);
-  const inactiveMedications = medications.filter(med => !med.active);
+  const handleAddSchedule = (medId) => {
+    let cron = '';
+    let [hour, minute] = time.split(':').map(Number);
+    if (ampm === 'PM' && hour !== 12) hour += 12;
+    if (ampm === 'AM' && hour === 12) hour = 0;
+    if (scheduleMode === 'weekly') {
+      if (selectedDays.length === 0) return;
+      const dow = selectedDays.sort().join(',');
+      cron = `${minute} ${hour} * * ${dow}`;
+    } else {
+      cron = `${minute} ${hour} ${selectedDayOfMonth} * *`;
+    }
+    
+    // For now, just update local state until schedules API is implemented
+    const updateMedSchedules = (meds) => meds.map(med =>
+      med.id === medId ? { ...med, schedules: [...(med.schedules || []), cron] } : med
+    );
+    
+    setActiveMedications(prev => updateMedSchedules(prev));
+    setInactiveMedications(prev => updateMedSchedules(prev));
+    
+    setSelectedDays([]);
+    setSelectedDayOfMonth(1);
+    setTime('08:00');
+    setAmpm('AM');
+    setScheduleMode('weekly');
+  };
+
+  const handleDeleteSchedule = (medId, idx) => {
+    // For now, just update local state until schedules API is implemented
+    const updateMedSchedules = (meds) => meds.map(med =>
+      med.id === medId ? { ...med, schedules: med.schedules.filter((_, i) => i !== idx) } : med
+    );
+    
+    setActiveMedications(prev => updateMedSchedules(prev));
+    setInactiveMedications(prev => updateMedSchedules(prev));
+  };
+
+  const renderScheduleView = (med) => (
+    <div style={{ background: '#fff', borderRadius: 8, padding: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+      <h3 style={{ margin: '0 0 16px 0', color: '#333' }}>Manage Schedules for <span style={{ color: '#007bff' }}>{med.name}</span></h3>
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+          <button
+            type="button"
+            onClick={() => setScheduleMode('weekly')}
+            style={{ padding: '8px 18px', border: 'none', borderRadius: 6, background: scheduleMode === 'weekly' ? '#007bff' : '#f8f9fa', color: scheduleMode === 'weekly' ? '#fff' : '#333', fontWeight: 500, fontSize: 14 }}
+          >Weekly</button>
+          <button
+            type="button"
+            onClick={() => setScheduleMode('monthly')}
+            style={{ padding: '8px 18px', border: 'none', borderRadius: 6, background: scheduleMode === 'monthly' ? '#007bff' : '#f8f9fa', color: scheduleMode === 'monthly' ? '#fff' : '#333', fontWeight: 500, fontSize: 14 }}
+          >Monthly</button>
+        </div>
+        {scheduleMode === 'weekly' ? (
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontWeight: 600, color: '#333', marginBottom: 8, display: 'block' }}>Select Days</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {daysOfWeek.map((d, i) => (
+                <label key={d} style={{ display: 'flex', alignItems: 'center', gap: 4, background: selectedDays.includes(i.toString()) ? '#007bff' : '#f1f3f4', color: selectedDays.includes(i.toString()) ? '#fff' : '#333', borderRadius: 4, padding: '4px 10px', cursor: 'pointer', fontWeight: 500 }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedDays.includes(i.toString())}
+                    onChange={() => {
+                      setSelectedDays(prev => prev.includes(i.toString()) ? prev.filter(x => x !== i.toString()) : [...prev, i.toString()]);
+                    }}
+                    style={{ accentColor: '#007bff' }}
+                  />
+                  {d}
+                </label>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontWeight: 600, color: '#333', marginBottom: 8, display: 'block' }}>Day of Month</label>
+            <select
+              value={selectedDayOfMonth}
+              onChange={e => setSelectedDayOfMonth(Number(e.target.value))}
+              style={{ padding: '8px 16px', border: '2px solid #ddd', borderRadius: 6, fontSize: 14, background: '#f8f9fa', color: '#333' }}
+            >
+              {[...Array(28)].map((_, i) => (
+                <option key={i+1} value={i+1}>{i+1}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontWeight: 600, color: '#333', marginBottom: 8, display: 'block' }}>Time</label>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              type="time"
+              value={time}
+              onChange={e => setTime(e.target.value)}
+              style={{ padding: '8px 12px', border: '2px solid #ddd', borderRadius: 6, fontSize: 14, background: '#f8f9fa', color: '#333', width: 120 }}
+            />
+            <select value={ampm} onChange={e => setAmpm(e.target.value)} style={{ padding: '8px 12px', border: '2px solid #ddd', borderRadius: 6, fontSize: 14, background: '#f8f9fa', color: '#333' }}>
+              <option value="AM">AM</option>
+              <option value="PM">PM</option>
+            </select>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => handleAddSchedule(med.id)}
+          style={{ padding: '12px 20px', border: 'none', borderRadius: 6, background: '#28a745', color: '#fff', fontWeight: 500, fontSize: 14, marginTop: 8 }}
+          disabled={scheduleMode === 'weekly' ? selectedDays.length === 0 : false}
+        >Add Schedule</button>
+      </div>
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ fontWeight: 600, color: '#333', marginBottom: 8, display: 'block' }}>Current Schedules</label>
+        {med.schedules && med.schedules.length > 0 ? (
+          <ul style={{ padding: 0, listStyle: 'none' }}>
+            {med.schedules.map((cron, idx) => (
+              <li key={idx} style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ fontFamily: 'monospace', background: '#f1f3f4', padding: '4px 8px', borderRadius: 4, marginRight: 8 }}>{cron}</span>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteSchedule(med.id, idx)}
+                  style={{ background: '#dc3545', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}
+                >Delete</button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div style={{ color: '#888', fontStyle: 'italic' }}>No schedules created yet.</div>
+        )}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+        <button
+          type="button"
+          onClick={() => setShowScheduleFor(null)}
+          style={{ padding: '10px 24px', border: '2px solid #6c757d', borderRadius: 6, background: '#fff', color: '#6c757d', fontWeight: 500, fontSize: 14 }}
+        >Back</button>
+      </div>
+    </div>
+  );
+
+  const allMedications = [...activeMedications, ...inactiveMedications];
 
   const renderMedicationCard = (med) => (
     <div key={med.id} className="medication-card" style={{
@@ -137,6 +370,37 @@ const MedicationModal = ({ onClose }) => {
           )}
         </div>
         <div style={{ display: 'flex', gap: '8px', marginLeft: '16px' }}>
+          {/* Schedule button with indicator */}
+          <button
+            onClick={() => setShowScheduleFor(med.id)}
+            style={{
+              padding: '6px 12px',
+              border: 'none',
+              borderRadius: '4px',
+              backgroundColor: med.schedules && med.schedules.length > 0 ? '#ffc107' : '#17a2b8',
+              color: '#fff',
+              cursor: 'pointer',
+              fontSize: '12px',
+              position: 'relative'
+            }}
+          >
+            Schedule
+            {med.schedules && med.schedules.length > 0 && (
+              <span style={{
+                display: 'inline-block',
+                marginLeft: 6,
+                background: '#28a745',
+                color: '#fff',
+                borderRadius: '50%',
+                width: 16,
+                height: 16,
+                fontSize: 11,
+                lineHeight: '16px',
+                textAlign: 'center',
+                fontWeight: 700
+              }}>{med.schedules.length}</span>
+            )}
+          </button>
           <button
             onClick={() => handleEdit(med)}
             style={{
@@ -375,8 +639,9 @@ const MedicationModal = ({ onClose }) => {
               fontWeight: '500',
               fontSize: '14px'
             }}
+            disabled={loading}
           >
-            {editingMed ? 'Update Medication' : 'Add Medication'}
+            {loading ? 'Saving...' : (editingMed ? 'Update Medication' : 'Add Medication')}
           </button>
         </div>
       </form>
@@ -439,7 +704,7 @@ const MedicationModal = ({ onClose }) => {
             Inactive ({inactiveMedications.length})
           </button>
           <button
-            onClick={() => setShowAddForm(true)}
+            onClick={() => { setShowAddForm(true); setShowScheduleFor(null); resetForm(); }}
             style={{
               padding: '10px 20px',
               border: 'none',
@@ -451,15 +716,23 @@ const MedicationModal = ({ onClose }) => {
               fontSize: '14px',
               marginLeft: 'auto'
             }}
+            disabled={loading}
           >
             {showAddForm ? 'Cancel' : 'Add Medication'}
           </button>
         </div>
 
         <div style={{ flex: 1, overflow: 'auto' }}>
-          {showAddForm ? (
+          {loading && (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+              Loading...
+            </div>
+          )}
+          {!loading && showScheduleFor ? (
+            renderScheduleView(allMedications.find(m => m.id === showScheduleFor) || {schedules: []})
+          ) : !loading && showAddForm ? (
             renderForm()
-          ) : (
+          ) : !loading ? (
             <div>
               {tab === 'scheduled' ? (
                 <div style={{ textAlign: 'center', color: '#888', padding: '40px' }}>
@@ -511,7 +784,7 @@ const MedicationModal = ({ onClose }) => {
                 )
               )}
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     </ModalBase>

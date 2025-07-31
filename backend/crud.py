@@ -910,3 +910,124 @@ def add_medication(db: Session, name, concentration=None, quantity=None, quantit
     db.refresh(medication)
     logger.info(f"Medication added: {name}")
     return medication.id
+
+def get_active_medications(db: Session):
+    """
+    Get all active medications (active=True and end_date is None or > today)
+    """
+    try:
+        from datetime import datetime
+        today = datetime.now().date()
+        
+        medications = db.query(Medication).filter(
+            Medication.active == True,
+            (Medication.end_date == None) | (Medication.end_date > today)
+        ).order_by(Medication.name).all()
+        
+        return [
+            {
+                'id': med.id,
+                'name': med.name,
+                'concentration': med.concentration,
+                'quantity': med.quantity,
+                'quantity_unit': med.quantity_unit,
+                'instructions': med.instructions,
+                'start_date': med.start_date.isoformat() if med.start_date else None,
+                'end_date': med.end_date.isoformat() if med.end_date else None,
+                'as_needed': med.as_needed,
+                'notes': med.notes,
+                'active': med.active,
+                'created_at': med.created_at.isoformat() if med.created_at else None,
+                'updated_at': med.updated_at.isoformat() if med.updated_at else None,
+                'schedules': []  # TODO: Add schedules when implemented
+            }
+            for med in medications
+        ]
+    except Exception as e:
+        logger.error(f"Error fetching active medications: {e}")
+        return []
+
+def get_inactive_medications(db: Session):
+    """
+    Get all inactive medications (active=False or end_date <= today)
+    """
+    try:
+        from datetime import datetime
+        today = datetime.now().date()
+        
+        medications = db.query(Medication).filter(
+            (Medication.active == False) | (Medication.end_date <= today)
+        ).order_by(Medication.name).all()
+        
+        return [
+            {
+                'id': med.id,
+                'name': med.name,
+                'concentration': med.concentration,
+                'quantity': med.quantity,
+                'quantity_unit': med.quantity_unit,
+                'instructions': med.instructions,
+                'start_date': med.start_date.isoformat() if med.start_date else None,
+                'end_date': med.end_date.isoformat() if med.end_date else None,
+                'as_needed': med.as_needed,
+                'notes': med.notes,
+                'active': med.active,
+                'created_at': med.created_at.isoformat() if med.created_at else None,
+                'updated_at': med.updated_at.isoformat() if med.updated_at else None,
+                'schedules': []  # TODO: Add schedules when implemented
+            }
+            for med in medications
+        ]
+    except Exception as e:
+        logger.error(f"Error fetching inactive medications: {e}")
+        return []
+
+def update_medication(db: Session, med_id, **kwargs):
+    """
+    Update an existing medication
+    """
+    try:
+        from datetime import datetime
+        
+        # Get the medication
+        medication = db.query(Medication).filter(Medication.id == med_id).first()
+        if not medication:
+            logger.error(f"Medication ID {med_id} not found for update")
+            return False
+        
+        # Update fields
+        for key, value in kwargs.items():
+            if hasattr(medication, key):
+                setattr(medication, key, value)
+        
+        medication.updated_at = datetime.now()
+        
+        db.commit()
+        logger.info(f"Medication updated: {medication.name}")
+        return True
+    except Exception as e:
+        logger.error(f"Error updating medication: {e}")
+        return False
+
+def delete_medication(db: Session, med_id):
+    """
+    Delete a medication (soft delete by setting active=False)
+    """
+    try:
+        from datetime import datetime
+        result = db.query(Medication).filter(Medication.id == med_id).update({
+            Medication.active: False,
+            Medication.updated_at: datetime.now()
+        })
+        db.commit()
+        
+        success = result > 0
+        if success:
+            logger.info(f"Medication #{med_id} deleted (soft delete)")
+        else:
+            logger.warning(f"Medication #{med_id} not found for deletion")
+        
+        return success
+    except Exception as e:
+        logger.error(f"Error deleting medication: {e}")
+        return False

@@ -27,7 +27,7 @@ import logging
 from fastapi.responses import JSONResponse
 from gpio_monitor import start_gpio_monitoring, stop_gpio_monitoring, set_alarm_states
 from db import get_db
-from crud import add_medication
+from crud import add_medication, get_active_medications, get_inactive_medications, update_medication, delete_medication
 
 load_dotenv()
 
@@ -587,5 +587,60 @@ async def api_add_medication(data: dict = Body(...), db: Session = Depends(get_d
     except Exception as e:
         return JSONResponse(status_code=500, content={"detail": str(e)})
 
+
+@app.get("/api/medications/active")
+async def get_active_medications_endpoint(db: Session = Depends(get_db)):
+    """Get all active medications."""
+    from crud import get_active_medications
+    return get_active_medications(db)
+
+@app.get("/api/medications/inactive")
+async def get_inactive_medications_endpoint(db: Session = Depends(get_db)):
+    """Get all inactive medications."""
+    from crud import get_inactive_medications
+    return get_inactive_medications(db)
+
+@app.put("/api/medications/{med_id}")
+async def update_medication_endpoint(med_id: int, data: dict = Body(...), db: Session = Depends(get_db)):
+    """Update an existing medication."""
+    from crud import update_medication
+    
+    # Remove id from data if present
+    data.pop('id', None)
+    
+    success = update_medication(db, med_id, **data)
+    if not success:
+        return JSONResponse(status_code=404, content={"detail": "Medication not found"})
+    
+    return {"status": "success"}
+
+@app.delete("/api/medications/{med_id}")
+async def delete_medication_endpoint(med_id: int, db: Session = Depends(get_db)):
+    """Delete (soft delete) a medication."""
+    from crud import delete_medication
+    
+    success = delete_medication(db, med_id)
+    if not success:
+        return JSONResponse(status_code=404, content={"detail": "Medication not found"})
+    
+    return {"status": "success"}
+
+@app.post("/api/medications/{med_id}/toggle-active")
+async def toggle_medication_active_endpoint(med_id: int, db: Session = Depends(get_db)):
+    """Toggle the active status of a medication."""
+    from crud import update_medication
+    from models import Medication
+    
+    # Get current medication
+    medication = db.query(Medication).filter(Medication.id == med_id).first()
+    if not medication:
+        return JSONResponse(status_code=404, content={"detail": "Medication not found"})
+    
+    # Toggle active status
+    success = update_medication(db, med_id, active=not medication.active)
+    if not success:
+        return JSONResponse(status_code=500, content={"detail": "Failed to update medication"})
+    
+    return {"status": "success", "active": not medication.active}
 
 # Add a test endpoint to verify server is working
