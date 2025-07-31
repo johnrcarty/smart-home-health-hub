@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from db import get_db
 from models import (BloodPressure, Temperature, Vital, Setting, PulseOxData,
-    MonitoringAlert, Equipment, EquipmentChangeLog, VentilatorAlert, ExternalAlarm, Medication)
+    MonitoringAlert, Equipment, EquipmentChangeLog, VentilatorAlert, ExternalAlarm, Medication, MedicationSchedule)
 
 logger = logging.getLogger('crud')
 
@@ -1014,20 +1014,162 @@ def delete_medication(db: Session, med_id):
     Delete a medication (soft delete by setting active=False)
     """
     try:
-        from datetime import datetime
-        result = db.query(Medication).filter(Medication.id == med_id).update({
-            Medication.active: False,
-            Medication.updated_at: datetime.now()
-        })
-        db.commit()
-        
-        success = result > 0
-        if success:
-            logger.info(f"Medication #{med_id} deleted (soft delete)")
-        else:
-            logger.warning(f"Medication #{med_id} not found for deletion")
-        
-        return success
-    except Exception as e:
-        logger.error(f"Error deleting medication: {e}")
+        medication = db.query(Medication).filter(Medication.id == med_id).first()
+        if medication:
+            medication.active = False
+            medication.updated_at = datetime.now()
+            db.commit()
+            logger.info(f"Medication {med_id} deleted (soft delete)")
+            return True
         return False
+    except Exception as e:
+        logger.error(f"Error deleting medication {med_id}: {e}")
+        db.rollback()
+        return False
+
+# --- MedicationSchedule CRUD ---
+
+def add_medication_schedule(db: Session, medication_id, cron_expression, description=None, dose_amount=None, active=True, notes=None):
+    """
+    Add a new medication schedule
+    """
+    try:
+        now = datetime.now()
+        schedule = MedicationSchedule(
+            medication_id=medication_id,
+            cron_expression=cron_expression,
+            description=description,
+            dose_amount=dose_amount,
+            active=active,
+            notes=notes,
+            created_at=now,
+            updated_at=now
+        )
+        db.add(schedule)
+        db.commit()
+        db.refresh(schedule)
+        logger.info(f"Medication schedule added for medication {medication_id}: {cron_expression}")
+        return schedule.id
+    except Exception as e:
+        logger.error(f"Error adding medication schedule: {e}")
+        db.rollback()
+        return None
+
+def get_medication_schedules(db: Session, medication_id):
+    """
+    Get all schedules for a specific medication
+    """
+    try:
+        schedules = db.query(MedicationSchedule).filter(
+            MedicationSchedule.medication_id == medication_id
+        ).order_by(MedicationSchedule.created_at.desc()).all()
+        
+        return [
+            {
+                'id': s.id,
+                'medication_id': s.medication_id,
+                'cron_expression': s.cron_expression,
+                'description': s.description,
+                'dose_amount': s.dose_amount,
+                'active': s.active,
+                'notes': s.notes,
+                'created_at': s.created_at,
+                'updated_at': s.updated_at
+            }
+            for s in schedules
+        ]
+    except Exception as e:
+        logger.error(f"Error fetching medication schedules for medication {medication_id}: {e}")
+        return []
+
+def get_all_medication_schedules(db: Session, active_only=True):
+    """
+    Get all medication schedules, optionally filtering by active status
+    """
+    try:
+        query = db.query(MedicationSchedule)
+        if active_only:
+            query = query.filter(MedicationSchedule.active == True)
+        
+        schedules = query.order_by(MedicationSchedule.created_at.desc()).all()
+        
+        return [
+            {
+                'id': s.id,
+                'medication_id': s.medication_id,
+                'cron_expression': s.cron_expression,
+                'description': s.description,
+                'dose_amount': s.dose_amount,
+                'active': s.active,
+                'notes': s.notes,
+                'created_at': s.created_at,
+                'updated_at': s.updated_at
+            }
+            for s in schedules
+        ]
+    except Exception as e:
+        logger.error(f"Error fetching all medication schedules: {e}")
+        return []
+
+def update_medication_schedule(db: Session, schedule_id, **kwargs):
+    """
+    Update an existing medication schedule
+    """
+    try:
+        schedule = db.query(MedicationSchedule).filter(MedicationSchedule.id == schedule_id).first()
+        if not schedule:
+            logger.warning(f"Medication schedule {schedule_id} not found")
+            return False
+        
+        # Update fields if provided
+        for key, value in kwargs.items():
+            if hasattr(schedule, key):
+                setattr(schedule, key, value)
+        
+        schedule.updated_at = datetime.now()
+        db.commit()
+        logger.info(f"Medication schedule {schedule_id} updated")
+        return True
+    except Exception as e:
+        logger.error(f"Error updating medication schedule {schedule_id}: {e}")
+        db.rollback()
+        return False
+
+def delete_medication_schedule(db: Session, schedule_id):
+    """
+    Delete a medication schedule (hard delete since it's not critical data)
+    """
+    try:
+        schedule = db.query(MedicationSchedule).filter(MedicationSchedule.id == schedule_id).first()
+        if not schedule:
+            logger.warning(f"Medication schedule {schedule_id} not found")
+            return False
+        
+        db.delete(schedule)
+        db.commit()
+        logger.info(f"Medication schedule {schedule_id} deleted")
+        return True
+    except Exception as e:
+        logger.error(f"Error deleting medication schedule {schedule_id}: {e}")
+        db.rollback()
+        return False
+
+def toggle_medication_schedule_active(db: Session, schedule_id):
+    """
+    Toggle the active status of a medication schedule
+    """
+    try:
+        schedule = db.query(MedicationSchedule).filter(MedicationSchedule.id == schedule_id).first()
+        if not schedule:
+            logger.warning(f"Medication schedule {schedule_id} not found")
+            return False, None
+        
+        schedule.active = not schedule.active
+        schedule.updated_at = datetime.now()
+        db.commit()
+        logger.info(f"Medication schedule {schedule_id} active status toggled to {schedule.active}")
+        return True, schedule.active
+    except Exception as e:
+        logger.error(f"Error toggling medication schedule {schedule_id}: {e}")
+        db.rollback()
+        return False, None

@@ -14,7 +14,6 @@ const MedicationModal = ({ onClose }) => {
   const [selectedDays, setSelectedDays] = useState([]); // for weekly
   const [selectedDayOfMonth, setSelectedDayOfMonth] = useState(1); // for monthly
   const [time, setTime] = useState('08:00');
-  const [ampm, setAmpm] = useState('AM');
   const [doseAmount, setDoseAmount] = useState('1.000');
   const [newCron, setNewCron] = useState(''); // not used directly now
 
@@ -49,14 +48,41 @@ const MedicationModal = ({ onClose }) => {
         const active = await activeRes.json();
         const inactive = await inactiveRes.json();
         
-        // Ensure all meds have schedules array
-        setActiveMedications(active.map(med => ({ ...med, schedules: med.schedules || [] })));
-        setInactiveMedications(inactive.map(med => ({ ...med, schedules: med.schedules || [] })));
+        // Fetch schedules for each medication and attach them
+        const activeMedsWithSchedules = await Promise.all(
+          active.map(async (med) => {
+            const schedules = await fetchMedicationSchedules(med.id);
+            return { ...med, schedules };
+          })
+        );
+        
+        const inactiveMedsWithSchedules = await Promise.all(
+          inactive.map(async (med) => {
+            const schedules = await fetchMedicationSchedules(med.id);
+            return { ...med, schedules };
+          })
+        );
+        
+        setActiveMedications(activeMedsWithSchedules);
+        setInactiveMedications(inactiveMedsWithSchedules);
       }
     } catch (error) {
       console.error('Error fetching medications:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchMedicationSchedules = async (medicationId) => {
+    try {
+      const response = await fetch(`${config.apiUrl}/api/medications/${medicationId}/schedules`);
+      if (response.ok) {
+        return await response.json();
+      }
+      return [];
+    } catch (error) {
+      console.error('Error fetching schedules for medication:', medicationId, error);
+      return [];
     }
   };
 
@@ -196,11 +222,67 @@ const MedicationModal = ({ onClose }) => {
     return 'No schedule set';
   };
 
-  const handleAddSchedule = (medId) => {
+  // Helper function to parse cron expression
+  const parseCronExpression = (cronExpression) => {
+    const parts = cronExpression.split(' ');
+    if (parts.length !== 5) return null;
+    
+    const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
+    
+    // Format time
+    const timeStr = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
+    
+    // Check if it's weekly (dayOfWeek is not *)
+    if (dayOfWeek !== '*') {
+      const daysMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const days = dayOfWeek.split(',').map(d => daysMap[parseInt(d)]).join(', ');
+      return { type: 'weekly', time: timeStr, days };
+    }
+    
+    // Check if it's monthly (dayOfMonth is not *)
+    if (dayOfMonth !== '*') {
+      return { type: 'monthly', time: timeStr, dayOfMonth: parseInt(dayOfMonth) };
+    }
+    
+    return null;
+  };
+
+  // Helper function to separate schedules by type
+  const separateSchedules = (schedules) => {
+    const weekly = [];
+    const monthly = [];
+    
+    schedules.forEach((schedule) => {
+      const cronExpression = schedule.cron_expression;
+      const doseAmount = schedule.dose_amount;
+      const isActive = schedule.active;
+      const scheduleId = schedule.id;
+      
+      const parsed = parseCronExpression(cronExpression);
+      if (parsed) {
+        const scheduleData = {
+          ...schedule,
+          id: scheduleId,
+          cronExpression,
+          doseAmount,
+          isActive,
+          parsed
+        };
+        
+        if (parsed.type === 'weekly') {
+          weekly.push(scheduleData);
+        } else if (parsed.type === 'monthly') {
+          monthly.push(scheduleData);
+        }
+      }
+    });
+    
+    return { weekly, monthly };
+  };
+
+  const handleAddSchedule = async (medId) => {
     let cron = '';
     let [hour, minute] = time.split(':').map(Number);
-    if (ampm === 'PM' && hour !== 12) hour += 12;
-    if (ampm === 'AM' && hour === 12) hour = 0;
     if (scheduleMode === 'weekly') {
       if (selectedDays.length === 0) return;
       const dow = selectedDays.sort().join(',');
@@ -209,37 +291,82 @@ const MedicationModal = ({ onClose }) => {
       cron = `${minute} ${hour} ${selectedDayOfMonth} * *`;
     }
     
-    // Create schedule object with dose amount
-    const scheduleObj = {
-      cron_expression: cron,
-      dose_amount: parseFloat(doseAmount) || 1.0,
-      active: true
-    };
-    
-    // For now, just update local state until schedules API is implemented
-    const updateMedSchedules = (meds) => meds.map(med =>
-      med.id === medId ? { ...med, schedules: [...(med.schedules || []), scheduleObj] } : med
-    );
-    
-    setActiveMedications(prev => updateMedSchedules(prev));
-    setInactiveMedications(prev => updateMedSchedules(prev));
-    
-    setSelectedDays([]);
-    setSelectedDayOfMonth(1);
-    setTime('08:00');
-    setAmpm('AM');
-    setDoseAmount('1.000');
-    setScheduleMode('weekly');
+    try {
+      setLoading(true);
+      const response = await fetch(`${config.apiUrl}/api/add/schedule/${medId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'med',
+          cron_expression: cron,
+          dose_amount: parseFloat(doseAmount) || 1.0,
+          active: true
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to add schedule');
+      }
+      
+      // Refresh the medication data to get updated schedules
+      await fetchMedications();
+      
+      // Reset form
+      setSelectedDays([]);
+      setSelectedDayOfMonth(1);
+      setTime('08:00');
+      setDoseAmount('1.000');
+      setScheduleMode('weekly');
+    } catch (error) {
+      console.error('Error adding schedule:', error);
+      alert('Error adding schedule. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDeleteSchedule = (medId, idx) => {
-    // For now, just update local state until schedules API is implemented
-    const updateMedSchedules = (meds) => meds.map(med =>
-      med.id === medId ? { ...med, schedules: med.schedules.filter((_, i) => i !== idx) } : med
-    );
+  const handleDeleteSchedule = async (medId, scheduleId) => {
+    if (!confirm('Are you sure you want to delete this schedule?')) return;
     
-    setActiveMedications(prev => updateMedSchedules(prev));
-    setInactiveMedications(prev => updateMedSchedules(prev));
+    try {
+      setLoading(true);
+      const response = await fetch(`${config.apiUrl}/api/schedules/${scheduleId}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete schedule');
+      }
+      
+      // Refresh the medication data to get updated schedules
+      await fetchMedications();
+    } catch (error) {
+      console.error('Error deleting schedule:', error);
+      alert('Error deleting schedule. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleSchedule = async (scheduleId) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${config.apiUrl}/api/schedules/${scheduleId}/toggle-active`, {
+        method: 'POST'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to toggle schedule');
+      }
+      
+      // Refresh the medication data to get updated schedules
+      await fetchMedications();
+    } catch (error) {
+      console.error('Error toggling schedule:', error);
+      alert('Error updating schedule status. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const renderScheduleView = (med) => (
@@ -293,18 +420,12 @@ const MedicationModal = ({ onClose }) => {
         )}
         <div style={{ marginBottom: 12 }}>
           <label style={{ fontWeight: 600, color: '#333', marginBottom: 8, display: 'block' }}>Time</label>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input
-              type="time"
-              value={time}
-              onChange={e => setTime(e.target.value)}
-              style={{ padding: '8px 12px', border: '2px solid #ddd', borderRadius: 6, fontSize: 14, background: '#f8f9fa', color: '#333', width: 120 }}
-            />
-            <select value={ampm} onChange={e => setAmpm(e.target.value)} style={{ padding: '8px 12px', border: '2px solid #ddd', borderRadius: 6, fontSize: 14, background: '#f8f9fa', color: '#333' }}>
-              <option value="AM">AM</option>
-              <option value="PM">PM</option>
-            </select>
-          </div>
+          <input
+            type="time"
+            value={time}
+            onChange={e => setTime(e.target.value)}
+            style={{ padding: '8px 12px', border: '2px solid #ddd', borderRadius: 6, fontSize: 14, background: '#f8f9fa', color: '#333', width: 120 }}
+          />
         </div>
         <div style={{ marginBottom: 12 }}>
           <label style={{ fontWeight: 600, color: '#333', marginBottom: 8, display: 'block' }}>
@@ -332,72 +453,134 @@ const MedicationModal = ({ onClose }) => {
           type="button"
           onClick={() => handleAddSchedule(med.id)}
           style={{ padding: '12px 20px', border: 'none', borderRadius: 6, background: '#28a745', color: '#fff', fontWeight: 500, fontSize: 14, marginTop: 8 }}
-          disabled={scheduleMode === 'weekly' ? selectedDays.length === 0 : false}
-        >Add Schedule</button>
+          disabled={loading || (scheduleMode === 'weekly' ? selectedDays.length === 0 : false)}
+        >
+          {loading ? 'Adding...' : 'Add Schedule'}
+        </button>
       </div>
       <div style={{ marginBottom: 16 }}>
-        <label style={{ fontWeight: 600, color: '#333', marginBottom: 8, display: 'block' }}>Current Schedules</label>
-        {med.schedules && med.schedules.length > 0 ? (
-          <ul style={{ padding: 0, listStyle: 'none' }}>
-            {med.schedules.map((schedule, idx) => {
-              // Handle both old cron string format and new schedule object format
-              const cronExpression = typeof schedule === 'string' ? schedule : schedule.cron_expression;
-              const doseAmount = typeof schedule === 'object' ? schedule.dose_amount : null;
-              const isActive = typeof schedule === 'object' ? schedule.active : true;
+        {med.schedules && med.schedules.length > 0 ? (() => {
+          const { weekly, monthly } = separateSchedules(med.schedules);
+          
+          return (
+            <>
+              {weekly.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <h4 style={{ margin: '0 0 8px 0', color: '#333', fontSize: 16, fontWeight: 600 }}>Weekly Schedules</h4>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: '#fff', borderRadius: 6, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#f8f9fa' }}>
+                        <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#333', borderBottom: '1px solid #dee2e6' }}>Amount</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#333', borderBottom: '1px solid #dee2e6' }}>Time</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#333', borderBottom: '1px solid #dee2e6' }}>Days</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#333', borderBottom: '1px solid #dee2e6' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {weekly.map((schedule) => (
+                        <tr key={schedule.id} style={{ opacity: schedule.isActive ? 1 : 0.5, borderBottom: '1px solid #f1f3f4' }}>
+                          <td style={{ padding: '8px 12px', fontSize: 13, color: '#333' }}>
+                            {schedule.doseAmount || '1'} {med.quantity_unit || 'units'}
+                          </td>
+                          <td style={{ padding: '8px 12px', fontSize: 13, color: '#333' }}>
+                            {schedule.parsed.time}
+                          </td>
+                          <td style={{ padding: '8px 12px', fontSize: 13, color: '#333' }}>
+                            {schedule.parsed.days}
+                          </td>
+                          <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleSchedule(schedule.id)}
+                                style={{
+                                  background: schedule.isActive ? '#ffc107' : '#28a745',
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: 3,
+                                  padding: '4px 6px',
+                                  fontSize: 11,
+                                  cursor: 'pointer'
+                                }}
+                                disabled={loading}
+                              >
+                                {schedule.isActive ? 'Pause' : 'Resume'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteSchedule(med.id, schedule.id)}
+                                style={{ background: '#dc3545', color: '#fff', border: 'none', borderRadius: 3, padding: '4px 6px', fontSize: 11, cursor: 'pointer' }}
+                                disabled={loading}
+                              >Delete</button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
               
-              return (
-                <li key={idx} style={{ display: 'flex', alignItems: 'center', marginBottom: 8, opacity: isActive ? 1 : 0.5 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', marginRight: 8 }}>
-                    <span style={{ fontFamily: 'monospace', background: '#f1f3f4', padding: '4px 8px', borderRadius: 4, fontSize: 12 }}>
-                      {cronExpression}
-                    </span>
-                    {doseAmount && (
-                      <span style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
-                        {doseAmount} {med.quantity_unit || 'units'}
-                      </span>
-                    )}
-                  </div>
-                  {typeof schedule === 'object' && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        // Toggle active status (for future API implementation)
-                        const updateMedSchedules = (meds) => meds.map(m =>
-                          m.id === med.id ? {
-                            ...m,
-                            schedules: m.schedules.map((s, i) =>
-                              i === idx ? { ...s, active: !s.active } : s
-                            )
-                          } : m
-                        );
-                        setActiveMedications(prev => updateMedSchedules(prev));
-                        setInactiveMedications(prev => updateMedSchedules(prev));
-                      }}
-                      style={{
-                        background: isActive ? '#ffc107' : '#28a745',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: 4,
-                        padding: '4px 8px',
-                        fontSize: 11,
-                        cursor: 'pointer',
-                        marginRight: 4
-                      }}
-                    >
-                      {isActive ? 'Pause' : 'Resume'}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteSchedule(med.id, idx)}
-                    style={{ background: '#dc3545', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}
-                  >Delete</button>
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <div style={{ color: '#888', fontStyle: 'italic' }}>No schedules created yet.</div>
+              {monthly.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <h4 style={{ margin: '0 0 8px 0', color: '#333', fontSize: 16, fontWeight: 600 }}>Monthly Schedules</h4>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: '#fff', borderRadius: 6, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#f8f9fa' }}>
+                        <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#333', borderBottom: '1px solid #dee2e6' }}>Amount</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#333', borderBottom: '1px solid #dee2e6' }}>Time</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#333', borderBottom: '1px solid #dee2e6' }}>Day of Month</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#333', borderBottom: '1px solid #dee2e6' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {monthly.map((schedule) => (
+                        <tr key={schedule.id} style={{ opacity: schedule.isActive ? 1 : 0.5, borderBottom: '1px solid #f1f3f4' }}>
+                          <td style={{ padding: '8px 12px', fontSize: 13, color: '#333' }}>
+                            {schedule.doseAmount || '1'} {med.quantity_unit || 'units'}
+                          </td>
+                          <td style={{ padding: '8px 12px', fontSize: 13, color: '#333' }}>
+                            {schedule.parsed.time}
+                          </td>
+                          <td style={{ padding: '8px 12px', fontSize: 13, color: '#333' }}>
+                            {schedule.parsed.dayOfMonth}
+                          </td>
+                          <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleSchedule(schedule.id)}
+                                style={{
+                                  background: schedule.isActive ? '#ffc107' : '#28a745',
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: 3,
+                                  padding: '4px 6px',
+                                  fontSize: 11,
+                                  cursor: 'pointer'
+                                }}
+                                disabled={loading}
+                              >
+                                {schedule.isActive ? 'Pause' : 'Resume'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteSchedule(med.id, schedule.id)}
+                                style={{ background: '#dc3545', color: '#fff', border: 'none', borderRadius: 3, padding: '4px 6px', fontSize: 11, cursor: 'pointer' }}
+                                disabled={loading}
+                              >Delete</button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          );
+        })() : (
+          <div style={{ color: '#888', fontStyle: 'italic', textAlign: 'center', padding: 20 }}>No schedules created yet.</div>
         )}
       </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>

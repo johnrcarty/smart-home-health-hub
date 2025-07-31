@@ -27,7 +27,7 @@ import logging
 from fastapi.responses import JSONResponse
 from gpio_monitor import start_gpio_monitoring, stop_gpio_monitoring, set_alarm_states
 from db import get_db
-from crud import add_medication, get_active_medications, get_inactive_medications, update_medication, delete_medication
+from crud import add_medication, get_active_medications, get_inactive_medications, update_medication, delete_medication, add_medication_schedule, get_medication_schedules, get_all_medication_schedules, update_medication_schedule, delete_medication_schedule, toggle_medication_schedule_active
 
 load_dotenv()
 
@@ -642,5 +642,107 @@ async def toggle_medication_active_endpoint(med_id: int, db: Session = Depends(g
         return JSONResponse(status_code=500, content={"detail": "Failed to update medication"})
     
     return {"status": "success", "active": not medication.active}
+
+# Medication Schedule Endpoints
+
+@app.post("/api/add/schedule/{medication_id}")
+async def api_add_medication_schedule(
+    medication_id: int, 
+    data: dict = Body(...), 
+    db: Session = Depends(get_db)
+):
+    """Add a new medication schedule entry."""
+    try:
+        schedule_type = data.get('type', 'med')
+        if schedule_type != 'med':
+            return JSONResponse(
+                status_code=400, 
+                content={"detail": f"Schedule type '{schedule_type}' not supported. Only 'med' is currently supported."}
+            )
+        
+        # Validate required fields
+        required_fields = ['cron_expression', 'description', 'dose_amount']
+        for field in required_fields:
+            if field not in data:
+                return JSONResponse(
+                    status_code=400, 
+                    content={"detail": f"Missing required field: {field}"}
+                )
+        
+        # Verify medication exists
+        from models import Medication
+        medication = db.query(Medication).filter(Medication.id == medication_id).first()
+        if not medication:
+            return JSONResponse(status_code=404, content={"detail": "Medication not found"})
+        
+        schedule_id = add_medication_schedule(
+            db,
+            medication_id=medication_id,
+            cron_expression=data['cron_expression'],
+            description=data['description'],
+            dose_amount=data['dose_amount'],
+            active=data.get('active', True),
+            notes=data.get('notes', '')
+        )
+        
+        if schedule_id:
+            return {"status": "success", "schedule_id": schedule_id}
+        else:
+            return JSONResponse(status_code=500, content={"detail": "Failed to add medication schedule"})
+    
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"detail": f"Internal server error: {str(e)}"})
+
+@app.get("/api/medications/{medication_id}/schedules")
+async def get_medication_schedules_endpoint(medication_id: int, db: Session = Depends(get_db)):
+    """Get all schedules for a specific medication."""
+    # Verify medication exists
+    from models import Medication
+    medication = db.query(Medication).filter(Medication.id == medication_id).first()
+    if not medication:
+        return JSONResponse(status_code=404, content={"detail": "Medication not found"})
+    
+    schedules = get_medication_schedules(db, medication_id)
+    return {"schedules": schedules}
+
+@app.get("/api/schedules")
+async def get_all_medication_schedules_endpoint(active_only: bool = True, db: Session = Depends(get_db)):
+    """Get all medication schedules, optionally filtering by active status."""
+    schedules = get_all_medication_schedules(db, active_only)
+    return {"schedules": schedules}
+
+@app.put("/api/schedules/{schedule_id}")
+async def update_medication_schedule_endpoint(
+    schedule_id: int, 
+    data: dict = Body(...), 
+    db: Session = Depends(get_db)
+):
+    """Update an existing medication schedule."""
+    # Remove id from data if present
+    data.pop('id', None)
+    
+    success = update_medication_schedule(db, schedule_id, **data)
+    if not success:
+        return JSONResponse(status_code=404, content={"detail": "Medication schedule not found"})
+    
+    return {"status": "success"}
+
+@app.delete("/api/schedules/{schedule_id}")
+async def delete_medication_schedule_endpoint(schedule_id: int, db: Session = Depends(get_db)):
+    """Delete a medication schedule."""
+    success = delete_medication_schedule(db, schedule_id)
+    if not success:
+        return JSONResponse(status_code=404, content={"detail": "Medication schedule not found"})
+    
+    return {"status": "success"}
+
+@app.post("/api/schedules/{schedule_id}/toggle-active")
+async def toggle_medication_schedule_active_endpoint(schedule_id: int, db: Session = Depends(get_db)):
+    """Toggle the active status of a medication schedule."""
+    success, new_active_status = toggle_medication_schedule_active(db, schedule_id)
+    if not success:
+        return JSONResponse(status_code=404, content={"detail": "Medication schedule not found"})
+    
+    return {"status": "success", "active": new_active_status}
 
 # Add a test endpoint to verify server is working
