@@ -116,3 +116,19 @@ class EquipmentChangeLog(Base):
     equipment_id = Column(Integer, ForeignKey('equipment.id'), nullable=False)
     changed_at = Column(TIMESTAMP(timezone=True), nullable=False)
     equipment = relationship('Equipment', back_populates='change_logs')
+
+class Medication(Base):
+    __tablename__ = 'medication'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False)
+    concentration = Column(String)
+    quantity = Column(Float, nullable=False)
+    quantity_unit = Column(String, nullable=False, default='tablets')
+    instructions = Column(Text)
+    start_date = Column(TIMESTAMP(timezone=True), nullable=True)
+    end_date = Column(TIMESTAMP(timezone=True), nullable=True)
+    as_needed = Column(Boolean, default=False)
+    notes = Column(Text)
+    active = Column(Boolean, default=True)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    updated_at = Column(TIMESTAMP(timezone=True), nullable=False)

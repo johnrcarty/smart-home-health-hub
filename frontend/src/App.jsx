@@ -13,7 +13,8 @@ import {
   MinimalistVentIcon, 
   MinimalistPulseOxIcon, 
   ClipboardIcon, 
-  HistoryIcon 
+  HistoryIcon,
+  MedicationIcon
 } from "./components/Icons";
 import logoImage from './assets/logo2.png';
 import config from './config';
@@ -22,6 +23,7 @@ import AlertsList from "./components/AlertsList";
 import PulseOxModal from "./components/PulseOxModal";
 import EquipmentModal from "./components/EquipmentModal";
 import HistoryModal from "./components/HistoryModal";
+import MedicationModal from "./components/MedicationModal";
 
 export default function App() {
   // Add state for modal
@@ -191,6 +193,7 @@ export default function App() {
   const [isPulseOxModalOpen, setIsPulseOxModalOpen] = useState(false);
   const [isVitalsModalOpen, setIsVitalsModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isMedicationModalOpen, setIsMedicationModalOpen] = useState(false);
   const [isAlarmActive, setIsAlarmActive] = useState(false);
   const [isAlarmBlinking, setIsAlarmBlinking] = useState(false);
   const alarmBlinkInterval = useRef(null);
@@ -229,6 +232,7 @@ export default function App() {
     setIsSettingsModalOpen(false);
     setIsVitalsModalOpen(false);
     setIsHistoryModalOpen(false);
+    setIsMedicationModalOpen(false);
   };
 
   // Add handler functions
@@ -285,6 +289,15 @@ export default function App() {
     } else {
       closeAllModals();
       setIsHistoryModalOpen(true);
+    }
+  };
+
+  const handleMedicationClick = () => {
+    if (isMedicationModalOpen) {
+      setIsMedicationModalOpen(false);
+    } else {
+      closeAllModals();
+      setIsMedicationModalOpen(true);
     }
   };
 
@@ -384,6 +397,17 @@ export default function App() {
               <ClipboardIcon />
             </button>
           </div>
+          
+          <div className="icon-wrapper">
+            <button 
+              className={`menu-button ${isMedicationModalOpen ? 'active' : ''}`}
+              onClick={handleMedicationClick}
+              aria-label="Medication Tracker"
+            >
+              <MedicationIcon />
+            </button>
+          </div>
+          
           <div className="icon-wrapper">
             <button 
               className={`menu-button ${isHistoryModalOpen ? 'active' : ''}`}
@@ -593,6 +617,11 @@ export default function App() {
       {/* History Modal */}
       {isHistoryModalOpen && (
         <HistoryModal onClose={() => setIsHistoryModalOpen(false)} />
+      )}
+
+      {/* Medication Modal */}
+      {isMedicationModalOpen && (
+        <MedicationModal onClose={() => setIsMedicationModalOpen(false)} />
       )}
     </div>
   );

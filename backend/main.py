@@ -27,6 +27,7 @@ import logging
 from fastapi.responses import JSONResponse
 from gpio_monitor import start_gpio_monitoring, stop_gpio_monitoring, set_alarm_states
 from db import get_db
+from crud import add_medication
 
 load_dotenv()
 
@@ -548,6 +549,43 @@ async def api_log_equipment_change(equipment_id: int, data: dict = Body(...), db
 async def api_get_equipment_history(equipment_id: int):
     """Get change history for equipment."""
     return get_equipment_change_history(equipment_id)
+
+
+@app.post("/api/add/medication")
+async def api_add_medication(data: dict = Body(...), db: Session = Depends(get_db)):
+    """Add a new medication entry."""
+    required_fields = ["name", "concentration", "quantity", "quantity_unit", "instructions", "start_date", "as_needed", "notes"]
+    missing = [f for f in required_fields if f not in data]
+    if missing:
+        return JSONResponse(status_code=400, content={"detail": f"Missing fields: {', '.join(missing)}"})
+
+    # Extract fields
+    name = data["name"]
+    concentration = data["concentration"]
+    quantity = data["quantity"]
+    quantity_unit = data["quantity_unit"]
+    instructions = data["instructions"]
+    start_date = data["start_date"]
+    as_needed = data["as_needed"]
+    notes = data["notes"]
+    end_date = data.get("end_date")  # Optional, not required in add form
+
+    try:
+        med_id = add_medication(
+            db,
+            name=name,
+            concentration=concentration,
+            quantity=quantity,
+            quantity_unit=quantity_unit,
+            instructions=instructions,
+            start_date=start_date,
+            end_date=end_date,
+            as_needed=as_needed,
+            notes=notes
+        )
+        return {"id": med_id, "status": "success"}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"detail": str(e)})
 
 
 # Add a test endpoint to verify server is working

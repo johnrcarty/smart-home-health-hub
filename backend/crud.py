@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from db import get_db
 from models import (BloodPressure, Temperature, Vital, Setting, PulseOxData,
-    MonitoringAlert, Equipment, EquipmentChangeLog, VentilatorAlert, ExternalAlarm)
+    MonitoringAlert, Equipment, EquipmentChangeLog, VentilatorAlert, ExternalAlarm, Medication)
 
 logger = logging.getLogger('crud')
 
@@ -885,3 +885,28 @@ def get_equipment_due_count(db: Session):
     except Exception as e:
         logger.error(f"Error calculating equipment due count: {e}")
         return 0
+def add_medication(db: Session, name, concentration=None, quantity=None, quantity_unit=None, instructions=None, start_date=None, end_date=None, as_needed=False, notes=None, active=True):
+    """
+    Add a new medication to the database.
+    """
+    from datetime import datetime
+    now = datetime.now()
+    medication = Medication(
+        name=name,
+        concentration=concentration,
+        quantity=quantity,
+        quantity_unit=quantity_unit,
+        instructions=instructions,
+        start_date=start_date,
+        end_date=end_date,
+        as_needed=as_needed,
+        notes=notes,
+        active=active,
+        created_at=now,
+        updated_at=now
+    )
+    db.add(medication)
+    db.commit()
+    db.refresh(medication)
+    logger.info(f"Medication added: {name}")
+    return medication.id
