@@ -77,7 +77,8 @@ const MedicationModal = ({ onClose }) => {
     try {
       const response = await fetch(`${config.apiUrl}/api/medications/${medicationId}/schedules`);
       if (response.ok) {
-        return await response.json();
+        const data = await response.json();
+        return data.schedules || [];
       }
       return [];
     } catch (error) {
@@ -282,13 +283,22 @@ const MedicationModal = ({ onClose }) => {
 
   const handleAddSchedule = async (medId) => {
     let cron = '';
+    let description = '';
     let [hour, minute] = time.split(':').map(Number);
     if (scheduleMode === 'weekly') {
       if (selectedDays.length === 0) return;
       const dow = selectedDays.sort().join(',');
       cron = `${minute} ${hour} * * ${dow}`;
+      
+      // Generate human-readable description for weekly schedule
+      const daysMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const dayNames = selectedDays.map(d => daysMap[parseInt(d)]).join(', ');
+      description = `${dayNames} at ${time}`;
     } else {
       cron = `${minute} ${hour} ${selectedDayOfMonth} * *`;
+      
+      // Generate human-readable description for monthly schedule
+      description = `Day ${selectedDayOfMonth} of each month at ${time}`;
     }
     
     try {
@@ -299,13 +309,16 @@ const MedicationModal = ({ onClose }) => {
         body: JSON.stringify({
           type: 'med',
           cron_expression: cron,
+          description: description,
           dose_amount: parseFloat(doseAmount) || 1.0,
-          active: true
+          active: true,
+          notes: ''
         })
       });
       
       if (!response.ok) {
-        throw new Error('Failed to add schedule');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Failed to add schedule');
       }
       
       // Refresh the medication data to get updated schedules
@@ -319,7 +332,7 @@ const MedicationModal = ({ onClose }) => {
       setScheduleMode('weekly');
     } catch (error) {
       console.error('Error adding schedule:', error);
-      alert('Error adding schedule. Please try again.');
+      alert(`Error adding schedule: ${error.message}`);
     } finally {
       setLoading(false);
     }
