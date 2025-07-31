@@ -1,10 +1,11 @@
 import logging
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
+from croniter import croniter
 from sqlalchemy.orm import Session
 from db import get_db
 from models import (BloodPressure, Temperature, Vital, Setting, PulseOxData,
-    MonitoringAlert, Equipment, EquipmentChangeLog, VentilatorAlert, ExternalAlarm, Medication, MedicationSchedule)
+    MonitoringAlert, Equipment, EquipmentChangeLog, VentilatorAlert, ExternalAlarm, Medication, MedicationSchedule, MedicationLog)
 
 logger = logging.getLogger('crud')
 
@@ -1173,3 +1174,137 @@ def toggle_medication_schedule_active(db: Session, schedule_id):
         logger.error(f"Error toggling medication schedule {schedule_id}: {e}")
         db.rollback()
         return False, None
+def get_scheduled_medications_for_date(db: Session, target_date=None):
+    """
+    Get all medications scheduled for a specific date
+    
+    Args:
+        target_date: datetime.date object, defaults to today
+    
+    Returns:
+        List of scheduled medication entries with calculated times
+    """
+    try:
+        if target_date is None:
+            target_date = datetime.now().date()
+        
+        # Get all active medication schedules
+        schedules = db.query(MedicationSchedule).filter(
+            MedicationSchedule.active == True
+        ).join(Medication).filter(
+            Medication.active == True
+        ).all()
+        
+        scheduled_meds = []
+        
+        for schedule in schedules:
+            try:
+                # Create datetime for start of target date
+                start_of_day = datetime.combine(target_date, datetime.min.time())
+                end_of_day = datetime.combine(target_date, datetime.max.time())
+                
+                # Initialize croniter with a time before the target date
+                base_time = start_of_day - timedelta(days=1)
+                cron = croniter(schedule.cron_expression, base_time)
+                
+                # Find all scheduled times for the target date
+                while True:
+                    next_time = cron.get_next(datetime)
+                    if next_time.date() > target_date:
+                        break
+                    if next_time.date() == target_date:
+                        scheduled_meds.append({
+                            'schedule_id': schedule.id,
+                            'medication_id': schedule.medication_id,
+                            'medication_name': schedule.medication.name,
+                            'dose_amount': schedule.dose_amount,
+                            'dose_unit': schedule.medication.quantity_unit,
+                            'scheduled_time': next_time,
+                            'description': schedule.description,
+                            'cron_expression': schedule.cron_expression
+                        })
+            except Exception as cron_error:
+                logger.error(f"Error processing cron expression {schedule.cron_expression}: {cron_error}")
+                continue
+        
+        return sorted(scheduled_meds, key=lambda x: x['scheduled_time'])
+        
+    except Exception as e:
+        logger.error(f"Error getting scheduled medications: {e}")
+        return []
+
+def get_missed_medications(db: Session, target_date=None):
+    """
+    Get medications that were scheduled but not taken for a specific date
+    
+    Args:
+        target_date: datetime.date object, defaults to yesterday
+    
+    Returns:
+        List of missed medication entries
+    """
+    try:
+        if target_date is None:
+            target_date = (datetime.now() - timedelta(days=1)).date()
+        
+        # Get all scheduled medications for the target date
+        scheduled = get_scheduled_medications_for_date(db, target_date)
+        
+        missed_meds = []
+        
+        for scheduled_med in scheduled:
+            # Check if this scheduled dose was logged
+            scheduled_time = scheduled_med['scheduled_time']
+            schedule_id = scheduled_med['schedule_id']
+            
+            # Look for a log entry within a reasonable window (e.g., ±2 hours)
+            time_window_start = scheduled_time - timedelta(hours=2)
+            time_window_end = scheduled_time + timedelta(hours=2)
+            
+            log_entry = db.query(MedicationLog).filter(
+                MedicationLog.schedule_id == schedule_id,
+                MedicationLog.administered_at >= time_window_start,
+                MedicationLog.administered_at <= time_window_end
+            ).first()
+            
+            if not log_entry:
+                # This scheduled dose was missed
+                missed_meds.append({
+                    **scheduled_med,
+                    'missed_date': target_date,
+                    'status': 'missed'
+                })
+        
+        return missed_meds
+        
+    except Exception as e:
+        logger.error(f"Error getting missed medications: {e}")
+        return []
+
+def get_daily_medication_schedule(db: Session):
+    """
+    Get today's scheduled medications plus yesterday's missed medications
+    
+    Returns:
+        Dict with 'today_scheduled' and 'yesterday_missed' lists
+    """
+    try:
+        today = datetime.now().date()
+        yesterday = today - timedelta(days=1)
+        
+        today_scheduled = get_scheduled_medications_for_date(db, today)
+        yesterday_missed = get_missed_medications(db, yesterday)
+        
+        return {
+            'today_scheduled': today_scheduled,
+            'yesterday_missed': yesterday_missed,
+            'date': today.isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting daily medication schedule: {e}")
+        return {
+            'today_scheduled': [],
+            'yesterday_missed': [],
+            'date': datetime.now().date().isoformat()
+        }

@@ -6,6 +6,7 @@ const MedicationModal = ({ onClose }) => {
   const [tab, setTab] = useState('active');
   const [activeMedications, setActiveMedications] = useState([]);
   const [inactiveMedications, setInactiveMedications] = useState([]);
+  const [scheduledMedications, setScheduledMedications] = useState({ today_scheduled: [], yesterday_missed: [] });
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingMed, setEditingMed] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -34,7 +35,10 @@ const MedicationModal = ({ onClose }) => {
   // Load medications from API on component mount
   useEffect(() => {
     fetchMedications();
-  }, []);
+    if (tab === 'scheduled') {
+      fetchScheduledMedications();
+    }
+  }, [tab]);
 
   const fetchMedications = async () => {
     setLoading(true);
@@ -68,6 +72,21 @@ const MedicationModal = ({ onClose }) => {
       }
     } catch (error) {
       console.error('Error fetching medications:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchScheduledMedications = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${config.apiUrl}/api/schedules/daily`);
+      if (response.ok) {
+        const data = await response.json();
+        setScheduledMedications(data);
+      }
+    } catch (error) {
+      console.error('Error fetching scheduled medications:', error);
     } finally {
       setLoading(false);
     }
@@ -221,6 +240,32 @@ const MedicationModal = ({ onClose }) => {
     }
     
     return 'No schedule set';
+  };
+
+  const formatTime = (timeString) => {
+    try {
+      const date = new Date(timeString);
+      return date.toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true 
+      });
+    } catch (error) {
+      return timeString;
+    }
+  };
+
+  const formatDate = (dateString) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', { 
+        weekday: 'short',
+        month: 'short', 
+        day: 'numeric' 
+      });
+    } catch (error) {
+      return dateString;
+    }
   };
 
   // Helper function to parse cron expression
@@ -1026,8 +1071,165 @@ const MedicationModal = ({ onClose }) => {
           ) : !loading ? (
             <div>
               {tab === 'scheduled' ? (
-                <div style={{ textAlign: 'center', color: '#888', padding: '40px' }}>
-                  <p>Scheduled medications will be managed here.</p>
+                <div>
+                  {/* Today's Scheduled Medications */}
+                  {scheduledMedications.today_scheduled && scheduledMedications.today_scheduled.length > 0 && (
+                    <div style={{ marginBottom: '24px' }}>
+                      <h3 style={{ margin: '0 0 16px 0', color: '#333', fontSize: '18px', fontWeight: '600' }}>
+                        Today's Schedule
+                      </h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {scheduledMedications.today_scheduled.map((item, idx) => (
+                          <div key={`today-${idx}`} style={{
+                            backgroundColor: '#fff',
+                            borderRadius: '8px',
+                            padding: '16px',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                            border: '2px solid #28a745',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                          }}>
+                            <div>
+                              <h4 style={{ margin: '0 0 4px 0', color: '#333', fontSize: '16px', fontWeight: '600' }}>
+                                {item.medication_name}
+                              </h4>
+                              <div style={{ color: '#666', fontSize: '14px' }}>
+                                <span style={{ fontWeight: '500' }}>Time: </span>
+                                {formatTime(item.scheduled_time)}
+                              </div>
+                              <div style={{ color: '#666', fontSize: '14px' }}>
+                                <span style={{ fontWeight: '500' }}>Dose: </span>
+                                {item.dose_amount} {item.dose_unit}
+                              </div>
+                              {item.description && (
+                                <div style={{ color: '#666', fontSize: '14px' }}>
+                                  <span style={{ fontWeight: '500' }}>Schedule: </span>
+                                  {item.description}
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button
+                                style={{
+                                  padding: '8px 16px',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  backgroundColor: '#28a745',
+                                  color: '#fff',
+                                  cursor: 'pointer',
+                                  fontSize: '14px',
+                                  fontWeight: '500'
+                                }}
+                                onClick={() => {
+                                  // TODO: Implement marking as taken
+                                  alert('Mark as taken functionality coming soon');
+                                }}
+                              >
+                                Mark Taken
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Yesterday's Missed Medications */}
+                  {scheduledMedications.yesterday_missed && scheduledMedications.yesterday_missed.length > 0 && (
+                    <div style={{ marginBottom: '24px' }}>
+                      <h3 style={{ margin: '0 0 16px 0', color: '#dc3545', fontSize: '18px', fontWeight: '600' }}>
+                        Yesterday's Missed Doses
+                      </h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {scheduledMedications.yesterday_missed.map((item, idx) => (
+                          <div key={`missed-${idx}`} style={{
+                            backgroundColor: '#fff',
+                            borderRadius: '8px',
+                            padding: '16px',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                            border: '2px solid #dc3545',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                          }}>
+                            <div>
+                              <h4 style={{ margin: '0 0 4px 0', color: '#333', fontSize: '16px', fontWeight: '600' }}>
+                                {item.medication_name}
+                              </h4>
+                              <div style={{ color: '#666', fontSize: '14px' }}>
+                                <span style={{ fontWeight: '500' }}>Was scheduled: </span>
+                                {formatDate(item.scheduled_time)} at {formatTime(item.scheduled_time)}
+                              </div>
+                              <div style={{ color: '#666', fontSize: '14px' }}>
+                                <span style={{ fontWeight: '500' }}>Dose: </span>
+                                {item.dose_amount} {item.dose_unit}
+                              </div>
+                              {item.description && (
+                                <div style={{ color: '#666', fontSize: '14px' }}>
+                                  <span style={{ fontWeight: '500' }}>Schedule: </span>
+                                  {item.description}
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button
+                                style={{
+                                  padding: '8px 16px',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  backgroundColor: '#ffc107',
+                                  color: '#000',
+                                  cursor: 'pointer',
+                                  fontSize: '14px',
+                                  fontWeight: '500'
+                                }}
+                                onClick={() => {
+                                  // TODO: Implement taking missed dose
+                                  alert('Take missed dose functionality coming soon');
+                                }}
+                              >
+                                Take Now
+                              </button>
+                              <button
+                                style={{
+                                  padding: '8px 16px',
+                                  border: '2px solid #6c757d',
+                                  borderRadius: '4px',
+                                  backgroundColor: '#fff',
+                                  color: '#6c757d',
+                                  cursor: 'pointer',
+                                  fontSize: '14px',
+                                  fontWeight: '500'
+                                }}
+                                onClick={() => {
+                                  // TODO: Implement skipping missed dose
+                                  alert('Skip dose functionality coming soon');
+                                }}
+                              >
+                                Skip
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Empty state */}
+                  {(!scheduledMedications.today_scheduled || scheduledMedications.today_scheduled.length === 0) &&
+                   (!scheduledMedications.yesterday_missed || scheduledMedications.yesterday_missed.length === 0) && (
+                    <div style={{
+                      textAlign: 'center',
+                      padding: '40px',
+                      color: '#666',
+                      backgroundColor: '#f8f9fa',
+                      borderRadius: '8px'
+                    }}>
+                      <p style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: '500' }}>No scheduled medications</p>
+                      <p style={{ margin: 0 }}>No medications scheduled for today and no missed doses from yesterday.</p>
+                    </div>
+                  )}
                 </div>
               ) : tab === 'active' ? (
                 activeMedications.length === 0 ? (

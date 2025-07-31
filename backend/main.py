@@ -27,7 +27,7 @@ import logging
 from fastapi.responses import JSONResponse
 from gpio_monitor import start_gpio_monitoring, stop_gpio_monitoring, set_alarm_states
 from db import get_db
-from crud import add_medication, get_active_medications, get_inactive_medications, update_medication, delete_medication, add_medication_schedule, get_medication_schedules, get_all_medication_schedules, update_medication_schedule, delete_medication_schedule, toggle_medication_schedule_active
+from crud import add_medication, get_active_medications, get_inactive_medications, update_medication, delete_medication, add_medication_schedule, get_medication_schedules, get_all_medication_schedules, update_medication_schedule, delete_medication_schedule, toggle_medication_schedule_active, get_daily_medication_schedule
 
 load_dotenv()
 
@@ -745,4 +745,20 @@ async def toggle_medication_schedule_active_endpoint(schedule_id: int, db: Sessi
     
     return {"status": "success", "active": new_active_status}
 
+@app.get("/api/schedules/daily")
+async def get_daily_medication_schedule_endpoint(db: Session = Depends(get_db)):
+    """Get today's scheduled medications plus yesterday's missed medications."""
+    try:
+        daily_schedule = get_daily_medication_schedule(db)
+        return daily_schedule
+    except Exception as e:
+        logger.error(f"Error getting daily medication schedule: {e}")
+        return JSONResponse(
+            status_code=500, 
+            content={"detail": f"Error retrieving daily schedule: {str(e)}"}
+        )
+
 # Add a test endpoint to verify server is working
+@app.get("/api/test")
+async def test_endpoint():
+    return {"status": "success", "message": "API is working"}
