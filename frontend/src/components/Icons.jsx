@@ -127,3 +127,25 @@ export const MedicationIcon = () => (
     <line x1="9.5" y1="14.5" x2="14.5" y2="9.5" />
   </svg>
 );
+
+export const CareTasksIcon = () => (
+  <svg width="30" height="30" viewBox="0 0 24 24" fill="none"
+       stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    {/* Heart */}
+    <path d="M12 21s-6-4.35-8.5-7.6C1.64 10.43 2.63 6.36 6 5.5 7.86 5.01 9.5 6 12 8.5 14.5 6 16.14 5.01 18 5.5c3.37.86 4.36 4.93 2.5 7.9C18 16.65 12 21 12 21z" />
+
+    {/* Checkmark */}
+    <polyline points="9 11.5 11 13.5 15 9.5" />
+  </svg>
+);
+
+export const MessagesIcon = () => (
+  <svg width="30" height="30" viewBox="0 0 24 24" fill="none"
+       stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    {/* Envelope Outline */}
+    <rect x="3" y="5" width="18" height="14" rx="2" ry="2" />
+
+    {/* Envelope Flap */}
+    <polyline points="3 7 12 13 21 7" />
+  </svg>
+);

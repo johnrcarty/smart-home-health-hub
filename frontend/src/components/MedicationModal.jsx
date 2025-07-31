@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ModalBase from './ModalBase';
+import config from '../config';
 
 const MedicationModal = ({ onClose }) => {
   const [tab, setTab] = useState('active');
@@ -14,6 +15,7 @@ const MedicationModal = ({ onClose }) => {
   const [selectedDayOfMonth, setSelectedDayOfMonth] = useState(1); // for monthly
   const [time, setTime] = useState('08:00');
   const [ampm, setAmpm] = useState('AM');
+  const [doseAmount, setDoseAmount] = useState('1.000');
   const [newCron, setNewCron] = useState(''); // not used directly now
 
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -39,8 +41,8 @@ const MedicationModal = ({ onClose }) => {
     setLoading(true);
     try {
       const [activeRes, inactiveRes] = await Promise.all([
-        fetch('http://localhost:8000/api/medications/active'),
-        fetch('http://localhost:8000/api/medications/inactive')
+        fetch(`${config.apiUrl}/api/medications/active`),
+        fetch(`${config.apiUrl}/api/medications/inactive`)
       ]);
       
       if (activeRes.ok && inactiveRes.ok) {
@@ -70,8 +72,7 @@ const MedicationModal = ({ onClose }) => {
       notes: ''
     });
     setEditingMed(null);
-    setShowAddForm(false);
-    setShowScheduleFor(null);
+    // Don't automatically hide the form - let the caller decide
   };
 
   const handleSubmit = async (e) => {
@@ -81,7 +82,7 @@ const MedicationModal = ({ onClose }) => {
     try {
       if (editingMed) {
         // Update existing medication
-        const response = await fetch(`http://localhost:8000/api/medications/${editingMed.id}`, {
+        const response = await fetch(`${config.apiUrl}/api/medications/${editingMed.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formData)
@@ -92,7 +93,7 @@ const MedicationModal = ({ onClose }) => {
         }
       } else {
         // Add new medication
-        const response = await fetch('http://localhost:8000/api/add/medication', {
+        const response = await fetch(`${config.apiUrl}/api/add/medication`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -115,6 +116,8 @@ const MedicationModal = ({ onClose }) => {
       // Refresh medications list
       await fetchMedications();
       resetForm();
+      setShowAddForm(false);
+      setShowScheduleFor(null);
     } catch (error) {
       console.error('Error saving medication:', error);
       alert('Error saving medication. Please try again.');
@@ -143,7 +146,7 @@ const MedicationModal = ({ onClose }) => {
     if (confirm('Are you sure you want to delete this medication?')) {
       setLoading(true);
       try {
-        const response = await fetch(`http://localhost:8000/api/medications/${id}`, {
+        const response = await fetch(`${config.apiUrl}/api/medications/${id}`, {
           method: 'DELETE'
         });
         
@@ -164,7 +167,7 @@ const MedicationModal = ({ onClose }) => {
   const toggleActive = async (id) => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:8000/api/medications/${id}/toggle-active`, {
+      const response = await fetch(`${config.apiUrl}/api/medications/${id}/toggle-active`, {
         method: 'POST'
       });
       
@@ -206,9 +209,16 @@ const MedicationModal = ({ onClose }) => {
       cron = `${minute} ${hour} ${selectedDayOfMonth} * *`;
     }
     
+    // Create schedule object with dose amount
+    const scheduleObj = {
+      cron_expression: cron,
+      dose_amount: parseFloat(doseAmount) || 1.0,
+      active: true
+    };
+    
     // For now, just update local state until schedules API is implemented
     const updateMedSchedules = (meds) => meds.map(med =>
-      med.id === medId ? { ...med, schedules: [...(med.schedules || []), cron] } : med
+      med.id === medId ? { ...med, schedules: [...(med.schedules || []), scheduleObj] } : med
     );
     
     setActiveMedications(prev => updateMedSchedules(prev));
@@ -218,6 +228,7 @@ const MedicationModal = ({ onClose }) => {
     setSelectedDayOfMonth(1);
     setTime('08:00');
     setAmpm('AM');
+    setDoseAmount('1.000');
     setScheduleMode('weekly');
   };
 
@@ -295,6 +306,28 @@ const MedicationModal = ({ onClose }) => {
             </select>
           </div>
         </div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontWeight: 600, color: '#333', marginBottom: 8, display: 'block' }}>
+            Dose Amount ({med.quantity_unit || 'units'})
+          </label>
+          <input
+            type="number"
+            step="0.001"
+            min="0"
+            value={doseAmount}
+            onChange={e => setDoseAmount(e.target.value)}
+            style={{ 
+              padding: '8px 12px', 
+              border: '2px solid #ddd', 
+              borderRadius: 6, 
+              fontSize: 14, 
+              background: '#f8f9fa', 
+              color: '#333', 
+              width: 120 
+            }}
+            placeholder="1.000"
+          />
+        </div>
         <button
           type="button"
           onClick={() => handleAddSchedule(med.id)}
@@ -306,16 +339,62 @@ const MedicationModal = ({ onClose }) => {
         <label style={{ fontWeight: 600, color: '#333', marginBottom: 8, display: 'block' }}>Current Schedules</label>
         {med.schedules && med.schedules.length > 0 ? (
           <ul style={{ padding: 0, listStyle: 'none' }}>
-            {med.schedules.map((cron, idx) => (
-              <li key={idx} style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-                <span style={{ fontFamily: 'monospace', background: '#f1f3f4', padding: '4px 8px', borderRadius: 4, marginRight: 8 }}>{cron}</span>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteSchedule(med.id, idx)}
-                  style={{ background: '#dc3545', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}
-                >Delete</button>
-              </li>
-            ))}
+            {med.schedules.map((schedule, idx) => {
+              // Handle both old cron string format and new schedule object format
+              const cronExpression = typeof schedule === 'string' ? schedule : schedule.cron_expression;
+              const doseAmount = typeof schedule === 'object' ? schedule.dose_amount : null;
+              const isActive = typeof schedule === 'object' ? schedule.active : true;
+              
+              return (
+                <li key={idx} style={{ display: 'flex', alignItems: 'center', marginBottom: 8, opacity: isActive ? 1 : 0.5 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', marginRight: 8 }}>
+                    <span style={{ fontFamily: 'monospace', background: '#f1f3f4', padding: '4px 8px', borderRadius: 4, fontSize: 12 }}>
+                      {cronExpression}
+                    </span>
+                    {doseAmount && (
+                      <span style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
+                        {doseAmount} {med.quantity_unit || 'units'}
+                      </span>
+                    )}
+                  </div>
+                  {typeof schedule === 'object' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Toggle active status (for future API implementation)
+                        const updateMedSchedules = (meds) => meds.map(m =>
+                          m.id === med.id ? {
+                            ...m,
+                            schedules: m.schedules.map((s, i) =>
+                              i === idx ? { ...s, active: !s.active } : s
+                            )
+                          } : m
+                        );
+                        setActiveMedications(prev => updateMedSchedules(prev));
+                        setInactiveMedications(prev => updateMedSchedules(prev));
+                      }}
+                      style={{
+                        background: isActive ? '#ffc107' : '#28a745',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 4,
+                        padding: '4px 8px',
+                        fontSize: 11,
+                        cursor: 'pointer',
+                        marginRight: 4
+                      }}
+                    >
+                      {isActive ? 'Pause' : 'Resume'}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteSchedule(med.id, idx)}
+                    style={{ background: '#dc3545', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}
+                  >Delete</button>
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <div style={{ color: '#888', fontStyle: 'italic' }}>No schedules created yet.</div>
@@ -613,7 +692,11 @@ const MedicationModal = ({ onClose }) => {
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '16px' }}>
           <button
             type="button"
-            onClick={resetForm}
+            onClick={() => {
+              resetForm();
+              setShowAddForm(false);
+              setShowScheduleFor(null);
+            }}
             style={{
               padding: '12px 24px',
               border: '2px solid #6c757d',
@@ -704,7 +787,19 @@ const MedicationModal = ({ onClose }) => {
             Inactive ({inactiveMedications.length})
           </button>
           <button
-            onClick={() => { setShowAddForm(true); setShowScheduleFor(null); resetForm(); }}
+            onClick={() => { 
+              if (showAddForm) {
+                // Cancel: hide form and reset
+                setShowAddForm(false);
+                setShowScheduleFor(null);
+                resetForm();
+              } else {
+                // Show form: reset and show
+                resetForm();
+                setShowScheduleFor(null);
+                setShowAddForm(true);
+              }
+            }}
             style={{
               padding: '10px 20px',
               border: 'none',

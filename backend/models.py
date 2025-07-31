@@ -132,3 +132,61 @@ class Medication(Base):
     active = Column(Boolean, default=True)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False)
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    
+    # Relationships
+    schedules = relationship('MedicationSchedule', back_populates='medication', cascade='all, delete-orphan')
+    administration_logs = relationship('MedicationLog', back_populates='medication', cascade='all, delete-orphan')
+
+class MedicationSchedule(Base):
+    __tablename__ = 'medication_schedule'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    medication_id = Column(Integer, ForeignKey('medication.id'), nullable=False)
+    
+    # Cron expression for scheduling (e.g., "30 8 * * 1,3,5" for Mon/Wed/Fri at 8:30 AM)
+    cron_expression = Column(String, nullable=False)
+    
+    # Human-readable description of the schedule (optional, for display purposes)
+    description = Column(String, nullable=True)
+    
+    # Dose information for this specific schedule
+    dose_amount = Column(Float, nullable=True)  # Amount per dose (e.g., 1, 0.5, 2) - unit inherited from medication
+    
+    # Active indicator - allows users to temporarily disable schedules
+    active = Column(Boolean, default=True, nullable=False)
+    
+    # Optional notes for this specific schedule
+    notes = Column(Text, nullable=True)
+    
+    # Timestamps
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    updated_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    
+    # Relationships
+    medication = relationship('Medication', back_populates='schedules')
+    administration_logs = relationship('MedicationLog', back_populates='schedule')
+
+class MedicationLog(Base):
+    __tablename__ = 'medication_log'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    medication_id = Column(Integer, ForeignKey('medication.id'), nullable=False)
+    schedule_id = Column(Integer, ForeignKey('medication_schedule.id'), nullable=True)  # Null if administered without schedule
+    
+    # Administration details
+    administered_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    dose_amount = Column(Float, nullable=False)  # Amount actually given - unit inherited from medication
+    
+    # Schedule tracking (only relevant if schedule_id is not null)
+    is_scheduled = Column(Boolean, default=False, nullable=False)  # True if this was a scheduled dose
+    administered_early = Column(Boolean, default=False, nullable=False)  # True if given before scheduled time
+    administered_late = Column(Boolean, default=False, nullable=False)   # True if given after scheduled time
+    
+    # Optional details
+    notes = Column(Text, nullable=True)  # Any notes about this administration
+    administered_by = Column(String, nullable=True)  # Who administered it (optional)
+    
+    # Timestamps
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    
+    # Relationships
+    medication = relationship('Medication', back_populates='administration_logs')
+    schedule = relationship('MedicationSchedule', back_populates='administration_logs')
