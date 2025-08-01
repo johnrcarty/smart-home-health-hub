@@ -776,3 +776,12 @@ async def trigger_broadcast():
             status_code=500,
             content={"detail": f"Error triggering broadcast: {str(e)}"}
         )
+
+
+@app.post("/api/equipment/{equipment_id}/receive")
+async def api_receive_equipment(equipment_id: int, data: dict = Body(...), db: Session = Depends(get_db)):
+    """Increase equipment quantity (receive new stock)."""
+    amount = data.get('amount', 1)
+    from crud import receive_equipment
+    success = receive_equipment(db, equipment_id, amount)
+    return {"success": success}

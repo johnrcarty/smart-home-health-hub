@@ -1441,3 +1441,14 @@ def get_due_and_upcoming_medications_count(db):
     except Exception as e:
         logger.error(f"Error getting due/upcoming medications count: {e}")
         return 0
+def receive_equipment(db: Session, equipment_id: int, amount: int = 1):
+    try:
+        equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+        if not equipment:
+            return False
+        equipment.quantity += amount
+        db.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Error receiving equipment: {e}")
+        return False
