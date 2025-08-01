@@ -1325,9 +1325,17 @@ def get_daily_medication_schedule(db: Session):
                 ).first()
             
             if log_entry:
-                # For prior days, don't show completed medications - only show missed ones
+                # Check if dose was skipped (actual_dose = 0) - show skipped doses even from yesterday
+                if log_entry.dose_amount == 0:
+                    all_scheduled.append({
+                        **item,
+                        'status': 'skipped',
+                        'administered_at': log_entry.administered_at,
+                        'actual_dose': log_entry.dose_amount,
+                        'is_completed': True
+                    })
+                # For prior days, don't show completed medications with dose > 0 - only show missed/skipped ones
                 # Skip adding completed medications from yesterday to the list
-                pass
             else:
                 # Only show as missed if it's from yesterday or earlier
                 if scheduled_time.date() < today:
@@ -1361,23 +1369,27 @@ def get_daily_medication_schedule(db: Session):
                 ).first()
             
             if log_entry:
-                # Calculate timing status for completed dose
-                # Ensure both datetimes are timezone-naive for comparison
-                administered_at = log_entry.administered_at
-                if administered_at.tzinfo is not None:
-                    administered_at = administered_at.replace(tzinfo=None)
-                
-                scheduled_time_naive = scheduled_time
-                if scheduled_time_naive.tzinfo is not None:
-                    scheduled_time_naive = scheduled_time_naive.replace(tzinfo=None)
-                
-                time_diff = (administered_at - scheduled_time_naive).total_seconds() / 60  # minutes
-                if abs(time_diff) <= 60:  # Within 1 hour
-                    status = 'completed_on_time'
-                elif abs(time_diff) <= 120:  # 1-2 hours early/late
-                    status = 'completed_warning'
-                else:  # More than 2 hours early/late
-                    status = 'completed_late'
+                # Check if dose was skipped (actual_dose = 0)
+                if log_entry.dose_amount == 0:
+                    status = 'skipped'
+                else:
+                    # Calculate timing status for completed dose
+                    # Ensure both datetimes are timezone-naive for comparison
+                    administered_at = log_entry.administered_at
+                    if administered_at.tzinfo is not None:
+                        administered_at = administered_at.replace(tzinfo=None)
+                    
+                    scheduled_time_naive = scheduled_time
+                    if scheduled_time_naive.tzinfo is not None:
+                        scheduled_time_naive = scheduled_time_naive.replace(tzinfo=None)
+                    
+                    time_diff = (administered_at - scheduled_time_naive).total_seconds() / 60  # minutes
+                    if abs(time_diff) <= 60:  # Within 1 hour
+                        status = 'completed_on_time'
+                    elif abs(time_diff) <= 120:  # 1-2 hours early/late
+                        status = 'completed_warning'
+                    else:  # More than 2 hours early/late
+                        status = 'completed_late'
                 
                 all_scheduled.append({
                     **item,
