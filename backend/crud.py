@@ -536,7 +536,7 @@ def acknowledge_alert(db: Session, alert_id):
     """
     try:
         result = db.query(MonitoringAlert).filter(MonitoringAlert.id == alert_id).update({
-            MonitoringAlert.acknowledged: 1
+            MonitoringAlert.acknowledged: True
         })
         db.commit()
 
@@ -558,10 +558,11 @@ def get_unacknowledged_alerts_count(db: Session):
         int: Number of unacknowledged alerts
     """
     try:
-        count = db.query(MonitoringAlert).filter(MonitoringAlert.acknowledged == 0).count()
+        count = db.query(MonitoringAlert).filter(MonitoringAlert.acknowledged == False).count()
         return count
     except Exception as e:
         logger.error(f"Error getting unacknowledged alert count: {e}")
+        db.rollback()  # Rollback the transaction on error
         return 0
 def get_monitoring_alerts(db: Session, limit=50, include_acknowledged=False, detailed=False):
     """
@@ -579,7 +580,7 @@ def get_monitoring_alerts(db: Session, limit=50, include_acknowledged=False, det
         query = db.query(MonitoringAlert)
 
         if not include_acknowledged:
-            query = query.filter(MonitoringAlert.acknowledged == 0)
+            query = query.filter(MonitoringAlert.acknowledged == False)
 
         query = query.order_by(MonitoringAlert.start_time.desc()).limit(limit)
 
@@ -782,7 +783,7 @@ def record_ventilator_alarm(db: Session, device_id, pin):
                 pin=pin,
                 start_time=now,
                 last_activity=now,
-                acknowledged=0
+                acknowledged=False
             )
             db.add(alert)
 
@@ -800,7 +801,7 @@ def record_external_pulse_ox_alarm(db: Session, device_id, pin):
         # Start a new monitoring alert with external trigger flag
         alert = MonitoringAlert(
             start_time=now,
-            external_alarm_triggered=1,
+            external_alarm_triggered=True,
             created_at=now
         )
         db.add(alert)
@@ -879,12 +880,13 @@ def get_equipment_due_count(db: Session):
                     last = datetime.fromisoformat(item.last_changed)
                 else:
                     last = item.last_changed
-                due = last + timedelta(days=item.useful_days)
-                if due.date() <= today:
+                due_date = (last.date() if hasattr(last, 'date') else last) + timedelta(days=item.useful_days)
+                if due_date <= today:
                     due_count += 1
         return due_count
     except Exception as e:
         logger.error(f"Error calculating equipment due count: {e}")
+        db.rollback()  # Rollback the transaction on error
         return 0
 def add_medication(db: Session, name, concentration=None, quantity=None, quantity_unit=None, instructions=None, start_date=None, end_date=None, as_needed=False, notes=None, active=True):
     """
