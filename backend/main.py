@@ -762,3 +762,17 @@ async def get_daily_medication_schedule_endpoint(db: Session = Depends(get_db)):
 @app.get("/api/test")
 async def test_endpoint():
     return {"status": "success", "message": "API is working"}
+
+# Dev endpoint to trigger websocket broadcast
+@app.post("/api/dev/broadcast")
+async def trigger_broadcast():
+    """Trigger a websocket broadcast for development/testing purposes"""
+    try:
+        broadcast_state()
+        return {"status": "success", "message": "Websocket broadcast triggered"}
+    except Exception as e:
+        logger.error(f"Error triggering broadcast: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error triggering broadcast: {str(e)}"}
+        )

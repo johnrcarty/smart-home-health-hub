@@ -34,6 +34,9 @@ const SettingsForm = () => {
   const [gpioError, setGpioError] = useState(null);
   const [gpioSuccess, setGpioSuccess] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
+  const [devLoading, setDevLoading] = useState(false);
+  const [devSuccess, setDevSuccess] = useState(false);
+  const [devError, setDevError] = useState(null);
 
   // Load settings on component mount
   useEffect(() => {
@@ -166,6 +169,28 @@ const SettingsForm = () => {
     }
   };
 
+  const handleWebsocketBroadcast = async () => {
+    setDevLoading(true);
+    setDevError(null);
+    setDevSuccess(false);
+    
+    try {
+      const response = await fetch(`${config.apiUrl}/api/dev/broadcast`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (!response.ok) throw new Error('Failed to trigger websocket broadcast');
+      
+      setDevSuccess(true);
+      setTimeout(() => setDevSuccess(false), 3000);
+    } catch (err) {
+      setDevError('Failed to trigger websocket broadcast. Please try again.');
+    } finally {
+      setDevLoading(false);
+    }
+  };
+
   if (isLoading) {
     return <div className="loading">Loading settings...</div>;
   }
@@ -184,6 +209,12 @@ const SettingsForm = () => {
           onClick={() => setActiveTab('thresholds')}
         >
           Thresholds
+        </button>
+        <button
+          className={activeTab === 'dev' ? 'tab active' : 'tab'}
+          onClick={() => setActiveTab('dev')}
+        >
+          Dev
         </button>
       </div>
       <form onSubmit={handleSubmit} className="settings-form">
@@ -471,6 +502,59 @@ const SettingsForm = () => {
                   </div>
                 </div>
               </form>
+            </div>
+          </>
+        )}
+        {activeTab === 'dev' && (
+          <>
+            <div className="form-section">
+              <h3 style={{ color: '#ffffff', marginBottom: '16px' }}>Development Tools</h3>
+              <div style={{
+                backgroundColor: 'rgba(30,32,40,0.95)',
+                borderRadius: '8px',
+                padding: '24px',
+                border: '1px solid #4a5568'
+              }}>
+                <h4 style={{ color: '#ffffff', marginBottom: '12px', fontSize: '1.1rem' }}>
+                  WebSocket Testing
+                </h4>
+                <p style={{ color: '#cbd5e0', marginBottom: '16px', lineHeight: '1.6' }}>
+                  Trigger a websocket broadcast to test real-time data updates and client connections.
+                </p>
+                
+                {devError && <div className="error-message" style={{ marginBottom: '16px' }}>{devError}</div>}
+                {devSuccess && <div className="success-message" style={{ marginBottom: '16px' }}>Websocket broadcast triggered successfully!</div>}
+                
+                <button
+                  onClick={handleWebsocketBroadcast}
+                  disabled={devLoading}
+                  style={{
+                    backgroundColor: '#10b981',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '12px 24px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    cursor: devLoading ? 'not-allowed' : 'pointer',
+                    opacity: devLoading ? 0.6 : 1
+                  }}
+                >
+                  {devLoading ? 'Broadcasting...' : 'Trigger WebSocket Broadcast'}
+                </button>
+                
+                <div style={{ marginTop: '16px' }}>
+                  <h5 style={{ color: '#ffffff', marginBottom: '8px', fontSize: '0.9rem' }}>
+                    What this does:
+                  </h5>
+                  <ul style={{ color: '#cbd5e0', fontSize: '0.8rem', lineHeight: '1.5', margin: 0, paddingLeft: '20px' }}>
+                    <li>Calls the backend broadcast_state() function</li>
+                    <li>Sends current sensor state to all connected websocket clients</li>
+                    <li>Useful for testing real-time data updates</li>
+                    <li>Helps verify websocket connections are working</li>
+                  </ul>
+                </div>
+              </div>
             </div>
           </>
         )}
