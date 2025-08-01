@@ -1412,7 +1412,10 @@ def get_daily_medication_schedule(db: Session):
         }
 def get_due_and_upcoming_medications_count(db):
     """
-    Returns the count of scheduled medications that are either late (due_warning, due_late) or upcoming (pending, due_on_time within 1 hour)
+    Returns the count of scheduled medications that are:
+    - missed (for today or yesterday)
+    - due_late or due_warning (for today or yesterday)
+    - due_on_time or pending (for today or yesterday) and scheduled within the next hour
     """
     try:
         schedule_data = get_daily_medication_schedule(db)
@@ -1422,7 +1425,7 @@ def get_due_and_upcoming_medications_count(db):
         for med in meds:
             status = med.get('status')
             scheduled_time = med.get('scheduled_time')
-            if status in ('due_warning', 'due_late'):
+            if status in ('missed', 'due_warning', 'due_late'):
                 count += 1
             elif status in ('due_on_time', 'pending') and scheduled_time:
                 # Only count if within 1 hour from now
