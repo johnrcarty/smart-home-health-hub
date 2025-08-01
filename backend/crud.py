@@ -1654,3 +1654,39 @@ def get_medication_history(db: Session, limit=25, medication_name=None, start_da
     except Exception as e:
         logger.error(f"Error getting medication history: {e}")
         return []
+
+def get_medication_names_for_dropdown(db: Session):
+    """
+    Get all medication names for dropdown selection
+    Returns active medications first, then inactive ones with indicators
+    """
+    try:
+        from datetime import datetime
+        today = datetime.now().date()
+        
+        # Get all medications ordered by active status (active first) then by name
+        medications = db.query(Medication).filter(
+            # Include all medications that exist in the system
+            Medication.id.isnot(None)
+        ).order_by(
+            Medication.active.desc(),  # Active first
+            Medication.name.asc()       # Then alphabetical
+        ).all()
+        
+        result = []
+        for med in medications:
+            # Check if medication is truly active (active=True and not past end_date)
+            is_active = med.active and (med.end_date is None or med.end_date > today)
+            
+            result.append({
+                'id': med.id,
+                'name': med.name,
+                'display_name': f"{med.name}" + ("" if is_active else " (Inactive)"),
+                'active': is_active
+            })
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error getting medication names for dropdown: {e}")
+        return []

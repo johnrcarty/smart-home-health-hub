@@ -837,3 +837,21 @@ async def get_medication_history_endpoint(
             status_code=500,
             content={"detail": f"Error retrieving medication history: {str(e)}"}
         )
+
+@app.get("/api/medications/names")
+async def get_medication_names_endpoint(db: Session = Depends(get_db)):
+    """
+    Get all medication names for dropdown selection
+    Returns active medications first, then inactive ones with indicators
+    """
+    from crud import get_medication_names_for_dropdown
+    
+    try:
+        medication_names = get_medication_names_for_dropdown(db)
+        return {"medication_names": medication_names}
+    except Exception as e:
+        logger.error(f"Error getting medication names: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error retrieving medication names: {str(e)}"}
+        )

@@ -4,6 +4,7 @@ import config from '../../config';
 const MedicationHistory = ({ onBack }) => {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [medicationNames, setMedicationNames] = useState([]);
   const [filters, setFilters] = useState({
     medication_name: '',
     start_date: '',
@@ -14,7 +15,22 @@ const MedicationHistory = ({ onBack }) => {
 
   useEffect(() => {
     fetchHistory();
+    fetchMedicationNames();
   }, []);
+
+  const fetchMedicationNames = async () => {
+    try {
+      const response = await fetch(`${config.apiUrl}/api/medications/names`);
+      if (response.ok) {
+        const data = await response.json();
+        setMedicationNames(data.medication_names || []);
+      } else {
+        console.error('Failed to fetch medication names');
+      }
+    } catch (error) {
+      console.error('Error fetching medication names:', error);
+    }
+  };
 
   const fetchHistory = async () => {
     setLoading(true);
@@ -114,35 +130,49 @@ const MedicationHistory = ({ onBack }) => {
       <div style={{ 
         background: '#f8f9fa', 
         borderRadius: 8, 
-        padding: 16, 
+        padding: 20, 
         marginBottom: 24,
         border: '1px solid #dee2e6'
       }}>
-        <h4 style={{ margin: '0 0 16px 0', color: '#333', fontSize: 16 }}>Filters</h4>
+        <h4 style={{ margin: '0 0 20px 0', color: '#333', fontSize: 16, fontWeight: 600 }}>Filters</h4>
         
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 20, marginBottom: 20 }}>
           <div>
-            <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, color: '#333', fontSize: 14 }}>
+            <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, color: '#333', fontSize: 14 }}>
               Medication Name
             </label>
-            <input
-              type="text"
+            <select
               value={filters.medication_name}
               onChange={(e) => handleFilterChange('medication_name', e.target.value)}
-              placeholder="Search by name..."
               style={{
                 width: '100%',
-                padding: '8px 12px',
-                border: '1px solid #ddd',
-                borderRadius: 4,
+                padding: '10px 12px',
+                border: '2px solid #ddd',
+                borderRadius: 6,
                 fontSize: 14,
-                boxSizing: 'border-box'
+                boxSizing: 'border-box',
+                backgroundColor: '#fff',
+                color: '#333'
               }}
-            />
+            >
+              <option value="">All Medications</option>
+              {medicationNames.map((med) => (
+                <option 
+                  key={med.id} 
+                  value={med.name}
+                  style={{
+                    color: med.active ? '#333' : '#6c757d',
+                    fontStyle: med.active ? 'normal' : 'italic'
+                  }}
+                >
+                  {med.display_name}
+                </option>
+              ))}
+            </select>
           </div>
           
           <div>
-            <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, color: '#333', fontSize: 14 }}>
+            <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, color: '#333', fontSize: 14 }}>
               Start Date
             </label>
             <input
@@ -151,17 +181,19 @@ const MedicationHistory = ({ onBack }) => {
               onChange={(e) => handleFilterChange('start_date', e.target.value)}
               style={{
                 width: '100%',
-                padding: '8px 12px',
-                border: '1px solid #ddd',
-                borderRadius: 4,
+                padding: '10px 12px',
+                border: '2px solid #ddd',
+                borderRadius: 6,
                 fontSize: 14,
-                boxSizing: 'border-box'
+                boxSizing: 'border-box',
+                backgroundColor: '#fff',
+                color: '#333'
               }}
             />
           </div>
           
           <div>
-            <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, color: '#333', fontSize: 14 }}>
+            <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, color: '#333', fontSize: 14 }}>
               End Date
             </label>
             <input
@@ -170,17 +202,19 @@ const MedicationHistory = ({ onBack }) => {
               onChange={(e) => handleFilterChange('end_date', e.target.value)}
               style={{
                 width: '100%',
-                padding: '8px 12px',
-                border: '1px solid #ddd',
-                borderRadius: 4,
+                padding: '10px 12px',
+                border: '2px solid #ddd',
+                borderRadius: 6,
                 fontSize: 14,
-                boxSizing: 'border-box'
+                boxSizing: 'border-box',
+                backgroundColor: '#fff',
+                color: '#333'
               }}
             />
           </div>
           
           <div>
-            <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, color: '#333', fontSize: 14 }}>
+            <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, color: '#333', fontSize: 14 }}>
               Status
             </label>
             <select
@@ -188,11 +222,13 @@ const MedicationHistory = ({ onBack }) => {
               onChange={(e) => handleFilterChange('status_filter', e.target.value)}
               style={{
                 width: '100%',
-                padding: '8px 12px',
-                border: '1px solid #ddd',
-                borderRadius: 4,
+                padding: '10px 12px',
+                border: '2px solid #ddd',
+                borderRadius: 6,
                 fontSize: 14,
-                boxSizing: 'border-box'
+                boxSizing: 'border-box',
+                backgroundColor: '#fff',
+                color: '#333'
               }}
             >
               <option value="">All Statuses</option>
@@ -205,19 +241,21 @@ const MedicationHistory = ({ onBack }) => {
           </div>
           
           <div>
-            <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, color: '#333', fontSize: 14 }}>
-              Limit
+            <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, color: '#333', fontSize: 14 }}>
+              Records Limit
             </label>
             <select
               value={filters.limit}
               onChange={(e) => handleFilterChange('limit', parseInt(e.target.value))}
               style={{
                 width: '100%',
-                padding: '8px 12px',
-                border: '1px solid #ddd',
-                borderRadius: 4,
+                padding: '10px 12px',
+                border: '2px solid #ddd',
+                borderRadius: 6,
                 fontSize: 14,
-                boxSizing: 'border-box'
+                boxSizing: 'border-box',
+                backgroundColor: '#fff',
+                color: '#333'
               }}
             >
               <option value={10}>10 records</option>
@@ -233,15 +271,26 @@ const MedicationHistory = ({ onBack }) => {
             onClick={handleApplyFilters}
             disabled={loading}
             style={{
-              padding: '8px 16px',
+              padding: '10px 20px',
               border: 'none',
-              borderRadius: 4,
+              borderRadius: 6,
               background: '#007bff',
               color: '#fff',
               fontSize: 14,
-              fontWeight: 500,
+              fontWeight: 600,
               cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.6 : 1
+              opacity: loading ? 0.6 : 1,
+              transition: 'background-color 0.2s'
+            }}
+            onMouseOver={(e) => {
+              if (!loading) {
+                e.target.style.background = '#0056b3';
+              }
+            }}
+            onMouseOut={(e) => {
+              if (!loading) {
+                e.target.style.background = '#007bff';
+              }
             }}
           >
             {loading ? 'Loading...' : 'Apply Filters'}
@@ -251,15 +300,28 @@ const MedicationHistory = ({ onBack }) => {
             onClick={handleClearFilters}
             disabled={loading}
             style={{
-              padding: '8px 16px',
-              border: '1px solid #6c757d',
-              borderRadius: 4,
+              padding: '10px 20px',
+              border: '2px solid #6c757d',
+              borderRadius: 6,
               background: '#fff',
               color: '#6c757d',
               fontSize: 14,
-              fontWeight: 500,
+              fontWeight: 600,
               cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.6 : 1
+              opacity: loading ? 0.6 : 1,
+              transition: 'all 0.2s'
+            }}
+            onMouseOver={(e) => {
+              if (!loading) {
+                e.target.style.background = '#6c757d';
+                e.target.style.color = '#fff';
+              }
+            }}
+            onMouseOut={(e) => {
+              if (!loading) {
+                e.target.style.background = '#fff';
+                e.target.style.color = '#6c757d';
+              }
             }}
           >
             Clear Filters
