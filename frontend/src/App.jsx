@@ -34,6 +34,7 @@ export default function App() {
   const [pulseOxNotifications, setPulseOxNotifications] = useState(3); // Example count
   const [pulseOxAlerts, setPulseOxAlerts] = useState(0);
   const [equipmentDueCount, setEquipmentDueCount] = useState(0);
+  const [medicationDueCount, setMedicationDueCount] = useState(0);
 
   const [sensorValues, setSensorValues] = useState({
     spo2: null,
@@ -156,6 +157,10 @@ export default function App() {
         // Update equipment due count from websocket
         if (msg.state.equipment_due_count !== undefined) {
           setEquipmentDueCount(msg.state.equipment_due_count);
+        }
+        // Update medication due count from websocket
+        if (msg.state.medications !== undefined) {
+          setMedicationDueCount(msg.state.medications);
         }
       }
       
@@ -373,8 +378,8 @@ export default function App() {
               aria-label="Ventilator"
             >
               <MinimalistVentIcon />
+              {equipmentDueCount > 0 && <div className="badge">{equipmentDueCount}</div>}
             </button>
-            {equipmentDueCount > 0 && <div className="badge">{equipmentDueCount}</div>}
           </div>
           
           <div className="icon-wrapper">
@@ -390,21 +395,21 @@ export default function App() {
           
           <div className="icon-wrapper">
             <button 
-              className={`menu-button ${isVitalsModalOpen ? 'active' : ''}`}
-              onClick={handleVitalsClick}
-              aria-label="Manual Vitals Entry"
-            >
-              <ClipboardIcon />
-            </button>
-          </div>
-          
-          <div className="icon-wrapper">
-            <button 
               className={`menu-button ${isMedicationModalOpen ? 'active' : ''}`}
               onClick={handleMedicationClick}
               aria-label="Medication Tracker"
             >
               <MedicationIcon />
+              {medicationDueCount > 0 && <div className="badge">{medicationDueCount}</div>}
+            </button>
+          </div>
+          <div className="icon-wrapper">
+            <button 
+              className={`menu-button ${isVitalsModalOpen ? 'active' : ''}`}
+              onClick={handleVitalsClick}
+              aria-label="Manual Vitals Entry"
+            >
+              <ClipboardIcon />
             </button>
           </div>
           
