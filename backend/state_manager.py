@@ -255,15 +255,12 @@ def broadcast_state():
     # Get the last 5 blood pressure readings
     with get_db_session() as db:
         bp_history = get_last_n_blood_pressure(db, 5)
-        
-        # Get the last 5 temperature readings
         temp_history = get_last_n_temperature(db, 5)
-        
-        # Get all settings
-        from crud import get_all_settings, get_unacknowledged_alerts_count, get_equipment_due_count
+        from crud import get_all_settings, get_unacknowledged_alerts_count, get_equipment_due_count, get_due_and_upcoming_medications_count
         settings = get_all_settings(db)
         alerts_count = get_unacknowledged_alerts_count(db)
         equipment_due_count = get_equipment_due_count(db)
+        medications_due_count = get_due_and_upcoming_medications_count(db)
     
     # Create a clean copy of the current state with only proper keys
     state_copy = {}
@@ -278,6 +275,7 @@ def broadcast_state():
     state_copy['settings'] = settings
     state_copy['alerts_count'] = alerts_count
     state_copy['equipment_due_count'] = equipment_due_count
+    state_copy['medications'] = medications_due_count
     
     # Ensure all standard values have defaults
     for key in ['spo2', 'bpm', 'perfusion', 'status', 'map_bp']:
@@ -766,15 +764,12 @@ def broadcast_state():
     # Get the last 5 blood pressure readings
     with get_db_session() as db:
         bp_history = get_last_n_blood_pressure(db, 5)
-        
-        # Get the last 5 temperature readings
         temp_history = get_last_n_temperature(db, 5)
-        
-        # Get all settings
-        from crud import get_all_settings, get_unacknowledged_alerts_count, get_equipment_due_count
+        from crud import get_all_settings, get_unacknowledged_alerts_count, get_equipment_due_count, get_due_and_upcoming_medications_count
         settings = get_all_settings(db)
         alerts_count = get_unacknowledged_alerts_count(db)
         equipment_due_count = get_equipment_due_count(db)
+        medications_due_count = get_due_and_upcoming_medications_count(db)
     
     # Create a clean copy of the current state with only proper keys
     state_copy = {}
@@ -789,6 +784,7 @@ def broadcast_state():
     state_copy['settings'] = settings
     state_copy['alerts_count'] = alerts_count
     state_copy['equipment_due_count'] = equipment_due_count
+    state_copy['medications'] = medications_due_count
     
     # Ensure all standard values have defaults
     for key in ['spo2', 'bpm', 'perfusion', 'status', 'map_bp']:

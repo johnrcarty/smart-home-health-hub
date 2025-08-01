@@ -1410,3 +1410,31 @@ def get_daily_medication_schedule(db: Session):
             'scheduled_medications': [],
             'generated_at': datetime.now().isoformat()
         }
+def get_due_and_upcoming_medications_count(db):
+    """
+    Returns the count of scheduled medications that are either late (due_warning, due_late) or upcoming (pending, due_on_time within 1 hour)
+    """
+    try:
+        schedule_data = get_daily_medication_schedule(db)
+        meds = schedule_data.get('scheduled_medications', [])
+        now = datetime.now()
+        count = 0
+        for med in meds:
+            status = med.get('status')
+            scheduled_time = med.get('scheduled_time')
+            if status in ('due_warning', 'due_late'):
+                count += 1
+            elif status in ('due_on_time', 'pending') and scheduled_time:
+                # Only count if within 1 hour from now
+                if isinstance(scheduled_time, str):
+                    try:
+                        scheduled_time = datetime.fromisoformat(scheduled_time)
+                    except Exception:
+                        continue
+                delta = (scheduled_time - now).total_seconds() / 60  # minutes
+                if 0 <= delta <= 60:
+                    count += 1
+        return count
+    except Exception as e:
+        logger.error(f"Error getting due/upcoming medications count: {e}")
+        return 0
