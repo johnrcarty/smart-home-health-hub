@@ -61,7 +61,12 @@ const MedicationHistory = ({ onBack }) => {
     setTimeout(fetchHistory, 100);
   };
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status, doseAmount) => {
+    // Handle skipped doses (0 dose amount)
+    if (doseAmount === 0 || doseAmount === '0') {
+      return '#6c757d'; // Gray for skipped
+    }
+    
     switch (status) {
       case 'on-time':
         return '#28a745';
@@ -76,7 +81,12 @@ const MedicationHistory = ({ onBack }) => {
     }
   };
 
-  const getStatusText = (status) => {
+  const getStatusText = (status, doseAmount) => {
+    // Handle skipped doses (0 dose amount)
+    if (doseAmount === 0 || doseAmount === '0') {
+      return 'Skipped';
+    }
+    
     switch (status) {
       case 'on-time':
         return 'On Time';
@@ -190,6 +200,7 @@ const MedicationHistory = ({ onBack }) => {
               <option value="late">Late</option>
               <option value="early">Early</option>
               <option value="as-needed">As Needed</option>
+              <option value="skipped">Skipped</option>
             </select>
           </div>
           
@@ -316,12 +327,16 @@ const MedicationHistory = ({ onBack }) => {
                       {formatDateTime(record.administered_at)}
                     </td>
                     <td style={{ padding: '12px 16px', fontSize: 14, color: '#333' }}>
-                      {record.scheduled_time ? formatDateTime(record.scheduled_time) : 'N/A'}
-                      {record.time_difference && (
-                        <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
-                          ({record.time_difference})
+                      {record.scheduled_time ? (
+                        <div>
+                          <div>{formatDateTime(record.scheduled_time)}</div>
+                          {record.time_difference && record.dose_amount > 0 && (
+                            <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
+                              ({record.time_difference})
+                            </div>
+                          )}
                         </div>
-                      )}
+                      ) : 'N/A'}
                     </td>
                     <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                       <span style={{
@@ -331,9 +346,9 @@ const MedicationHistory = ({ onBack }) => {
                         fontSize: 12,
                         fontWeight: 600,
                         color: '#fff',
-                        background: getStatusColor(record.status)
+                        background: getStatusColor(record.status, record.dose_amount)
                       }}>
-                        {getStatusText(record.status)}
+                        {getStatusText(record.status, record.dose_amount)}
                       </span>
                     </td>
                     <td style={{ padding: '12px 16px', fontSize: 14, color: '#333' }}>

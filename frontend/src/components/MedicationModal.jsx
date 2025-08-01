@@ -36,6 +36,9 @@ const MedicationModal = ({ onClose }) => {
 
   // Confirmation modal state
   const [confirmModal, setConfirmModal] = useState({ open: false, item: null });
+  
+  // Skip confirmation modal state
+  const [skipModal, setSkipModal] = useState({ open: false, item: null });
 
   // Load medications from API on component mount
   useEffect(() => {
@@ -1059,6 +1062,38 @@ const MedicationModal = ({ onClose }) => {
     }
   };
 
+  const handleSkipDose = (item) => {
+    setSkipModal({ open: true, item });
+  };
+
+  const handleConfirmSkipDose = async () => {
+    const { item } = skipModal;
+    setLoading(true);
+    try {
+      const res = await fetch(`${config.apiUrl}/api/medications/${item.medication_id}/administer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dose_amount: 0,
+          schedule_id: item.schedule_id,
+          scheduled_time: item.scheduled_time,
+          notes: 'Dose skipped by user'
+        })
+      });
+      if (res.ok) {
+        setSkipModal({ open: false, item: null });
+        fetchMedications();
+        fetchScheduledMedications();
+      } else {
+        alert('Failed to record skipped dose.');
+      }
+    } catch (e) {
+      alert('Error recording skipped dose.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <ModalBase isOpen={true} onClose={onClose} title="Medication Tracker">
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -1328,8 +1363,7 @@ const MedicationModal = ({ onClose }) => {
                                                         boxShadow: '0 1px 2px rgba(0,0,0,0.07)'
                                                       }}
                                                       onClick={() => {
-                                                        // TODO: Implement skipping missed dose
-                                                        alert('Skip dose functionality coming soon');
+                                                        handleSkipDose(item);
                                                       }}
                                                     >
                                                       Skip
@@ -1493,6 +1527,70 @@ const MedicationModal = ({ onClose }) => {
                 disabled={loading}
               >
                 {loading ? 'Saving...' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Skip Dose Confirmation Modal */}
+      {skipModal.open && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000
+        }}>
+          <div style={{
+            backgroundColor: '#fff',
+            borderRadius: '10px',
+            padding: '32px',
+            maxWidth: '400px',
+            width: '90%',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.2)'
+          }}>
+            <h3 style={{ margin: '0 0 16px 0', color: '#333' }}>Confirm Skip Dose</h3>
+            <p style={{ margin: '0 0 24px 0', color: '#666' }}>
+              Skip <strong>{skipModal.item?.medication_name}</strong>?<br/>
+              Scheduled dose: <strong>{skipModal.item?.dose_amount} {skipModal.item?.dose_unit}</strong><br/>
+              <em style={{ color: '#999', fontSize: '13px' }}>This will be logged as a skipped dose for your records.</em>
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setSkipModal({ open: false, item: null })}
+                style={{
+                  padding: '8px 16px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  backgroundColor: '#fff',
+                  color: '#333',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmSkipDose}
+                style={{
+                  padding: '8px 16px',
+                  border: 'none',
+                  borderRadius: '4px',
+                  backgroundColor: '#dc3545',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+                disabled={loading}
+              >
+                {loading ? 'Saving...' : 'Skip Dose'}
               </button>
             </div>
           </div>

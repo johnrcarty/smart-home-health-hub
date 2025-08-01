@@ -1479,8 +1479,41 @@ def administer_medication(db: Session, med_id, dose_amount, schedule_id=None, sc
         med = db.query(Medication).filter(Medication.id == med_id).first()
         if not med or med.quantity is None or dose_amount is None:
             return False
-        # Deduct dose
-        med.quantity = float(med.quantity) - float(dose_amount)
+        
+        # Only deduct from quantity if dose_amount > 0 (don't deduct for skipped doses)
+        if float(dose_amount) > 0:
+            med.quantity = float(med.quantity) - float(dose_amount)
+        
+        # Calculate timing flags if this is a scheduled dose
+        administered_early = False
+        administered_late = False
+        
+        if schedule_id and scheduled_time:
+            from datetime import datetime
+            administered_at = datetime.now()
+            
+            # Parse scheduled_time if it's a string
+            if isinstance(scheduled_time, str):
+                try:
+                    scheduled_time = datetime.fromisoformat(scheduled_time.replace('Z', '+00:00'))
+                except:
+                    scheduled_time = datetime.fromisoformat(scheduled_time)
+            
+            # Make both timezone-naive for comparison
+            if administered_at.tzinfo is not None:
+                administered_at = administered_at.replace(tzinfo=None)
+            if scheduled_time.tzinfo is not None:
+                scheduled_time = scheduled_time.replace(tzinfo=None)
+            
+            # Calculate time difference in minutes
+            time_diff_minutes = (administered_at - scheduled_time).total_seconds() / 60
+            
+            # Set flags based on timing (more than 60 minutes off is considered early/late)
+            if time_diff_minutes < -60:  # Administered more than 60 minutes early
+                administered_early = True
+            elif time_diff_minutes > 60:  # Administered more than 60 minutes late
+                administered_late = True
+        
         # Record log
         from datetime import datetime
         log = MedicationLog(
@@ -1490,6 +1523,8 @@ def administer_medication(db: Session, med_id, dose_amount, schedule_id=None, sc
             dose_amount=dose_amount,
             is_scheduled=bool(schedule_id),
             scheduled_time=scheduled_time,
+            administered_early=administered_early,
+            administered_late=administered_late,
             notes=notes,
             created_at=datetime.now()
         )
@@ -1538,6 +1573,8 @@ def get_medication_history(db: Session, limit=25, medication_name=None, start_da
                 query = query.filter(MedicationLog.administered_late == True)
             elif status_filter == 'early':
                 query = query.filter(MedicationLog.administered_early == True)
+            elif status_filter == 'skipped':
+                query = query.filter(MedicationLog.dose_amount == 0)
             elif status_filter == 'missed':
                 # For missed doses, we need to check for scheduled times without corresponding logs
                 # This is more complex and might need a different approach
@@ -1546,7 +1583,8 @@ def get_medication_history(db: Session, limit=25, medication_name=None, start_da
                 query = query.filter(
                     MedicationLog.administered_late == False,
                     MedicationLog.administered_early == False,
-                    MedicationLog.is_scheduled == True
+                    MedicationLog.is_scheduled == True,
+                    MedicationLog.dose_amount > 0
                 )
         
         # Order by most recent first and apply limit
@@ -1556,14 +1594,37 @@ def get_medication_history(db: Session, limit=25, medication_name=None, start_da
         result = []
         for log in records:
             # Determine status
-            status = 'as-needed'
-            if log.is_scheduled:
+            if log.dose_amount == 0:
+                status = 'skipped'
+            elif log.is_scheduled and log.scheduled_time:
+                # Calculate status based on actual time difference for more accurate results
+                # Make both times timezone-naive for comparison
+                administered_at = log.administered_at
+                scheduled_time = log.scheduled_time
+                
+                if administered_at.tzinfo is not None:
+                    administered_at = administered_at.replace(tzinfo=None)
+                if scheduled_time.tzinfo is not None:
+                    scheduled_time = scheduled_time.replace(tzinfo=None)
+                
+                time_diff_minutes = (administered_at - scheduled_time).total_seconds() / 60
+                
+                if time_diff_minutes < -60:  # More than 60 minutes early
+                    status = 'early'
+                elif time_diff_minutes > 60:  # More than 60 minutes late
+                    status = 'late'
+                else:  # Within 60 minutes
+                    status = 'on-time'
+            elif log.is_scheduled:
+                # Fallback to database flags if no scheduled_time
                 if log.administered_late:
                     status = 'late'
                 elif log.administered_early:
                     status = 'early'
                 else:
                     status = 'on-time'
+            else:
+                status = 'as-needed'
             
             # Calculate time difference for scheduled medications
             time_difference = None
