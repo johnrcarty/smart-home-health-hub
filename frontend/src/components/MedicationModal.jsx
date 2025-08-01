@@ -50,6 +50,15 @@ const MedicationModal = ({ onClose }) => {
     completedMeds: new Set()
   });
 
+  // Status filter state for scheduled medications
+  const [statusFilters, setStatusFilters] = useState({
+    skipped: false,
+    missed: false,
+    late: false,
+    early: false,
+    upcoming: false
+  });
+
   // Load medications from API on component mount
   useEffect(() => {
     fetchMedications();
@@ -297,6 +306,8 @@ const MedicationModal = ({ onClose }) => {
         return { bg: '#fff3cd', border: '#ffc107', text: '#856404' };
       case 'completed_late':
         return { bg: '#f8d7da', border: '#dc3545', text: '#721c24' };
+      case 'skipped':
+        return { bg: '#e2e3e5', border: '#6c757d', text: '#495057' };
       case 'due_on_time':
         return { bg: '#d4edda', border: '#28a745', text: '#155724' };
       case 'due_warning':
@@ -323,6 +334,8 @@ const MedicationModal = ({ onClose }) => {
         return isToday ? 'Completed (timing off)' : 'Completed with timing variance';
       case 'completed_late':
         return isToday ? 'Completed (very late/early)' : 'Completed with significant timing variance';
+      case 'skipped':
+        return 'Skipped';
       case 'due_on_time':
         return 'Ready to take';
       case 'due_warning':
