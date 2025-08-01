@@ -1326,7 +1326,16 @@ def get_daily_medication_schedule(db: Session):
             
             if log_entry:
                 # Calculate timing status for completed dose
-                time_diff = (log_entry.administered_at - scheduled_time).total_seconds() / 60  # minutes
+                # Ensure both datetimes are timezone-naive for comparison
+                administered_at = log_entry.administered_at
+                if administered_at.tzinfo is not None:
+                    administered_at = administered_at.replace(tzinfo=None)
+                
+                scheduled_time_naive = scheduled_time
+                if scheduled_time_naive.tzinfo is not None:
+                    scheduled_time_naive = scheduled_time_naive.replace(tzinfo=None)
+                
+                time_diff = (administered_at - scheduled_time_naive).total_seconds() / 60  # minutes
                 if abs(time_diff) <= 60:  # Within 1 hour
                     status = 'completed_on_time'
                 elif abs(time_diff) <= 120:  # 1-2 hours early/late
@@ -1375,7 +1384,16 @@ def get_daily_medication_schedule(db: Session):
             
             if log_entry:
                 # Calculate timing status for completed dose
-                time_diff = (log_entry.administered_at - scheduled_time).total_seconds() / 60  # minutes
+                # Ensure both datetimes are timezone-naive for comparison
+                administered_at = log_entry.administered_at
+                if administered_at.tzinfo is not None:
+                    administered_at = administered_at.replace(tzinfo=None)
+                
+                scheduled_time_naive = scheduled_time
+                if scheduled_time_naive.tzinfo is not None:
+                    scheduled_time_naive = scheduled_time_naive.replace(tzinfo=None)
+                
+                time_diff = (administered_at - scheduled_time_naive).total_seconds() / 60  # minutes
                 if abs(time_diff) <= 60:  # Within 1 hour
                     status = 'completed_on_time'
                 elif abs(time_diff) <= 120:  # 1-2 hours early/late
@@ -1392,9 +1410,18 @@ def get_daily_medication_schedule(db: Session):
                 })
             else:
                 # Check timing status for pending dose
-                time_diff = (current_time - scheduled_time).total_seconds() / 60  # minutes
+                # Ensure both datetimes are timezone-naive for comparison
+                current_time_naive = current_time
+                if current_time_naive.tzinfo is not None:
+                    current_time_naive = current_time_naive.replace(tzinfo=None)
                 
-                if scheduled_time > current_time:
+                scheduled_time_naive = scheduled_time
+                if scheduled_time_naive.tzinfo is not None:
+                    scheduled_time_naive = scheduled_time_naive.replace(tzinfo=None)
+                
+                time_diff = (current_time_naive - scheduled_time_naive).total_seconds() / 60  # minutes
+                
+                if scheduled_time_naive > current_time_naive:
                     # Future dose
                     status = 'pending'
                 elif time_diff <= 60:
