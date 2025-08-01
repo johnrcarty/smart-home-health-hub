@@ -320,10 +320,13 @@ def broadcast_state():
 
     print(f"[state_manager] Clean state to broadcast: {state_copy}")
     
+    # Serialize datetime objects to strings before sending
+    serialized_state = serialize_datetime_objects(state_copy)
+    
     print(f"[state_manager] Broadcasting to {len(websocket_clients)} clients.")
     message = {
         "type": "sensor_update",
-        "state": state_copy
+        "state": serialized_state
     }
     
     for ws in list(websocket_clients):
@@ -828,10 +831,13 @@ def broadcast_state():
 
     print(f"[state_manager] Clean state to broadcast: {state_copy}")
     
+    # Serialize datetime objects to strings before sending
+    serialized_state = serialize_datetime_objects(state_copy)
+    
     print(f"[state_manager] Broadcasting to {len(websocket_clients)} clients.")
     message = {
         "type": "sensor_update",
-        "state": state_copy
+        "state": serialized_state
     }
     
     for ws in list(websocket_clients):
