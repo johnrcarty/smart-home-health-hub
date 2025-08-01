@@ -32,6 +32,9 @@ const MedicationModal = ({ onClose }) => {
     notes: ''
   });
 
+  // Confirmation modal state
+  const [confirmModal, setConfirmModal] = useState({ open: false, item: null });
+
   // Load medications from API on component mount
   useEffect(() => {
     fetchMedications();
@@ -1021,6 +1024,39 @@ const MedicationModal = ({ onClose }) => {
     </div>
   );
 
+  // Handler for Mark Taken/Take Now
+  const handleMarkTaken = (item) => {
+    setConfirmModal({ open: true, item });
+  };
+
+  const handleConfirmMarkTaken = async () => {
+    const { item } = confirmModal;
+    setLoading(true);
+    try {
+      const res = await fetch(`${config.apiUrl}/api/medications/${item.medication_id}/administer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dose_amount: item.dose_amount,
+          schedule_id: item.schedule_id,
+          scheduled_time: item.scheduled_time,
+          notes: ''
+        })
+      });
+      if (res.ok) {
+        setConfirmModal({ open: false, item: null });
+        fetchMedications();
+        fetchScheduledMedications();
+      } else {
+        alert('Failed to record medication administration.');
+      }
+    } catch (e) {
+      alert('Error recording medication administration.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <ModalBase isOpen={true} onClose={onClose} title="Medication Tracker">
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -1376,6 +1412,69 @@ const MedicationModal = ({ onClose }) => {
           ) : null}
         </div>
       </div>
+
+      {/* Confirm Modal */}
+      {confirmModal.open && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000
+        }}>
+          <div style={{
+            backgroundColor: '#fff',
+            borderRadius: '10px',
+            padding: '32px',
+            maxWidth: '400px',
+            width: '90%',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.2)'
+          }}>
+            <h3 style={{ margin: '0 0 16px 0', color: '#333' }}>Confirm Administration</h3>
+            <p style={{ margin: '0 0 24px 0', color: '#666' }}>
+              Mark <strong>{confirmModal.item?.medication_name}</strong> as taken?<br/>
+              Dose: <strong>{confirmModal.item?.dose_amount} {confirmModal.item?.dose_unit}</strong>
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setConfirmModal({ open: false, item: null })}
+                style={{
+                  padding: '8px 16px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  backgroundColor: '#fff',
+                  color: '#333',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmMarkTaken}
+                style={{
+                  padding: '8px 16px',
+                  border: 'none',
+                  borderRadius: '4px',
+                  backgroundColor: '#28a745',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+                disabled={loading}
+              >
+                {loading ? 'Saving...' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </ModalBase>
   );
 };

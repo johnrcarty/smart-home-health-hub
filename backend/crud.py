@@ -1452,3 +1452,29 @@ def receive_equipment(db: Session, equipment_id: int, amount: int = 1):
     except Exception as e:
         logger.error(f"Error receiving equipment: {e}")
         return False
+def administer_medication(db: Session, med_id, dose_amount, schedule_id=None, scheduled_time=None, notes=None):
+    try:
+        med = db.query(Medication).filter(Medication.id == med_id).first()
+        if not med or med.quantity is None or dose_amount is None:
+            return False
+        # Deduct dose
+        med.quantity = float(med.quantity) - float(dose_amount)
+        # Record log
+        from datetime import datetime
+        log = MedicationLog(
+            medication_id=med_id,
+            schedule_id=schedule_id,
+            administered_at=datetime.now(),
+            dose_amount=dose_amount,
+            is_scheduled=bool(schedule_id),
+            scheduled_time=scheduled_time,
+            notes=notes,
+            created_at=datetime.now()
+        )
+        db.add(log)
+        db.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Error administering medication: {e}")
+        db.rollback()
+        return False

@@ -785,3 +785,17 @@ async def api_receive_equipment(equipment_id: int, data: dict = Body(...), db: S
     from crud import receive_equipment
     success = receive_equipment(db, equipment_id, amount)
     return {"success": success}
+
+
+@app.post("/api/medications/{med_id}/administer")
+async def administer_medication(med_id: int, data: dict = Body(...), db: Session = Depends(get_db)):
+    """Record a medication administration and deduct from quantity."""
+    from crud import administer_medication
+    dose_amount = data.get('dose_amount')
+    schedule_id = data.get('schedule_id')
+    scheduled_time = data.get('scheduled_time')
+    notes = data.get('notes')
+    result = administer_medication(db, med_id, dose_amount, schedule_id, scheduled_time, notes)
+    if not result:
+        return JSONResponse(status_code=400, content={"detail": "Failed to administer medication"})
+    return {"success": True}
