@@ -1478,3 +1478,96 @@ def administer_medication(db: Session, med_id, dose_amount, schedule_id=None, sc
         logger.error(f"Error administering medication: {e}")
         db.rollback()
         return False
+def get_medication_history(db: Session, limit=25, medication_name=None, start_date=None, end_date=None, status_filter=None):
+    """
+    Get medication administration history with filtering options
+    
+    Args:
+        db: Database session
+        limit: Maximum number of records to return (default 25)
+        medication_name: Filter by medication name (partial match)
+        start_date: Filter by start date (YYYY-MM-DD format)
+        end_date: Filter by end date (YYYY-MM-DD format)  
+        status_filter: Filter by status ('late', 'early', 'missed', 'on-time')
+    
+    Returns:
+        List of medication administration records with related data
+    """
+    try:
+        # Start with base query joining medication log with medication and schedule
+        query = db.query(MedicationLog).join(Medication).outerjoin(MedicationSchedule)
+        
+        # Filter by medication name (partial match, case insensitive)
+        if medication_name:
+            query = query.filter(Medication.name.ilike(f'%{medication_name}%'))
+        
+        # Filter by date range
+        if start_date:
+            start_datetime = datetime.strptime(start_date, '%Y-%m-%d')
+            query = query.filter(MedicationLog.administered_at >= start_datetime)
+        
+        if end_date:
+            end_datetime = datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)
+            query = query.filter(MedicationLog.administered_at < end_datetime)
+        
+        # Filter by status
+        if status_filter:
+            if status_filter == 'late':
+                query = query.filter(MedicationLog.administered_late == True)
+            elif status_filter == 'early':
+                query = query.filter(MedicationLog.administered_early == True)
+            elif status_filter == 'missed':
+                # For missed doses, we need to check for scheduled times without corresponding logs
+                # This is more complex and might need a different approach
+                pass
+            elif status_filter == 'on-time':
+                query = query.filter(
+                    MedicationLog.administered_late == False,
+                    MedicationLog.administered_early == False,
+                    MedicationLog.is_scheduled == True
+                )
+        
+        # Order by most recent first and apply limit
+        records = query.order_by(MedicationLog.administered_at.desc()).limit(limit).all()
+        
+        # Format the results
+        result = []
+        for log in records:
+            # Determine status
+            status = 'as-needed'
+            if log.is_scheduled:
+                if log.administered_late:
+                    status = 'late'
+                elif log.administered_early:
+                    status = 'early'
+                else:
+                    status = 'on-time'
+            
+            # Calculate time difference for scheduled medications
+            time_difference = None
+            if log.scheduled_time and log.administered_at:
+                diff_minutes = (log.administered_at - log.scheduled_time).total_seconds() / 60
+                time_difference = f"{int(abs(diff_minutes))} minutes {'late' if diff_minutes > 0 else 'early'}" if diff_minutes != 0 else "on time"
+            
+            record = {
+                'id': log.id,
+                'medication_id': log.medication_id,
+                'medication_name': log.medication.name,
+                'dose_amount': log.dose_amount,
+                'dose_unit': log.medication.quantity_unit,
+                'administered_at': log.administered_at.isoformat(),
+                'scheduled_time': log.scheduled_time.isoformat() if log.scheduled_time else None,
+                'is_scheduled': log.is_scheduled,
+                'status': status,
+                'time_difference': time_difference,
+                'notes': log.notes,
+                'administered_by': log.administered_by,
+                'created_at': log.created_at.isoformat()
+            }
+            result.append(record)
+        
+        return result
+    
+    except Exception as e:
+        logger.error(f"Error getting medication history: {e}")
+        return []

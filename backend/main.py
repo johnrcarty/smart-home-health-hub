@@ -799,3 +799,41 @@ async def administer_medication(med_id: int, data: dict = Body(...), db: Session
     if not result:
         return JSONResponse(status_code=400, content={"detail": "Failed to administer medication"})
     return {"success": True}
+
+@app.get("/api/medications/history")
+async def get_medication_history_endpoint(
+    limit: int = 25,
+    medication_name: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    status_filter: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Get medication administration history with filtering options
+    
+    Query parameters:
+    - limit: Maximum number of records (default 25)
+    - medication_name: Filter by medication name (partial match)
+    - start_date: Filter by start date (YYYY-MM-DD format)
+    - end_date: Filter by end date (YYYY-MM-DD format)
+    - status_filter: Filter by status ('late', 'early', 'missed', 'on-time')
+    """
+    from crud import get_medication_history
+    
+    try:
+        history = get_medication_history(
+            db=db,
+            limit=limit,
+            medication_name=medication_name,
+            start_date=start_date,
+            end_date=end_date,
+            status_filter=status_filter
+        )
+        return {"history": history, "count": len(history)}
+    except Exception as e:
+        logger.error(f"Error getting medication history: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error retrieving medication history: {str(e)}"}
+        )

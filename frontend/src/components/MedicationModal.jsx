@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ModalBase from './ModalBase';
 import config from '../config';
+import MedicationHistory from './medication/MedicationHistory';
 
 const MedicationModal = ({ onClose }) => {
   const [tab, setTab] = useState('scheduled');
@@ -11,6 +12,7 @@ const MedicationModal = ({ onClose }) => {
   const [editingMed, setEditingMed] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showScheduleFor, setShowScheduleFor] = useState(null); // med id or null
+  const [showHistory, setShowHistory] = useState(false); // show history view
   const [scheduleMode, setScheduleMode] = useState('weekly'); // 'weekly' or 'monthly'
   const [selectedDays, setSelectedDays] = useState([]); // for weekly
   const [selectedDayOfMonth, setSelectedDayOfMonth] = useState(1); // for monthly
@@ -1068,7 +1070,7 @@ const MedicationModal = ({ onClose }) => {
           paddingBottom: '10px'
         }}>
           <button
-            onClick={() => setTab('scheduled')}
+            onClick={() => { setTab('scheduled'); setShowHistory(false); }}
             style={{
               padding: '10px 20px',
               border: 'none',
@@ -1083,7 +1085,7 @@ const MedicationModal = ({ onClose }) => {
             Scheduled
           </button>
           <button
-            onClick={() => setTab('active')}
+            onClick={() => { setTab('active'); setShowHistory(false); }}
             style={{
               padding: '10px 20px',
               border: 'none',
@@ -1098,7 +1100,7 @@ const MedicationModal = ({ onClose }) => {
             Active ({activeMedications.length})
           </button>
           <button
-            onClick={() => setTab('inactive')}
+            onClick={() => { setTab('inactive'); setShowHistory(false); }}
             style={{
               padding: '10px 20px',
               border: 'none',
@@ -1111,6 +1113,26 @@ const MedicationModal = ({ onClose }) => {
             }}
           >
             Inactive ({inactiveMedications.length})
+          </button>
+          <button
+            onClick={() => {
+              setTab('history');
+              setShowHistory(true);
+              setShowAddForm(false);
+              setShowScheduleFor(null);
+            }}
+            style={{
+              padding: '10px 20px',
+              border: 'none',
+              borderRadius: '6px',
+              backgroundColor: tab === 'history' ? '#007bff' : '#f8f9fa',
+              color: tab === 'history' ? '#fff' : '#333',
+              cursor: 'pointer',
+              fontWeight: '500',
+              fontSize: '14px'
+            }}
+          >
+            History
           </button>
           <button
             onClick={() => { 
@@ -1151,6 +1173,8 @@ const MedicationModal = ({ onClose }) => {
           )}
           {!loading && showScheduleFor ? (
             renderScheduleView(allMedications.find(m => m.id === showScheduleFor) || {schedules: []})
+          ) : !loading && showHistory ? (
+            <MedicationHistory onBack={() => { setShowHistory(false); setTab('scheduled'); }} />
           ) : !loading && showAddForm ? (
             renderForm()
           ) : !loading ? (
@@ -1285,8 +1309,7 @@ const MedicationModal = ({ onClose }) => {
                                                       boxShadow: '0 1px 2px rgba(0,0,0,0.07)'
                                                     }}
                                                     onClick={() => {
-                                                      // TODO: Implement marking as taken
-                                                      alert('Mark as taken functionality coming soon');
+                                                      handleMarkTaken(item);
                                                     }}
                                                   >
                                                     {item.status === 'missed' ? 'Take Now' : 'Mark Taken'}
