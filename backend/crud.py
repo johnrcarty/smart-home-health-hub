@@ -1306,15 +1306,23 @@ def get_daily_medication_schedule(db: Session):
             scheduled_time = item['scheduled_time']
             schedule_id = item['schedule_id']
             
-            # Check if this was taken (within ±2 hours)
-            time_window_start = scheduled_time - timedelta(hours=2)
-            time_window_end = scheduled_time + timedelta(hours=2)
-            
+            # Check if this was taken - look for any log entry for this schedule and date
+            # First try exact schedule_id match
             log_entry = db.query(MedicationLog).filter(
                 MedicationLog.schedule_id == schedule_id,
-                MedicationLog.administered_at >= time_window_start,
-                MedicationLog.administered_at <= time_window_end
+                MedicationLog.scheduled_time == scheduled_time
             ).first()
+            
+            # If no exact match, check within time window (±4 hours for more flexibility)
+            if not log_entry:
+                time_window_start = scheduled_time - timedelta(hours=4)
+                time_window_end = scheduled_time + timedelta(hours=4)
+                
+                log_entry = db.query(MedicationLog).filter(
+                    MedicationLog.schedule_id == schedule_id,
+                    MedicationLog.administered_at >= time_window_start,
+                    MedicationLog.administered_at <= time_window_end
+                ).first()
             
             if log_entry:
                 # Calculate timing status for completed dose
@@ -1334,27 +1342,36 @@ def get_daily_medication_schedule(db: Session):
                     'is_completed': True
                 })
             else:
-                # Missed dose
-                all_scheduled.append({
-                    **item,
-                    'status': 'missed',
-                    'is_completed': False
-                })
+                # Only show as missed if it's from yesterday or earlier
+                if scheduled_time.date() < today:
+                    all_scheduled.append({
+                        **item,
+                        'status': 'missed',
+                        'is_completed': False
+                    })
         
         # Process today's schedules
         for item in today_scheduled:
             scheduled_time = item['scheduled_time']
             schedule_id = item['schedule_id']
             
-            # Check if this was taken
-            time_window_start = scheduled_time - timedelta(hours=2)
-            time_window_end = scheduled_time + timedelta(hours=2)
-            
+            # Check if this was taken - look for any log entry for this schedule and date
+            # First try exact schedule_id and scheduled_time match
             log_entry = db.query(MedicationLog).filter(
                 MedicationLog.schedule_id == schedule_id,
-                MedicationLog.administered_at >= time_window_start,
-                MedicationLog.administered_at <= time_window_end
+                MedicationLog.scheduled_time == scheduled_time
             ).first()
+            
+            # If no exact match, check within time window (±4 hours for more flexibility)
+            if not log_entry:
+                time_window_start = scheduled_time - timedelta(hours=4)
+                time_window_end = scheduled_time + timedelta(hours=4)
+                
+                log_entry = db.query(MedicationLog).filter(
+                    MedicationLog.schedule_id == schedule_id,
+                    MedicationLog.administered_at >= time_window_start,
+                    MedicationLog.administered_at <= time_window_end
+                ).first()
             
             if log_entry:
                 # Calculate timing status for completed dose
