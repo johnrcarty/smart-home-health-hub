@@ -1124,7 +1124,7 @@ const MedicationModal = ({ onClose }) => {
                   {/* All Scheduled Medications in Chronological Order */}
                   {scheduledMedications.scheduled_medications && scheduledMedications.scheduled_medications.length > 0 ? (
                     <div>
-                      <h3 style={{ margin: '0 0 16px 0', color: '#333', fontSize: '18px', fontWeight: '600' }}>
+                      <h3 style={{ margin: '0 0 16px 0', color: '#ffffff', fontSize: '18px', fontWeight: '600' }}>
                         Medication Schedule
                       </h3>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -1247,9 +1247,9 @@ const MedicationModal = ({ onClose }) => {
                       </div>
                       
                       {/* Legend */}
-                      <div style={{ marginTop: '24px', padding: '16px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
-                        <h4 style={{ margin: '0 0 12px 0', color: '#333', fontSize: '14px', fontWeight: '600' }}>Status Legend:</h4>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', fontSize: '12px' }}>
+                      <div style={{ marginTop: '24px', padding: '16px', backgroundColor: '#2d3748', borderRadius: '8px', border: '1px solid #4a5568' }}>
+                        <h4 style={{ margin: '0 0 12px 0', color: '#ffffff', fontSize: '14px', fontWeight: '600' }}>Status Legend:</h4>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', fontSize: '12px', color: '#e2e8f0' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <div style={{ width: 12, height: 12, backgroundColor: '#28a745', borderRadius: '50%' }}></div>
                             <span>On time (±1 hour)</span>
@@ -1273,12 +1273,13 @@ const MedicationModal = ({ onClose }) => {
                     <div style={{
                       textAlign: 'center',
                       padding: '40px',
-                      color: '#666',
-                      backgroundColor: '#f8f9fa',
-                      borderRadius: '8px'
+                      color: '#a0aec0',
+                      backgroundColor: '#2d3748',
+                      borderRadius: '8px',
+                      border: '1px solid #4a5568'
                     }}>
-                      <p style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: '500' }}>No scheduled medications</p>
-                      <p style={{ margin: 0 }}>No medications scheduled for today and yesterday.</p>
+                      <p style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: '500', color: '#ffffff' }}>No scheduled medications</p>
+                      <p style={{ margin: 0, color: '#a0aec0' }}>No medications scheduled for today and yesterday.</p>
                     </div>
                   )}
                 </div>
