@@ -6,7 +6,7 @@ const MedicationModal = ({ onClose }) => {
   const [tab, setTab] = useState('active');
   const [activeMedications, setActiveMedications] = useState([]);
   const [inactiveMedications, setInactiveMedications] = useState([]);
-  const [scheduledMedications, setScheduledMedications] = useState({ today_scheduled: [], yesterday_missed: [] });
+  const [scheduledMedications, setScheduledMedications] = useState({ scheduled_medications: [] });
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingMed, setEditingMed] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -265,6 +265,55 @@ const MedicationModal = ({ onClose }) => {
       });
     } catch (error) {
       return dateString;
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'completed_on_time':
+        return { bg: '#e8f5e8', border: '#28a745', text: '#155724' };
+      case 'completed_warning':
+        return { bg: '#fff3cd', border: '#ffc107', text: '#856404' };
+      case 'completed_late':
+        return { bg: '#f8d7da', border: '#dc3545', text: '#721c24' };
+      case 'due_on_time':
+        return { bg: '#d4edda', border: '#28a745', text: '#155724' };
+      case 'due_warning':
+        return { bg: '#fff3cd', border: '#ffc107', text: '#856404' };
+      case 'due_late':
+        return { bg: '#f8d7da', border: '#dc3545', text: '#721c24' };
+      case 'missed':
+        return { bg: '#f8d7da', border: '#dc3545', text: '#721c24' };
+      case 'pending':
+        return { bg: '#d1ecf1', border: '#17a2b8', text: '#0c5460' };
+      default:
+        return { bg: '#f8f9fa', border: '#6c757d', text: '#495057' };
+    }
+  };
+
+  const getStatusText = (item) => {
+    const status = item.status;
+    const isToday = new Date(item.scheduled_time).toDateString() === new Date().toDateString();
+    
+    switch (status) {
+      case 'completed_on_time':
+        return isToday ? 'Completed' : 'Completed on time';
+      case 'completed_warning':
+        return isToday ? 'Completed (timing off)' : 'Completed with timing variance';
+      case 'completed_late':
+        return isToday ? 'Completed (very late/early)' : 'Completed with significant timing variance';
+      case 'due_on_time':
+        return 'Ready to take';
+      case 'due_warning':
+        return 'Late (1-2 hours)';
+      case 'due_late':
+        return 'Very late (>2 hours)';
+      case 'missed':
+        return 'Missed';
+      case 'pending':
+        return 'Upcoming';
+      default:
+        return 'Unknown';
     }
   };
 
@@ -1072,153 +1121,155 @@ const MedicationModal = ({ onClose }) => {
             <div>
               {tab === 'scheduled' ? (
                 <div>
-                  {/* Today's Scheduled Medications */}
-                  {scheduledMedications.today_scheduled && scheduledMedications.today_scheduled.length > 0 && (
-                    <div style={{ marginBottom: '24px' }}>
+                  {/* All Scheduled Medications in Chronological Order */}
+                  {scheduledMedications.scheduled_medications && scheduledMedications.scheduled_medications.length > 0 ? (
+                    <div>
                       <h3 style={{ margin: '0 0 16px 0', color: '#333', fontSize: '18px', fontWeight: '600' }}>
-                        Today's Schedule
+                        Medication Schedule
                       </h3>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {scheduledMedications.today_scheduled.map((item, idx) => (
-                          <div key={`today-${idx}`} style={{
-                            backgroundColor: '#fff',
-                            borderRadius: '8px',
-                            padding: '16px',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                            border: '2px solid #28a745',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                          }}>
-                            <div>
-                              <h4 style={{ margin: '0 0 4px 0', color: '#333', fontSize: '16px', fontWeight: '600' }}>
-                                {item.medication_name}
-                              </h4>
-                              <div style={{ color: '#666', fontSize: '14px' }}>
-                                <span style={{ fontWeight: '500' }}>Time: </span>
-                                {formatTime(item.scheduled_time)}
-                              </div>
-                              <div style={{ color: '#666', fontSize: '14px' }}>
-                                <span style={{ fontWeight: '500' }}>Dose: </span>
-                                {item.dose_amount} {item.dose_unit}
-                              </div>
-                              {item.description && (
-                                <div style={{ color: '#666', fontSize: '14px' }}>
-                                  <span style={{ fontWeight: '500' }}>Schedule: </span>
-                                  {item.description}
+                        {scheduledMedications.scheduled_medications.map((item, idx) => {
+                          const colors = getStatusColor(item.status);
+                          const isCompleted = item.is_completed;
+                          const isToday = new Date(item.scheduled_time).toDateString() === new Date().toDateString();
+                          
+                          return (
+                            <div 
+                              key={`scheduled-${idx}`} 
+                              style={{
+                                backgroundColor: colors.bg,
+                                borderRadius: '8px',
+                                padding: '16px',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                border: `2px solid ${colors.border}`,
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                opacity: isCompleted && isToday ? 0.7 : 1,
+                                order: isCompleted && isToday ? 1 : 0
+                              }}
+                            >
+                              <div style={{ flex: 1 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' }}>
+                                  <h4 style={{ margin: 0, color: colors.text, fontSize: '16px', fontWeight: '600' }}>
+                                    {item.medication_name}
+                                  </h4>
+                                  <span 
+                                    style={{ 
+                                      backgroundColor: colors.border, 
+                                      color: '#fff', 
+                                      padding: '2px 8px', 
+                                      borderRadius: '12px', 
+                                      fontSize: '12px',
+                                      fontWeight: '500'
+                                    }}
+                                  >
+                                    {getStatusText(item)}
+                                  </span>
                                 </div>
-                              )}
+                                
+                                <div style={{ color: colors.text, fontSize: '14px', marginBottom: '2px' }}>
+                                  <span style={{ fontWeight: '500' }}>Scheduled: </span>
+                                  {formatDate(item.scheduled_time)} at {formatTime(item.scheduled_time)}
+                                </div>
+                                
+                                <div style={{ color: colors.text, fontSize: '14px', marginBottom: '2px' }}>
+                                  <span style={{ fontWeight: '500' }}>Dose: </span>
+                                  {item.dose_amount} {item.dose_unit}
+                                </div>
+                                
+                                {item.description && (
+                                  <div style={{ color: colors.text, fontSize: '14px', marginBottom: '2px' }}>
+                                    <span style={{ fontWeight: '500' }}>Schedule: </span>
+                                    {item.description}
+                                  </div>
+                                )}
+                                
+                                {isCompleted && item.administered_at && (
+                                  <div style={{ color: colors.text, fontSize: '14px' }}>
+                                    <span style={{ fontWeight: '500' }}>Taken: </span>
+                                    {formatDate(item.administered_at)} at {formatTime(item.administered_at)}
+                                    {item.actual_dose && item.actual_dose !== item.dose_amount && (
+                                      <span> ({item.actual_dose} {item.dose_unit})</span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                {!isCompleted && (
+                                  <>
+                                    <button
+                                      style={{
+                                        padding: '8px 16px',
+                                        border: 'none',
+                                        borderRadius: '4px',
+                                        backgroundColor: '#28a745',
+                                        color: '#fff',
+                                        cursor: 'pointer',
+                                        fontSize: '14px',
+                                        fontWeight: '500'
+                                      }}
+                                      onClick={() => {
+                                        // TODO: Implement marking as taken
+                                        alert('Mark as taken functionality coming soon');
+                                      }}
+                                    >
+                                      {item.status === 'missed' ? 'Take Now' : 'Mark Taken'}
+                                    </button>
+                                    
+                                    {item.status === 'missed' && (
+                                      <button
+                                        style={{
+                                          padding: '8px 16px',
+                                          border: '2px solid #6c757d',
+                                          borderRadius: '4px',
+                                          backgroundColor: '#fff',
+                                          color: '#6c757d',
+                                          cursor: 'pointer',
+                                          fontSize: '14px',
+                                          fontWeight: '500'
+                                        }}
+                                        onClick={() => {
+                                          // TODO: Implement skipping missed dose
+                                          alert('Skip dose functionality coming soon');
+                                        }}
+                                      >
+                                        Skip
+                                      </button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
                             </div>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              <button
-                                style={{
-                                  padding: '8px 16px',
-                                  border: 'none',
-                                  borderRadius: '4px',
-                                  backgroundColor: '#28a745',
-                                  color: '#fff',
-                                  cursor: 'pointer',
-                                  fontSize: '14px',
-                                  fontWeight: '500'
-                                }}
-                                onClick={() => {
-                                  // TODO: Implement marking as taken
-                                  alert('Mark as taken functionality coming soon');
-                                }}
-                              >
-                                Mark Taken
-                              </button>
-                            </div>
+                          );
+                        })}
+                      </div>
+                      
+                      {/* Legend */}
+                      <div style={{ marginTop: '24px', padding: '16px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                        <h4 style={{ margin: '0 0 12px 0', color: '#333', fontSize: '14px', fontWeight: '600' }}>Status Legend:</h4>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', fontSize: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <div style={{ width: 12, height: 12, backgroundColor: '#28a745', borderRadius: '50%' }}></div>
+                            <span>On time (±1 hour)</span>
                           </div>
-                        ))}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <div style={{ width: 12, height: 12, backgroundColor: '#ffc107', borderRadius: '50%' }}></div>
+                            <span>Warning (1-2 hours off)</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <div style={{ width: 12, height: 12, backgroundColor: '#dc3545', borderRadius: '50%' }}></div>
+                            <span>Late/Early ({'>'}2 hours off)</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <div style={{ width: 12, height: 12, backgroundColor: '#17a2b8', borderRadius: '50%' }}></div>
+                            <span>Upcoming</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  )}
-
-                  {/* Yesterday's Missed Medications */}
-                  {scheduledMedications.yesterday_missed && scheduledMedications.yesterday_missed.length > 0 && (
-                    <div style={{ marginBottom: '24px' }}>
-                      <h3 style={{ margin: '0 0 16px 0', color: '#dc3545', fontSize: '18px', fontWeight: '600' }}>
-                        Yesterday's Missed Doses
-                      </h3>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {scheduledMedications.yesterday_missed.map((item, idx) => (
-                          <div key={`missed-${idx}`} style={{
-                            backgroundColor: '#fff',
-                            borderRadius: '8px',
-                            padding: '16px',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                            border: '2px solid #dc3545',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                          }}>
-                            <div>
-                              <h4 style={{ margin: '0 0 4px 0', color: '#333', fontSize: '16px', fontWeight: '600' }}>
-                                {item.medication_name}
-                              </h4>
-                              <div style={{ color: '#666', fontSize: '14px' }}>
-                                <span style={{ fontWeight: '500' }}>Was scheduled: </span>
-                                {formatDate(item.scheduled_time)} at {formatTime(item.scheduled_time)}
-                              </div>
-                              <div style={{ color: '#666', fontSize: '14px' }}>
-                                <span style={{ fontWeight: '500' }}>Dose: </span>
-                                {item.dose_amount} {item.dose_unit}
-                              </div>
-                              {item.description && (
-                                <div style={{ color: '#666', fontSize: '14px' }}>
-                                  <span style={{ fontWeight: '500' }}>Schedule: </span>
-                                  {item.description}
-                                </div>
-                              )}
-                            </div>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              <button
-                                style={{
-                                  padding: '8px 16px',
-                                  border: 'none',
-                                  borderRadius: '4px',
-                                  backgroundColor: '#ffc107',
-                                  color: '#000',
-                                  cursor: 'pointer',
-                                  fontSize: '14px',
-                                  fontWeight: '500'
-                                }}
-                                onClick={() => {
-                                  // TODO: Implement taking missed dose
-                                  alert('Take missed dose functionality coming soon');
-                                }}
-                              >
-                                Take Now
-                              </button>
-                              <button
-                                style={{
-                                  padding: '8px 16px',
-                                  border: '2px solid #6c757d',
-                                  borderRadius: '4px',
-                                  backgroundColor: '#fff',
-                                  color: '#6c757d',
-                                  cursor: 'pointer',
-                                  fontSize: '14px',
-                                  fontWeight: '500'
-                                }}
-                                onClick={() => {
-                                  // TODO: Implement skipping missed dose
-                                  alert('Skip dose functionality coming soon');
-                                }}
-                              >
-                                Skip
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Empty state */}
-                  {(!scheduledMedications.today_scheduled || scheduledMedications.today_scheduled.length === 0) &&
-                   (!scheduledMedications.yesterday_missed || scheduledMedications.yesterday_missed.length === 0) && (
+                  ) : (
                     <div style={{
                       textAlign: 'center',
                       padding: '40px',
@@ -1227,7 +1278,7 @@ const MedicationModal = ({ onClose }) => {
                       borderRadius: '8px'
                     }}>
                       <p style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: '500' }}>No scheduled medications</p>
-                      <p style={{ margin: 0 }}>No medications scheduled for today and no missed doses from yesterday.</p>
+                      <p style={{ margin: 0 }}>No medications scheduled for today and yesterday.</p>
                     </div>
                   )}
                 </div>

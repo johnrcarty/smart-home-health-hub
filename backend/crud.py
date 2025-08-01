@@ -1283,28 +1283,128 @@ def get_missed_medications(db: Session, target_date=None):
 
 def get_daily_medication_schedule(db: Session):
     """
-    Get today's scheduled medications plus yesterday's missed medications
+    Get scheduled medications for today and yesterday in chronological order with status
     
     Returns:
-        Dict with 'today_scheduled' and 'yesterday_missed' lists
+        Dict with 'scheduled_medications' list sorted chronologically
     """
     try:
         today = datetime.now().date()
         yesterday = today - timedelta(days=1)
+        current_time = datetime.now()
         
+        # Get scheduled meds for yesterday and today
+        yesterday_scheduled = get_scheduled_medications_for_date(db, yesterday)
         today_scheduled = get_scheduled_medications_for_date(db, today)
-        yesterday_missed = get_missed_medications(db, yesterday)
+        
+        all_scheduled = []
+        
+        # Process yesterday's schedules (check if missed)
+        for item in yesterday_scheduled:
+            scheduled_time = item['scheduled_time']
+            schedule_id = item['schedule_id']
+            
+            # Check if this was taken (within ±2 hours)
+            time_window_start = scheduled_time - timedelta(hours=2)
+            time_window_end = scheduled_time + timedelta(hours=2)
+            
+            log_entry = db.query(MedicationLog).filter(
+                MedicationLog.schedule_id == schedule_id,
+                MedicationLog.administered_at >= time_window_start,
+                MedicationLog.administered_at <= time_window_end
+            ).first()
+            
+            if log_entry:
+                # Calculate timing status for completed dose
+                time_diff = (log_entry.administered_at - scheduled_time).total_seconds() / 60  # minutes
+                if abs(time_diff) <= 60:  # Within 1 hour
+                    status = 'completed_on_time'
+                elif abs(time_diff) <= 120:  # 1-2 hours early/late
+                    status = 'completed_warning'
+                else:  # More than 2 hours early/late
+                    status = 'completed_late'
+                
+                all_scheduled.append({
+                    **item,
+                    'status': status,
+                    'administered_at': log_entry.administered_at,
+                    'actual_dose': log_entry.dose_amount,
+                    'is_completed': True
+                })
+            else:
+                # Missed dose
+                all_scheduled.append({
+                    **item,
+                    'status': 'missed',
+                    'is_completed': False
+                })
+        
+        # Process today's schedules
+        for item in today_scheduled:
+            scheduled_time = item['scheduled_time']
+            schedule_id = item['schedule_id']
+            
+            # Check if this was taken
+            time_window_start = scheduled_time - timedelta(hours=2)
+            time_window_end = scheduled_time + timedelta(hours=2)
+            
+            log_entry = db.query(MedicationLog).filter(
+                MedicationLog.schedule_id == schedule_id,
+                MedicationLog.administered_at >= time_window_start,
+                MedicationLog.administered_at <= time_window_end
+            ).first()
+            
+            if log_entry:
+                # Calculate timing status for completed dose
+                time_diff = (log_entry.administered_at - scheduled_time).total_seconds() / 60  # minutes
+                if abs(time_diff) <= 60:  # Within 1 hour
+                    status = 'completed_on_time'
+                elif abs(time_diff) <= 120:  # 1-2 hours early/late
+                    status = 'completed_warning'
+                else:  # More than 2 hours early/late
+                    status = 'completed_late'
+                
+                all_scheduled.append({
+                    **item,
+                    'status': status,
+                    'administered_at': log_entry.administered_at,
+                    'actual_dose': log_entry.dose_amount,
+                    'is_completed': True
+                })
+            else:
+                # Check timing status for pending dose
+                time_diff = (current_time - scheduled_time).total_seconds() / 60  # minutes
+                
+                if scheduled_time > current_time:
+                    # Future dose
+                    status = 'pending'
+                elif time_diff <= 60:
+                    # Within 1 hour of scheduled time
+                    status = 'due_on_time'
+                elif time_diff <= 120:
+                    # 1-2 hours late
+                    status = 'due_warning'
+                else:
+                    # More than 2 hours late
+                    status = 'due_late'
+                
+                all_scheduled.append({
+                    **item,
+                    'status': status,
+                    'is_completed': False
+                })
+        
+        # Sort by scheduled time chronologically
+        all_scheduled.sort(key=lambda x: x['scheduled_time'])
         
         return {
-            'today_scheduled': today_scheduled,
-            'yesterday_missed': yesterday_missed,
-            'date': today.isoformat()
+            'scheduled_medications': all_scheduled,
+            'generated_at': current_time.isoformat()
         }
         
     except Exception as e:
         logger.error(f"Error getting daily medication schedule: {e}")
         return {
-            'today_scheduled': [],
-            'yesterday_missed': [],
-            'date': datetime.now().date().isoformat()
+            'scheduled_medications': [],
+            'generated_at': datetime.now().isoformat()
         }
