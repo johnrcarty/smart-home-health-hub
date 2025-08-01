@@ -40,6 +40,16 @@ const MedicationModal = ({ onClose }) => {
   // Skip confirmation modal state
   const [skipModal, setSkipModal] = useState({ open: false, item: null });
 
+  // Mark All modal state
+  const [markAllModal, setMarkAllModal] = useState({ 
+    open: false, 
+    timeGroup: null, 
+    medications: [], 
+    selectedMeds: new Set(),
+    loading: false,
+    completedMeds: new Set()
+  });
+
   // Load medications from API on component mount
   useEffect(() => {
     fetchMedications();
@@ -1094,6 +1104,88 @@ const MedicationModal = ({ onClose }) => {
     }
   };
 
+  // Mark All handlers
+  const handleMarkAllClick = (timeStr, medications) => {
+    // Filter to only show incomplete medications
+    const incompleteMeds = medications.filter(med => !med.is_completed);
+    
+    setMarkAllModal({
+      open: true,
+      timeGroup: timeStr,
+      medications: incompleteMeds,
+      selectedMeds: new Set(incompleteMeds.map(med => med.schedule_id)),
+      loading: false,
+      completedMeds: new Set()
+    });
+  };
+
+  const handleMarkAllToggle = (scheduleId) => {
+    setMarkAllModal(prev => {
+      const newSelected = new Set(prev.selectedMeds);
+      if (newSelected.has(scheduleId)) {
+        newSelected.delete(scheduleId);
+      } else {
+        newSelected.add(scheduleId);
+      }
+      return { ...prev, selectedMeds: newSelected };
+    });
+  };
+
+  const handleMarkAllConfirm = async () => {
+    const { selectedMeds, medications } = markAllModal;
+    const selectedMedications = medications.filter(med => selectedMeds.has(med.schedule_id));
+    
+    setMarkAllModal(prev => ({ ...prev, loading: true }));
+    
+    for (const med of selectedMedications) {
+      try {
+        const res = await fetch(`${config.apiUrl}/api/medications/${med.medication_id}/administer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            dose_amount: med.dose_amount,
+            schedule_id: med.schedule_id,
+            scheduled_time: med.scheduled_time,
+            notes: 'Administered via bulk mark all'
+          })
+        });
+        
+        if (res.ok) {
+          // Mark this medication as completed
+          setMarkAllModal(prev => ({
+            ...prev,
+            completedMeds: new Set([...prev.completedMeds, med.schedule_id])
+          }));
+        }
+      } catch (e) {
+        console.error('Error marking medication:', e);
+      }
+    }
+    
+    // Refresh data and close modal
+    await fetchMedications();
+    await fetchScheduledMedications();
+    setMarkAllModal({ 
+      open: false, 
+      timeGroup: null, 
+      medications: [], 
+      selectedMeds: new Set(),
+      loading: false,
+      completedMeds: new Set()
+    });
+  };
+
+  const handleMarkAllCancel = () => {
+    setMarkAllModal({ 
+      open: false, 
+      timeGroup: null, 
+      medications: [], 
+      selectedMeds: new Set(),
+      loading: false,
+      completedMeds: new Set()
+    });
+  };
+
   return (
     <ModalBase isOpen={true} onClose={onClose} title="Medication Tracker">
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -1279,7 +1371,7 @@ const MedicationModal = ({ onClose }) => {
                                         cursor: 'pointer',
                                         transition: 'background 0.2s',
                                       }}
-                                      onClick={() => alert('Mark all for this hour (dummy button)')}
+                                      onClick={() => handleMarkAllClick(timeStr, groupByDay[dayKey][timeStr])}
                                       >Mark All</button>
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1596,6 +1688,165 @@ const MedicationModal = ({ onClose }) => {
           </div>
         </div>
       )}
+
+      {/* Mark All Confirmation Modal */}
+      {markAllModal.open && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000
+        }}>
+          <div style={{
+            backgroundColor: '#fff',
+            borderRadius: '12px',
+            padding: '24px',
+            maxWidth: '500px',
+            width: '90%',
+            maxHeight: '80vh',
+            overflow: 'auto',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.15)'
+          }}>
+            <h3 style={{ margin: '0 0 16px 0', color: '#333', fontSize: '20px', fontWeight: '600' }}>
+              Mark Medications for {markAllModal.timeGroup}
+            </h3>
+            <p style={{ margin: '0 0 20px 0', color: '#666', fontSize: '14px' }}>
+              Select which medications you want to mark as taken:
+            </p>
+            
+            <div style={{ maxHeight: '300px', overflow: 'auto', marginBottom: '20px' }}>
+              {markAllModal.medications.map((med, index) => {
+                const isSelected = markAllModal.selectedMeds.has(med.schedule_id);
+                const isCompleted = markAllModal.completedMeds.has(med.schedule_id);
+                const isLoading = markAllModal.loading && isSelected && !isCompleted;
+                
+                return (
+                  <div
+                    key={med.schedule_id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '12px',
+                      border: '1px solid #e9ecef',
+                      borderRadius: '8px',
+                      marginBottom: '8px',
+                      backgroundColor: isCompleted ? '#d4edda' : '#fff',
+                      opacity: isCompleted ? 0.7 : 1,
+                      transition: 'all 0.3s ease'
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => !markAllModal.loading && !isCompleted && handleMarkAllToggle(med.schedule_id)}
+                      disabled={markAllModal.loading || isCompleted}
+                      style={{
+                        marginRight: '12px',
+                        transform: 'scale(1.2)',
+                        accentColor: '#007bff'
+                      }}
+                    />
+                    
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: '600', color: '#333', fontSize: '16px' }}>
+                        {med.medication_name}
+                      </div>
+                      <div style={{ color: '#666', fontSize: '14px' }}>
+                        Dose: {med.dose_amount} {med.dose_unit}
+                      </div>
+                    </div>
+                    
+                    {isLoading && (
+                      <div style={{
+                        width: '20px',
+                        height: '20px',
+                        border: '2px solid #f3f3f3',
+                        borderTop: '2px solid #007bff',
+                        borderRadius: '50%',
+                        animation: 'spin 1s linear infinite'
+                      }}></div>
+                    )}
+                    
+                    {isCompleted && (
+                      <div style={{
+                        color: '#28a745',
+                        fontWeight: '600',
+                        fontSize: '14px'
+                      }}>
+                        ✓ Completed
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={handleMarkAllCancel}
+                disabled={markAllModal.loading}
+                style={{
+                  padding: '10px 20px',
+                  border: '2px solid #6c757d',
+                  borderRadius: '6px',
+                  backgroundColor: '#fff',
+                  color: '#6c757d',
+                  cursor: markAllModal.loading ? 'not-allowed' : 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  opacity: markAllModal.loading ? 0.6 : 1
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMarkAllConfirm}
+                disabled={markAllModal.loading || markAllModal.selectedMeds.size === 0}
+                style={{
+                  padding: '10px 20px',
+                  border: 'none',
+                  borderRadius: '6px',
+                  backgroundColor: markAllModal.selectedMeds.size === 0 ? '#6c757d' : '#007bff',
+                  color: '#fff',
+                  cursor: (markAllModal.loading || markAllModal.selectedMeds.size === 0) ? 'not-allowed' : 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  opacity: markAllModal.loading ? 0.6 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                {markAllModal.loading && (
+                  <div style={{
+                    width: '16px',
+                    height: '16px',
+                    border: '2px solid rgba(255,255,255,0.3)',
+                    borderTop: '2px solid #fff',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite'
+                  }}></div>
+                )}
+                {markAllModal.loading ? 'Processing...' : `Mark ${markAllModal.selectedMeds.size} Selected`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CSS for spinner animation */}
+      <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </ModalBase>
   );
 };
