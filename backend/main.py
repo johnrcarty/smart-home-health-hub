@@ -405,16 +405,22 @@ async def get_monitoring_alerts_endpoint(
 ):
     """Get monitoring alerts"""
     from crud import get_monitoring_alerts
-    with get_db() as db:
+    db = next(get_db())
+    try:
         return get_monitoring_alerts(db, limit, include_acknowledged, detailed)
+    finally:
+        db.close()
 
 
 @app.get("/api/monitoring/alerts/count")
 async def get_unacknowledged_alerts_count_endpoint():
     """Get count of unacknowledged alerts"""
     from crud import get_unacknowledged_alerts_count
-    with get_db() as db:
+    db = next(get_db())
+    try:
         return {"count": get_unacknowledged_alerts_count(db)}
+    finally:
+        db.close()
 
 
 @app.post("/api/monitoring/alerts/{alert_id}/acknowledge")
