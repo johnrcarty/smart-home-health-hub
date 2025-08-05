@@ -1505,6 +1505,39 @@ def receive_equipment(db: Session, equipment_id: int, amount: int = 1):
     except Exception as e:
         logger.error(f"Error receiving equipment: {e}")
         return False
+
+def open_equipment(db: Session, equipment_id: int, amount: int = 1):
+    """Deduct equipment quantity (open/use equipment) and log the action."""
+    try:
+        equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+        if not equipment:
+            return False
+        
+        # Check if enough quantity is available
+        if equipment.quantity < amount:
+            return False
+            
+        # Deduct quantity
+        equipment.quantity -= amount
+        
+        # Update last_changed date
+        from datetime import datetime
+        equipment.last_changed = datetime.now()
+        
+        # Log the action in equipment change history
+        change_log = EquipmentChangeLog(
+            equipment_id=equipment_id,
+            changed_at=datetime.now()
+        )
+        db.add(change_log)
+        
+        db.commit()
+        logger.info(f"Equipment opened/used for ID {equipment_id}, quantity deducted: {amount}")
+        return True
+    except Exception as e:
+        logger.error(f"Error opening equipment: {e}")
+        db.rollback()
+        return False
 def administer_medication(db: Session, med_id, dose_amount, schedule_id=None, scheduled_time=None, notes=None):
     try:
         med = db.query(Medication).filter(Medication.id == med_id).first()

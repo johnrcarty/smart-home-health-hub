@@ -98,6 +98,27 @@ export default function EquipmentModal({ isOpen, onClose, noModal, equipmentDueC
     fetchEquipment();
   };
 
+  const handleOpen = async (equip) => {
+    const amount = prompt('How many to open/use?', '1');
+    if (!amount || isNaN(amount)) return;
+    const numAmount = parseInt(amount);
+    if (numAmount > equip.quantity) {
+      alert(`Cannot open ${numAmount} items. Only ${equip.quantity} available.`);
+      return;
+    }
+    const response = await fetch(`${config.apiUrl}/api/equipment/${equip.id}/open`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: numAmount })
+    });
+    const result = await response.json();
+    if (result.success) {
+      fetchEquipment();
+    } else {
+      alert('Failed to open equipment. Please try again.');
+    }
+  };
+
   const handleEditClick = (equip) => {
     setEditEquip(equip);
     setEditForm({ name: equip.name, quantity: equip.quantity });
@@ -480,7 +501,7 @@ export default function EquipmentModal({ isOpen, onClose, noModal, equipmentDueC
                       {equip.scheduled_replacement ? (
                         <button onClick={() => handleChangeClick(equip)} style={{ padding: '6px 12px', border: 'none', borderRadius: '4px', backgroundColor: '#007bff', color: '#fff', cursor: 'pointer', fontSize: '12px', fontWeight: '500' }}>Change</button>
                       ) : (
-                        <span style={{ color: '#6c757d', fontSize: '12px', fontStyle: 'italic' }}>N/A</span>
+                        <button onClick={() => handleOpen(equip)} style={{ padding: '6px 12px', border: 'none', borderRadius: '4px', backgroundColor: '#6f42c1', color: '#fff', cursor: 'pointer', fontSize: '12px', fontWeight: '500' }}>Open</button>
                       )}
                       <button onClick={() => handleReceive(equip)} style={{ padding: '6px 12px', border: 'none', borderRadius: '4px', backgroundColor: '#28a745', color: '#fff', cursor: 'pointer', fontSize: '12px', fontWeight: '500' }}>Receive</button>
                       <button onClick={() => handleEditClick(equip)} style={{ padding: '6px 12px', border: 'none', borderRadius: '4px', backgroundColor: '#ffc107', color: '#333', cursor: 'pointer', fontSize: '12px', fontWeight: '500' }}>Edit</button>

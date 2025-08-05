@@ -794,6 +794,14 @@ async def api_receive_equipment(equipment_id: int, data: dict = Body(...), db: S
     success = receive_equipment(db, equipment_id, amount)
     return {"success": success}
 
+@app.post("/api/equipment/{equipment_id}/open")
+async def api_open_equipment(equipment_id: int, data: dict = Body(...), db: Session = Depends(get_db)):
+    """Decrease equipment quantity (open/use equipment)."""
+    amount = data.get('amount', 1)
+    from crud import open_equipment
+    success = open_equipment(db, equipment_id, amount)
+    return {"success": success}
+
 
 @app.post("/api/medications/{med_id}/administer")
 async def administer_medication(med_id: int, data: dict = Body(...), db: Session = Depends(get_db)):
