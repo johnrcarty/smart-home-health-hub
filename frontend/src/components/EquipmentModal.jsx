@@ -16,7 +16,7 @@ export default function EquipmentModal({ isOpen, onClose, noModal, equipmentDueC
     useful_days: '' 
   });
   const [addLoading, setAddLoading] = useState(false);
-  const [historyTab, setHistoryTab] = useState({ open: false, filter: '', logs: [], loading: false });
+  const [historyTab, setHistoryTab] = useState({ filter: '', logs: [], loading: false, selectedEquipment: '' });
   const [editEquip, setEditEquip] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', quantity: 1 });
   const [editLoading, setEditLoading] = useState(false);
@@ -147,16 +147,48 @@ export default function EquipmentModal({ isOpen, onClose, noModal, equipmentDueC
   };
 
   const handleHistoryTab = async () => {
-    setHistoryTab(t => ({ ...t, open: true, loading: true }));
+    if (tab === 'history') return; // Already on history tab
+    setTab('history');
+    setHistoryTab(t => ({ ...t, loading: true }));
     try {
-      // Fetch all logs for all equipment
+      // Fetch all logs for all equipment to get the last 20 items
       let logs = [];
       for (const equip of equipment) {
         const res = await fetch(`${config.apiUrl}/api/equipment/${equip.id}/history`);
         const data = await res.json();
         logs = logs.concat(data.map(log => ({ ...log, equipment: equip.name, equipment_id: equip.id })));
       }
+      // Sort by date (most recent first) and take last 20
+      logs.sort((a, b) => new Date(b.changed_at) - new Date(a.changed_at));
+      logs = logs.slice(0, 20);
       setHistoryTab(t => ({ ...t, logs, loading: false }));
+    } catch {
+      setHistoryTab(t => ({ ...t, logs: [], loading: false }));
+    }
+  };
+
+  const handleEquipmentHistoryFilter = async (equipmentId) => {
+    setHistoryTab(t => ({ ...t, selectedEquipment: equipmentId, loading: true }));
+    try {
+      if (!equipmentId) {
+        // Show last 20 items from all equipment
+        let logs = [];
+        for (const equip of equipment) {
+          const res = await fetch(`${config.apiUrl}/api/equipment/${equip.id}/history`);
+          const data = await res.json();
+          logs = logs.concat(data.map(log => ({ ...log, equipment: equip.name, equipment_id: equip.id })));
+        }
+        logs.sort((a, b) => new Date(b.changed_at) - new Date(a.changed_at));
+        logs = logs.slice(0, 20);
+        setHistoryTab(t => ({ ...t, logs, loading: false }));
+      } else {
+        // Show history for specific equipment
+        const res = await fetch(`${config.apiUrl}/api/equipment/${equipmentId}/history`);
+        const data = await res.json();
+        const equipName = equipment.find(e => e.id == equipmentId)?.name || '';
+        const logs = data.map(log => ({ ...log, equipment: equipName, equipment_id: equipmentId }));
+        setHistoryTab(t => ({ ...t, logs, loading: false }));
+      }
     } catch {
       setHistoryTab(t => ({ ...t, logs: [], loading: false }));
     }
@@ -214,28 +246,13 @@ export default function EquipmentModal({ isOpen, onClose, noModal, equipmentDueC
           )}
         </button>
         <button
-          onClick={() => setTab('add')}
-          style={{
-            padding: '10px 20px',
-            border: 'none',
-            borderRadius: '6px',
-            backgroundColor: tab === 'add' ? '#007bff' : '#f8f9fa',
-            color: tab === 'add' ? '#fff' : '#333',
-            cursor: 'pointer',
-            fontWeight: '500',
-            fontSize: '14px'
-          }}
-        >
-          Add Equipment
-        </button>
-        <button
           onClick={handleHistoryTab}
           style={{
             padding: '10px 20px',
             border: 'none',
             borderRadius: '6px',
-            backgroundColor: historyTab.open ? '#007bff' : '#f8f9fa',
-            color: historyTab.open ? '#fff' : '#333',
+            backgroundColor: tab === 'history' ? '#007bff' : '#f8f9fa',
+            color: tab === 'history' ? '#fff' : '#333',
             cursor: 'pointer',
             fontWeight: '500',
             fontSize: '14px'
@@ -243,16 +260,49 @@ export default function EquipmentModal({ isOpen, onClose, noModal, equipmentDueC
         >
           History
         </button>
+        <button
+          onClick={() => setTab('add')}
+          style={{
+            padding: '10px 20px',
+            border: 'none',
+            borderRadius: '6px',
+            backgroundColor: '#28a745',
+            color: '#fff',
+            cursor: 'pointer',
+            fontWeight: '500',
+            fontSize: '14px',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          Add Equipment
+        </button>
       </div>
-      {historyTab.open ? (
+      {tab === 'history' ? (
         <div style={{ flex: 1, overflow: 'auto', background: '#fff', borderRadius: 8, padding: 16 }}>
-          <input
-            type="text"
-            placeholder="Filter by equipment name..."
-            value={historyTab.filter}
-            onChange={e => setHistoryTab(t => ({ ...t, filter: e.target.value }))}
-            style={{ marginBottom: 12, padding: 8, borderRadius: 4, border: '1px solid #ccc', width: 240 }}
-          />
+          <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <label style={{ fontWeight: '600', color: '#333', fontSize: '14px' }}>Equipment:</label>
+            <select
+              value={historyTab.selectedEquipment}
+              onChange={e => handleEquipmentHistoryFilter(e.target.value)}
+              style={{ 
+                padding: '8px 12px', 
+                borderRadius: '6px', 
+                border: '2px solid #007bff', 
+                minWidth: 250,
+                backgroundColor: '#fff',
+                color: '#333',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                outline: 'none'
+              }}
+            >
+              <option value="">All Equipment (Last 20)</option>
+              {equipment.map(equip => (
+                <option key={equip.id} value={equip.id}>{equip.name}</option>
+              ))}
+            </select>
+          </div>
           {historyTab.loading ? (
             <div>Loading...</div>
           ) : (
@@ -264,16 +314,23 @@ export default function EquipmentModal({ isOpen, onClose, noModal, equipmentDueC
                 </tr>
               </thead>
               <tbody>
-                {historyTab.logs.filter(l => l.equipment.toLowerCase().includes(historyTab.filter.toLowerCase())).map((log, i) => (
-                  <tr key={i}>
-                    <td style={{ padding: 8 }}>{log.equipment}</td>
-                    <td style={{ padding: 8 }}>{formatDate(log.changed_at)}</td>
+                {historyTab.logs.length === 0 ? (
+                  <tr>
+                    <td colSpan={2} style={{ textAlign: 'center', padding: '20px', color: '#666', fontStyle: 'italic' }}>
+                      No history found
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  historyTab.logs.map((log, i) => (
+                    <tr key={i}>
+                      <td style={{ padding: 8 }}>{log.equipment}</td>
+                      <td style={{ padding: 8 }}>{formatDate(log.changed_at)}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           )}
-          <button onClick={() => setHistoryTab({ open: false, filter: '', logs: [], loading: false })} style={{ marginTop: 16, padding: '8px 16px', borderRadius: 4, border: 'none', background: '#007bff', color: '#fff' }}>Back</button>
         </div>
       ) : tab === 'add' ? (
         <div style={{ backgroundColor: '#fff', borderRadius: '8px', padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>

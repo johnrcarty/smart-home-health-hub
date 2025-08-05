@@ -554,9 +554,9 @@ async def api_log_equipment_change(equipment_id: int, data: dict = Body(...), db
 
 
 @app.get("/api/equipment/{equipment_id}/history")
-async def api_get_equipment_history(equipment_id: int):
+async def api_get_equipment_history(equipment_id: int, db: Session = Depends(get_db)):
     """Get change history for equipment."""
-    return get_equipment_change_history(equipment_id)
+    return get_equipment_change_history(db, equipment_id)
 
 
 @app.post("/api/add/medication")
