@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ModalBase from './ModalBase';
 import config from '../config';
 import MedicationHistory from './medication/MedicationHistory';
+import MedicationScheduleView, { medicationStatusUtils } from './medication/MedicationScheduleView';
 
 const MedicationModal = ({ onClose }) => {
   const [tab, setTab] = useState('scheduled');
@@ -13,14 +14,6 @@ const MedicationModal = ({ onClose }) => {
   const [loading, setLoading] = useState(false);
   const [showScheduleFor, setShowScheduleFor] = useState(null); // med id or null
   const [showHistory, setShowHistory] = useState(false); // show history view
-  const [scheduleMode, setScheduleMode] = useState('weekly'); // 'weekly' or 'monthly'
-  const [selectedDays, setSelectedDays] = useState([]); // for weekly
-  const [selectedDayOfMonth, setSelectedDayOfMonth] = useState(1); // for monthly
-  const [time, setTime] = useState('08:00');
-  const [doseAmount, setDoseAmount] = useState('1.000');
-  const [newCron, setNewCron] = useState(''); // not used directly now
-
-  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   // Remove endDate from formData
   const [formData, setFormData] = useState({
@@ -52,12 +45,17 @@ const MedicationModal = ({ onClose }) => {
 
   // Status filter state for scheduled medications
   const [statusFilters, setStatusFilters] = useState({
+    on_time: false,
+    warning: false,
+    late_early: false,
+    upcoming: true,
+    missed: true,
     skipped: false,
-    missed: false,
-    late: false,
-    early: false,
-    upcoming: false
+    ready_to_take: true
   });
+
+  // Status filters visibility toggle
+  const [showFilters, setShowFilters] = useState(false);
 
   // Load medications from API on component mount
   useEffect(() => {
@@ -352,388 +350,6 @@ const MedicationModal = ({ onClose }) => {
   };
 
   // Helper function to parse cron expression
-  const parseCronExpression = (cronExpression) => {
-    const parts = cronExpression.split(' ');
-    if (parts.length !== 5) return null;
-    
-    const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
-    
-    // Format time
-    const timeStr = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
-    
-    // Check if it's weekly (dayOfWeek is not *)
-    if (dayOfWeek !== '*') {
-      const daysMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      const days = dayOfWeek.split(',').map(d => daysMap[parseInt(d)]).join(', ');
-      return { type: 'weekly', time: timeStr, days };
-    }
-    
-    // Check if it's monthly (dayOfMonth is not *)
-    if (dayOfMonth !== '*') {
-      return { type: 'monthly', time: timeStr, dayOfMonth: parseInt(dayOfMonth) };
-    }
-    
-    return null;
-  };
-
-  // Helper function to separate schedules by type
-  const separateSchedules = (schedules) => {
-    const weekly = [];
-    const monthly = [];
-    
-    schedules.forEach((schedule) => {
-      const cronExpression = schedule.cron_expression;
-      const doseAmount = schedule.dose_amount;
-      const isActive = schedule.active;
-      const scheduleId = schedule.id;
-      
-      const parsed = parseCronExpression(cronExpression);
-      if (parsed) {
-        const scheduleData = {
-          ...schedule,
-          id: scheduleId,
-          cronExpression,
-          doseAmount,
-          isActive,
-          parsed
-        };
-        
-        if (parsed.type === 'weekly') {
-          weekly.push(scheduleData);
-        } else if (parsed.type === 'monthly') {
-          monthly.push(scheduleData);
-        }
-      }
-    });
-    
-    return { weekly, monthly };
-  };
-
-  const handleAddSchedule = async (medId) => {
-    let cron = '';
-    let description = '';
-    let [hour, minute] = time.split(':').map(Number);
-    if (scheduleMode === 'weekly') {
-      if (selectedDays.length === 0) return;
-      const dow = selectedDays.sort().join(',');
-      cron = `${minute} ${hour} * * ${dow}`;
-      
-      // Generate human-readable description for weekly schedule
-      const daysMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      const dayNames = selectedDays.map(d => daysMap[parseInt(d)]).join(', ');
-      description = `${dayNames} at ${time}`;
-    } else {
-      cron = `${minute} ${hour} ${selectedDayOfMonth} * *`;
-      
-      // Generate human-readable description for monthly schedule
-      description = `Day ${selectedDayOfMonth} of each month at ${time}`;
-    }
-    
-    try {
-      setLoading(true);
-      const response = await fetch(`${config.apiUrl}/api/add/schedule/${medId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'med',
-          cron_expression: cron,
-          description: description,
-          dose_amount: parseFloat(doseAmount) || 1.0,
-          active: true,
-          notes: ''
-        })
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to add schedule');
-      }
-      
-      // Refresh the medication data to get updated schedules
-      await fetchMedications();
-      
-      // Reset form
-      setSelectedDays([]);
-      setSelectedDayOfMonth(1);
-      setTime('08:00');
-      setDoseAmount('1.000');
-      setScheduleMode('weekly');
-    } catch (error) {
-      console.error('Error adding schedule:', error);
-      alert(`Error adding schedule: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeleteSchedule = async (medId, scheduleId) => {
-    if (!confirm('Are you sure you want to delete this schedule?')) return;
-    
-    try {
-      setLoading(true);
-      const response = await fetch(`${config.apiUrl}/api/schedules/${scheduleId}`, {
-        method: 'DELETE'
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to delete schedule');
-      }
-      
-      // Refresh the medication data to get updated schedules
-      await fetchMedications();
-    } catch (error) {
-      console.error('Error deleting schedule:', error);
-      alert('Error deleting schedule. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleToggleSchedule = async (scheduleId) => {
-    try {
-      setLoading(true);
-      const response = await fetch(`${config.apiUrl}/api/schedules/${scheduleId}/toggle-active`, {
-        method: 'POST'
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to toggle schedule');
-      }
-      
-      // Refresh the medication data to get updated schedules
-      await fetchMedications();
-    } catch (error) {
-      console.error('Error toggling schedule:', error);
-      alert('Error updating schedule status. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const renderScheduleView = (med) => (
-    <div style={{ background: '#fff', borderRadius: 8, padding: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-      <h3 style={{ margin: '0 0 16px 0', color: '#333' }}>Manage Schedules for <span style={{ color: '#007bff' }}>{med.name}</span></h3>
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
-          <button
-            type="button"
-            onClick={() => setScheduleMode('weekly')}
-            style={{ padding: '8px 18px', border: 'none', borderRadius: 6, background: scheduleMode === 'weekly' ? '#007bff' : '#f8f9fa', color: scheduleMode === 'weekly' ? '#fff' : '#333', fontWeight: 500, fontSize: 14 }}
-          >Weekly</button>
-          <button
-            type="button"
-            onClick={() => setScheduleMode('monthly')}
-            style={{ padding: '8px 18px', border: 'none', borderRadius: 6, background: scheduleMode === 'monthly' ? '#007bff' : '#f8f9fa', color: scheduleMode === 'monthly' ? '#fff' : '#333', fontWeight: 500, fontSize: 14 }}
-          >Monthly</button>
-        </div>
-        {scheduleMode === 'weekly' ? (
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ fontWeight: 600, color: '#333', marginBottom: 8, display: 'block' }}>Select Days</label>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {daysOfWeek.map((d, i) => (
-                <label key={d} style={{ display: 'flex', alignItems: 'center', gap: 4, background: selectedDays.includes(i.toString()) ? '#007bff' : '#f1f3f4', color: selectedDays.includes(i.toString()) ? '#fff' : '#333', borderRadius: 4, padding: '4px 10px', cursor: 'pointer', fontWeight: 500 }}>
-                  <input
-                    type="checkbox"
-                    checked={selectedDays.includes(i.toString())}
-                    onChange={() => {
-                      setSelectedDays(prev => prev.includes(i.toString()) ? prev.filter(x => x !== i.toString()) : [...prev, i.toString()]);
-                    }}
-                    style={{ accentColor: '#007bff' }}
-                  />
-                  {d}
-                </label>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ fontWeight: 600, color: '#333', marginBottom: 8, display: 'block' }}>Day of Month</label>
-            <select
-              value={selectedDayOfMonth}
-              onChange={e => setSelectedDayOfMonth(Number(e.target.value))}
-              style={{ padding: '8px 16px', border: '2px solid #ddd', borderRadius: 6, fontSize: 14, background: '#f8f9fa', color: '#333' }}
-            >
-              {[...Array(28)].map((_, i) => (
-                <option key={i+1} value={i+1}>{i+1}</option>
-              ))}
-            </select>
-          </div>
-        )}
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ fontWeight: 600, color: '#333', marginBottom: 8, display: 'block' }}>Time</label>
-          <input
-            type="time"
-            value={time}
-            onChange={e => setTime(e.target.value)}
-            style={{ padding: '8px 12px', border: '2px solid #ddd', borderRadius: 6, fontSize: 14, background: '#f8f9fa', color: '#333', width: 120 }}
-          />
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ fontWeight: 600, color: '#333', marginBottom: 8, display: 'block' }}>
-            Dose Amount ({med.quantity_unit || 'units'})
-          </label>
-          <input
-            type="number"
-            step="0.001"
-            min="0"
-            value={doseAmount}
-            onChange={e => setDoseAmount(e.target.value)}
-            style={{ 
-              padding: '8px 12px', 
-              border: '2px solid #ddd', 
-              borderRadius: 6, 
-              fontSize: 14, 
-              background: '#f8f9fa', 
-              color: '#333', 
-              width: 120 
-            }}
-            placeholder="1.000"
-          />
-        </div>
-        <button
-          type="button"
-          onClick={() => handleAddSchedule(med.id)}
-          style={{ padding: '12px 20px', border: 'none', borderRadius: 6, background: '#28a745', color: '#fff', fontWeight: 500, fontSize: 14, marginTop: 8 }}
-          disabled={loading || (scheduleMode === 'weekly' ? selectedDays.length === 0 : false)}
-        >
-          {loading ? 'Adding...' : 'Add Schedule'}
-        </button>
-      </div>
-      <div style={{ marginBottom: 16 }}>
-        {med.schedules && med.schedules.length > 0 ? (() => {
-          const { weekly, monthly } = separateSchedules(med.schedules);
-          
-          return (
-            <>
-              {weekly.length > 0 && (
-                <div style={{ marginBottom: 16 }}>
-                  <h4 style={{ margin: '0 0 8px 0', color: '#333', fontSize: 16, fontWeight: 600 }}>Weekly Schedules</h4>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: '#fff', borderRadius: 6, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-                    <thead>
-                      <tr style={{ backgroundColor: '#f8f9fa' }}>
-                        <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#333', borderBottom: '1px solid #dee2e6' }}>Amount</th>
-                        <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#333', borderBottom: '1px solid #dee2e6' }}>Time</th>
-                        <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#333', borderBottom: '1px solid #dee2e6' }}>Days</th>
-                        <th style={{ padding: '8px 12px', textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#333', borderBottom: '1px solid #dee2e6' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {weekly.map((schedule) => (
-                        <tr key={schedule.id} style={{ opacity: schedule.isActive ? 1 : 0.5, borderBottom: '1px solid #f1f3f4' }}>
-                          <td style={{ padding: '8px 12px', fontSize: 13, color: '#333' }}>
-                            {schedule.doseAmount || '1'} {med.quantity_unit || 'units'}
-                          </td>
-                          <td style={{ padding: '8px 12px', fontSize: 13, color: '#333' }}>
-                            {schedule.parsed.time}
-                          </td>
-                          <td style={{ padding: '8px 12px', fontSize: 13, color: '#333' }}>
-                            {schedule.parsed.days}
-                          </td>
-                          <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                            <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleSchedule(schedule.id)}
-                                style={{
-                                  background: schedule.isActive ? '#ffc107' : '#28a745',
-                                  color: '#fff',
-                                  border: 'none',
-                                  borderRadius: 3,
-                                  padding: '4px 6px',
-                                  fontSize: 11,
-                                  cursor: 'pointer'
-                                }}
-                                disabled={loading}
-                              >
-                                {schedule.isActive ? 'Pause' : 'Resume'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteSchedule(med.id, schedule.id)}
-                                style={{ background: '#dc3545', color: '#fff', border: 'none', borderRadius: 3, padding: '4px 6px', fontSize: 11, cursor: 'pointer' }}
-                                disabled={loading}
-                              >Delete</button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              
-              {monthly.length > 0 && (
-                <div style={{ marginBottom: 16 }}>
-                  <h4 style={{ margin: '0 0 8px 0', color: '#333', fontSize: 16, fontWeight: 600 }}>Monthly Schedules</h4>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: '#fff', borderRadius: 6, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-                    <thead>
-                      <tr style={{ backgroundColor: '#f8f9fa' }}>
-                        <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#333', borderBottom: '1px solid #dee2e6' }}>Amount</th>
-                        <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#333', borderBottom: '1px solid #dee2e6' }}>Time</th>
-                        <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#333', borderBottom: '1px solid #dee2e6' }}>Day of Month</th>
-                        <th style={{ padding: '8px 12px', textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#333', borderBottom: '1px solid #dee2e6' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {monthly.map((schedule) => (
-                        <tr key={schedule.id} style={{ opacity: schedule.isActive ? 1 : 0.5, borderBottom: '1px solid #f1f3f4' }}>
-                          <td style={{ padding: '8px 12px', fontSize: 13, color: '#333' }}>
-                            {schedule.doseAmount || '1'} {med.quantity_unit || 'units'}
-                          </td>
-                          <td style={{ padding: '8px 12px', fontSize: 13, color: '#333' }}>
-                            {schedule.parsed.time}
-                          </td>
-                          <td style={{ padding: '8px 12px', fontSize: 13, color: '#333' }}>
-                            {schedule.parsed.dayOfMonth}
-                          </td>
-                          <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                            <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleSchedule(schedule.id)}
-                                style={{
-                                  background: schedule.isActive ? '#ffc107' : '#28a745',
-                                  color: '#fff',
-                                  border: 'none',
-                                  borderRadius: 3,
-                                  padding: '4px 6px',
-                                  fontSize: 11,
-                                  cursor: 'pointer'
-                                }}
-                                disabled={loading}
-                              >
-                                {schedule.isActive ? 'Pause' : 'Resume'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteSchedule(med.id, schedule.id)}
-                                style={{ background: '#dc3545', color: '#fff', border: 'none', borderRadius: 3, padding: '4px 6px', fontSize: 11, cursor: 'pointer' }}
-                                disabled={loading}
-                              >Delete</button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </>
-          );
-        })() : (
-          <div style={{ color: '#888', fontStyle: 'italic', textAlign: 'center', padding: 20 }}>No schedules created yet.</div>
-        )}
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
-        <button
-          type="button"
-          onClick={() => setShowScheduleFor(null)}
-          style={{ padding: '10px 24px', border: '2px solid #6c757d', borderRadius: 6, background: '#fff', color: '#6c757d', fontWeight: 500, fontSize: 14 }}
-        >Back</button>
-      </div>
-    </div>
-  );
-
   const allMedications = [...activeMedications, ...inactiveMedications];
 
   const renderMedicationCard = (med) => (
@@ -1212,138 +828,137 @@ const MedicationModal = ({ onClose }) => {
   };
 
   return (
-    <ModalBase isOpen={true} onClose={onClose} title="Medication Tracker">
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ 
-          display: 'flex', 
-          gap: '10px', 
-          marginBottom: '20px',
-          borderBottom: '1px solid #e9ecef',
-          paddingBottom: '10px'
-        }}>
-          <button
-            onClick={() => { 
-              setTab('scheduled'); 
-              setShowHistory(false); 
-              setShowAddForm(false);
-              setShowScheduleFor(null);
-              setEditingMed(null);
-              resetForm();
-            }}
-            style={{
-              padding: '10px 20px',
-              border: 'none',
-              borderRadius: '6px',
-              backgroundColor: tab === 'scheduled' ? '#007bff' : '#f8f9fa',
-              color: tab === 'scheduled' ? '#fff' : '#333',
-              cursor: 'pointer',
-              fontWeight: '500',
-              fontSize: '14px'
-            }}
-          >
-            Scheduled
-          </button>
-          <button
-            onClick={() => { 
-              setTab('active'); 
-              setShowHistory(false); 
-              setShowAddForm(false);
-              setShowScheduleFor(null);
-              setEditingMed(null);
-              resetForm();
-            }}
-            style={{
-              padding: '10px 20px',
-              border: 'none',
-              borderRadius: '6px',
-              backgroundColor: tab === 'active' ? '#007bff' : '#f8f9fa',
-              color: tab === 'active' ? '#fff' : '#333',
-              cursor: 'pointer',
-              fontWeight: '500',
-              fontSize: '14px'
-            }}
-          >
-            Active ({activeMedications.length})
-          </button>
-          <button
-            onClick={() => { 
-              setTab('inactive'); 
-              setShowHistory(false); 
-              setShowAddForm(false);
-              setShowScheduleFor(null);
-              setEditingMed(null);
-              resetForm();
-            }}
-            style={{
-              padding: '10px 20px',
-              border: 'none',
-              borderRadius: '6px',
-              backgroundColor: tab === 'inactive' ? '#007bff' : '#f8f9fa',
-              color: tab === 'inactive' ? '#fff' : '#333',
-              cursor: 'pointer',
-              fontWeight: '500',
-              fontSize: '14px'
-            }}
-          >
-            Inactive ({inactiveMedications.length})
-          </button>
-          <button
-            onClick={() => {
-              setTab('history');
-              setShowHistory(true);
-              setShowAddForm(false);
-              setShowScheduleFor(null);
-              setEditingMed(null);
-              resetForm();
-            }}
-            style={{
-              padding: '10px 20px',
-              border: 'none',
-              borderRadius: '6px',
-              backgroundColor: tab === 'history' ? '#007bff' : '#f8f9fa',
-              color: tab === 'history' ? '#fff' : '#333',
-              cursor: 'pointer',
-              fontWeight: '500',
-              fontSize: '14px'
-            }}
-          >
-            History
-          </button>
-          <button
-            onClick={() => { 
-              if (showAddForm) {
-                // Cancel: hide form and reset all state
+    <ModalBase isOpen={true} onClose={onClose} title={
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '20px' }}>💊</span>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => { 
+                setTab('scheduled'); 
+                setShowHistory(false); 
                 setShowAddForm(false);
                 setShowScheduleFor(null);
                 setEditingMed(null);
-                setShowHistory(false);
                 resetForm();
-              } else {
-                // Show form: reset all state and show add form
-                setShowAddForm(true);
+              }}
+              style={{
+                padding: '8px 16px',
+                border: 'none',
+                borderRadius: '6px',
+                backgroundColor: tab === 'scheduled' ? '#007bff' : '#f8f9fa',
+                color: tab === 'scheduled' ? '#fff' : '#333',
+                cursor: 'pointer',
+                fontWeight: '500',
+                fontSize: '14px'
+              }}
+            >
+              Scheduled
+            </button>
+            <button
+              onClick={() => { 
+                setTab('active'); 
+                setShowHistory(false); 
+                setShowAddForm(false);
                 setShowScheduleFor(null);
                 setEditingMed(null);
-                setShowHistory(false);
-                setTab('active'); // Switch to active tab when adding new medication
                 resetForm();
-              }
-            }}
-            style={{
-              padding: '10px 20px',
-              border: 'none',
-              borderRadius: '6px',
-              backgroundColor: showAddForm ? '#28a745' : '#007bff',
-              color: '#fff',
-              cursor: 'pointer',
-              fontWeight: '500',
-              fontSize: '14px',
-              marginLeft: 'auto'
-            }}
-            disabled={loading}
-          >
-            {showAddForm ? 'Cancel' : 'Add Medication'}
-          </button>
+              }}
+              style={{
+                padding: '8px 16px',
+                border: 'none',
+                borderRadius: '6px',
+                backgroundColor: tab === 'active' ? '#007bff' : '#f8f9fa',
+                color: tab === 'active' ? '#fff' : '#333',
+                cursor: 'pointer',
+                fontWeight: '500',
+                fontSize: '14px'
+              }}
+            >
+              Active ({activeMedications.length})
+            </button>
+            <button
+              onClick={() => { 
+                setTab('inactive'); 
+                setShowHistory(false); 
+                setShowAddForm(false);
+                setShowScheduleFor(null);
+                setEditingMed(null);
+                resetForm();
+              }}
+              style={{
+                padding: '8px 16px',
+                border: 'none',
+                borderRadius: '6px',
+                backgroundColor: tab === 'inactive' ? '#007bff' : '#f8f9fa',
+                color: tab === 'inactive' ? '#fff' : '#333',
+                cursor: 'pointer',
+                fontWeight: '500',
+                fontSize: '14px'
+              }}
+            >
+              Inactive ({inactiveMedications.length})
+            </button>
+            <button
+              onClick={() => {
+                setTab('history');
+                setShowHistory(true);
+                setShowAddForm(false);
+                setShowScheduleFor(null);
+                setEditingMed(null);
+                resetForm();
+              }}
+              style={{
+                padding: '8px 16px',
+                border: 'none',
+                borderRadius: '6px',
+                backgroundColor: tab === 'history' ? '#007bff' : '#f8f9fa',
+                color: tab === 'history' ? '#fff' : '#333',
+                cursor: 'pointer',
+                fontWeight: '500',
+                fontSize: '14px'
+              }}
+            >
+              History
+            </button>
+            <button
+              onClick={() => { 
+                if (showAddForm) {
+                  // Cancel: hide form and reset all state
+                  setShowAddForm(false);
+                  setShowScheduleFor(null);
+                  setEditingMed(null);
+                  setShowHistory(false);
+                  resetForm();
+                } else {
+                  // Show form: reset all state and show add form
+                  setShowAddForm(true);
+                  setShowScheduleFor(null);
+                  setEditingMed(null);
+                  setShowHistory(false);
+                  setTab('active'); // Switch to active tab when adding new medication
+                  resetForm();
+                }
+              }}
+              style={{
+                padding: '8px 16px',
+                border: 'none',
+                borderRadius: '6px',
+                backgroundColor: showAddForm ? '#dc3545' : '#28a745',
+                color: '#fff',
+                cursor: 'pointer',
+                fontWeight: '500',
+                fontSize: '14px'
+              }}
+              disabled={loading}
+            >
+              {showAddForm ? 'Cancel' : 'Add'}
+            </button>
+          </div>
         </div>
+      </div>
+    }>
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
 
         <div style={{ flex: 1, overflow: 'auto' }}>
           {loading && (
@@ -1352,7 +967,15 @@ const MedicationModal = ({ onClose }) => {
             </div>
           )}
           {!loading && showScheduleFor ? (
-            renderScheduleView(allMedications.find(m => m.id === showScheduleFor) || {schedules: []})
+            <MedicationScheduleView 
+              med={allMedications.find(m => m.id === showScheduleFor) || {schedules: []}}
+              onBack={() => setShowScheduleFor(null)}
+              fetchMedications={fetchMedications}
+              loading={loading}
+              setLoading={setLoading}
+              scheduledMedications={scheduledMedications.scheduled_medications}
+              showStatusFilters={true}
+            />
           ) : !loading && showHistory ? (
             <MedicationHistory onBack={() => { setShowHistory(false); setTab('scheduled'); }} />
           ) : !loading && showAddForm ? (
@@ -1361,14 +984,161 @@ const MedicationModal = ({ onClose }) => {
             <div>
               {tab === 'scheduled' ? (
                 <div>
+                  {/* Status Filters for Scheduled Medications */}
+                  {scheduledMedications.scheduled_medications && scheduledMedications.scheduled_medications.length > 0 && (
+                    <div style={{ marginBottom: 24, backgroundColor: '#f8f9fa', borderRadius: 8, border: '1px solid #dee2e6' }}>
+                      {/* Filter Header with Toggle */}
+                      <div 
+                        style={{ 
+                          padding: '12px 16px', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'space-between',
+                          cursor: 'pointer',
+                          borderBottom: showFilters ? '1px solid #dee2e6' : 'none',
+                          backgroundColor: showFilters ? '#e9ecef' : 'transparent',
+                          borderRadius: showFilters ? '8px 8px 0 0' : '8px'
+                        }}
+                        onClick={() => setShowFilters(!showFilters)}
+                      >
+                        <h4 style={{ margin: 0, color: '#333', fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ 
+                            transform: showFilters ? 'rotate(90deg)' : 'rotate(0deg)', 
+                            transition: 'transform 0.2s ease',
+                            display: 'inline-block',
+                            fontSize: 14
+                          }}>
+                            ▶
+                          </span>
+                          Filter by Status
+                        </h4>
+                        <div style={{ fontSize: 12, color: '#666', fontWeight: 500 }}>
+                          {showFilters ? 'Click to hide' : 'Click to show filters'}
+                        </div>
+                      </div>
+                      
+                      {/* Collapsible Filter Content */}
+                      {showFilters && (
+                        <div style={{ padding: 16 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                            <div style={{ fontSize: 14, color: '#666', fontWeight: 500 }}>
+                              Select which medication statuses to display
+                            </div>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const allCategories = ['on_time', 'warning', 'late_early', 'upcoming', 'missed', 'skipped', 'ready_to_take'];
+                                  const allSelected = allCategories.every(cat => statusFilters[cat]);
+                                  const newFilters = {};
+                                  allCategories.forEach(cat => newFilters[cat] = !allSelected);
+                                  setStatusFilters(newFilters);
+                                }}
+                                style={{
+                                  padding: '4px 8px',
+                                  fontSize: 12,
+                                  backgroundColor: '#007bff',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: 4,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Toggle All
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setStatusFilters({
+                                    on_time: false,
+                                    warning: false,
+                                    late_early: false,
+                                    upcoming: true,
+                                    missed: true,
+                                    skipped: false,
+                                    ready_to_take: true
+                                  });
+                                }}
+                                style={{
+                                  padding: '4px 8px',
+                                  fontSize: 12,
+                                  backgroundColor: '#6c757d',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: 4,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Reset to Default
+                              </button>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                            {(() => {
+                              const statusConfig = {
+                                on_time: { label: 'On Time', color: '#28a745', bgColor: 'rgba(40, 167, 69, 0.1)' },
+                                warning: { label: 'Warning', color: '#ffc107', bgColor: 'rgba(255, 193, 7, 0.1)' },
+                                late_early: { label: 'Late/Early', color: '#fd7e14', bgColor: 'rgba(253, 126, 20, 0.1)' },
+                                upcoming: { label: 'Upcoming', color: '#17a2b8', bgColor: 'rgba(23, 162, 184, 0.1)' },
+                                missed: { label: 'Missed', color: '#dc3545', bgColor: 'rgba(220, 53, 69, 0.1)' },
+                                skipped: { label: 'Skipped', color: '#6c757d', bgColor: 'rgba(108, 117, 125, 0.1)' },
+                                ready_to_take: { label: 'Ready to Take', color: '#007bff', bgColor: 'rgba(0, 123, 255, 0.1)' }
+                              };
+
+                              const statusCounts = {};
+                              if (scheduledMedications.scheduled_medications) {
+                                scheduledMedications.scheduled_medications.forEach(item => {
+                                  const status = medicationStatusUtils.getMedicationStatus(item);
+                                  statusCounts[status] = (statusCounts[status] || 0) + 1;
+                                });
+                              }
+
+                              return Object.entries(statusConfig).map(([status, config]) => (
+                                <label key={status} style={{ 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  gap: 6, 
+                                  cursor: 'pointer',
+                                  padding: '6px 10px',
+                                  borderRadius: 6,
+                                  backgroundColor: statusFilters[status] ? config.bgColor : 'transparent',
+                                  border: statusFilters[status] ? `1px solid ${config.color}` : '1px solid #dee2e6'
+                                }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={statusFilters[status] || false}
+                                    onChange={(e) => {
+                                      e.stopPropagation();
+                                      setStatusFilters(prev => ({ ...prev, [status]: e.target.checked }));
+                                    }}
+                                    style={{ margin: 0 }}
+                                  />
+                                  <span style={{ fontSize: 14, fontWeight: statusFilters[status] ? 600 : 400, color: statusFilters[status] ? config.color : '#333' }}>
+                                    {config.label} ({statusCounts[status] || 0})
+                                  </span>
+                                </label>
+                              ));
+                            })()}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
                   {/* All Scheduled Medications in Chronological Order, grouped by day and time */}
                   {scheduledMedications.scheduled_medications && scheduledMedications.scheduled_medications.length > 0 ? (
                     <div>
                       {/* Removed 'Medication Schedule' heading */}
                       {(() => {
-                        // Group meds by day (YYYY-MM-DD), then by formatted time string
+                        // Filter medications by selected status filters
+                        const filteredMedications = scheduledMedications.scheduled_medications.filter(item => {
+                          const status = medicationStatusUtils.getMedicationStatus(item);
+                          return statusFilters[status];
+                        });
+
+                        // Group filtered meds by day (YYYY-MM-DD), then by formatted time string
                         const groupByDay = {};
-                        scheduledMedications.scheduled_medications.forEach(item => {
+                        filteredMedications.forEach(item => {
                           const dateObj = new Date(item.scheduled_time);
                           const dayKey = dateObj.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
                           const timeStr = dateObj.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
@@ -1429,6 +1199,7 @@ const MedicationModal = ({ onClose }) => {
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                                       {groupByDay[dayKey][timeStr].map((item, idx) => {
+                                        const calculatedStatus = medicationStatusUtils.getMedicationStatus(item);
                                         const colors = getStatusColor(item.status);
                                         const isCompleted = item.is_completed;
                                         const isToday = new Date(item.scheduled_time).toDateString() === new Date().toDateString();
