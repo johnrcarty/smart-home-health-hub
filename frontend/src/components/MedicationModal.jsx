@@ -831,7 +831,6 @@ const MedicationModal = ({ onClose }) => {
     <ModalBase isOpen={true} onClose={onClose} title={
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ fontSize: '20px' }}>💊</span>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
               onClick={() => { 
