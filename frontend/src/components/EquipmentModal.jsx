@@ -304,27 +304,27 @@ export default function EquipmentModal({ isOpen, onClose, noModal, equipmentDueC
             </select>
           </div>
           {historyTab.loading ? (
-            <div>Loading...</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', color: '#007bff', fontSize: '16px' }}>Loading...</div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: '#fff', border: '1px solid #dee2e6' }}>
               <thead>
-                <tr style={{ background: '#f8f9fa' }}>
-                  <th style={{ padding: 8, textAlign: 'left' }}>Equipment</th>
-                  <th style={{ padding: 8, textAlign: 'left' }}>Changed At</th>
+                <tr style={{ backgroundColor: '#007bff' }}>
+                  <th style={{ padding: '16px', color: '#fff', textAlign: 'left', fontWeight: '600', fontSize: '14px', borderBottom: '2px solid #0056b3' }}>Equipment</th>
+                  <th style={{ padding: '16px', color: '#fff', textAlign: 'left', fontWeight: '600', fontSize: '14px', borderBottom: '2px solid #0056b3' }}>Changed At</th>
                 </tr>
               </thead>
               <tbody>
                 {historyTab.logs.length === 0 ? (
                   <tr>
-                    <td colSpan={2} style={{ textAlign: 'center', padding: '20px', color: '#666', fontStyle: 'italic' }}>
+                    <td colSpan={2} style={{ textAlign: 'center', padding: '40px', color: '#666', backgroundColor: '#f8f9fa', fontStyle: 'italic', fontSize: '16px' }}>
                       No history found
                     </td>
                   </tr>
                 ) : (
                   historyTab.logs.map((log, i) => (
-                    <tr key={i}>
-                      <td style={{ padding: 8 }}>{log.equipment}</td>
-                      <td style={{ padding: 8 }}>{formatDate(log.changed_at)}</td>
+                    <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#fff' : '#f8f9fa', borderBottom: '1px solid #dee2e6', transition: 'background-color 0.15s ease' }}>
+                      <td style={{ padding: '16px', color: '#333', fontSize: '14px', fontWeight: '500', borderRight: '1px solid #dee2e6' }}>{log.equipment}</td>
+                      <td style={{ padding: '16px', color: '#666', fontSize: '14px' }}>{formatDate(log.changed_at)}</td>
                     </tr>
                   ))
                 )}
