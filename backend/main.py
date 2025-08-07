@@ -2,6 +2,7 @@ import threading
 from serial_reader import serial_loop
 import asyncio
 import json  # Add this import
+import platform
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends
 from sqlalchemy.orm import Session
 from models import Equipment
@@ -25,11 +26,50 @@ from mqtt_discovery import send_mqtt_discovery
 from state_manager import reset_sensor_state
 import logging
 from fastapi.responses import JSONResponse
-from gpio_monitor import start_gpio_monitoring, stop_gpio_monitoring, set_alarm_states
 from db import get_db
 from crud import add_medication, get_active_medications, get_inactive_medications, update_medication, delete_medication, add_medication_schedule, get_medication_schedules, get_all_medication_schedules, update_medication_schedule, delete_medication_schedule, toggle_medication_schedule_active, get_daily_medication_schedule
 
 load_dotenv()
+
+# Platform detection for GPIO functionality
+def is_raspberry_pi():
+    """Check if running on Raspberry Pi"""
+    try:
+        with open('/proc/cpuinfo', 'r') as f:
+            return any('BCM' in line for line in f)
+    except (FileNotFoundError, PermissionError):
+        return False
+
+def is_gpio_available():
+    """Check if GPIO functionality is available"""
+    if not is_raspberry_pi():
+        return False
+    try:
+        import lgpio
+        return True
+    except ImportError:
+        return False
+
+# Determine GPIO availability
+GPIO_AVAILABLE = is_gpio_available()
+if GPIO_AVAILABLE:
+    print("[main] GPIO functionality available - running on Raspberry Pi")
+else:
+    print("[main] GPIO functionality not available - running on non-Raspberry Pi system")
+
+# GPIO fallback functions for non-Raspberry Pi systems
+def fallback_set_alarm_states(states):
+    """Fallback function when GPIO is not available"""
+    print(f"[main] GPIO fallback: Would set alarm states to {states}")
+
+def fallback_start_gpio_monitoring():
+    """Fallback function when GPIO is not available"""
+    print("[main] GPIO fallback: Would start GPIO monitoring")
+    return True
+
+def fallback_stop_gpio_monitoring():
+    """Fallback function when GPIO is not available"""
+    print("[main] GPIO fallback: Would stop GPIO monitoring")
 
 MIN_SPO2 = os.getenv("MIN_SPO2")
 MAX_SPO2 = os.getenv("MAX_SPO2")
@@ -112,42 +152,72 @@ async def startup_event():
     if get_setting(db, "alarm2_recovery_time") is None:
         save_setting(db, "alarm2_recovery_time", 30, "int", "Recovery time in seconds for Alarm 2")
 
-    # 1) Wire in MQTT - only create one client
+    # 1) Wire in MQTT - only create one client if enabled
     mqtt = get_mqtt_client(loop)
     mqtt_client_ref = mqtt  # Store reference for shutdown
 
-    try:
-        # Connect before setting in state manager
-        mqtt.connect(os.getenv("MQTT_BROKER"), int(os.getenv("MQTT_PORT")), 60)
-        print(f"[main] Connected to MQTT broker at {os.getenv('MQTT_BROKER')}:{os.getenv('MQTT_PORT')}")
+    if mqtt:  # Only proceed if MQTT is enabled and configured
+        try:
+            # Get MQTT settings from database
+            from mqtt_handler import get_mqtt_settings
+            mqtt_settings = get_mqtt_settings()
+            
+            # Connect using database settings
+            mqtt.connect(mqtt_settings['broker'], mqtt_settings['port'], 60)
+            logger.info(f"[main] Connected to MQTT broker at {mqtt_settings['broker']}:{mqtt_settings['port']}")
 
-        # Send MQTT discovery
-        send_mqtt_discovery(mqtt, test_mode=False)
+            # Send MQTT discovery if enabled
+            discovery_enabled = get_setting(db, 'mqtt_discovery_enabled', True)
+            test_mode = get_setting(db, 'mqtt_test_mode', True)
+            
+            if discovery_enabled:
+                send_mqtt_discovery(mqtt, test_mode=test_mode)
 
-        # Set availability to online
-        mqtt.publish("medical/spo2/availability", "online", retain=True)
-        print(f"[main] Published online status to medical-test/spo2/availability")
+            # Set availability to online using base topic from settings
+            base_topic = get_setting(db, 'mqtt_base_topic', 'shh')
+            mqtt.publish(f"{base_topic}/spo2/availability", "online", retain=True)
+            logger.info(f"[main] Published online status to {base_topic}/spo2/availability")
 
-        # Set the MQTT client in the state manager
-        set_mqtt_client(mqtt)
+            # Set the MQTT client in the state manager
+            set_mqtt_client(mqtt)
 
-        # Start the MQTT loop in a separate thread
-        # BUT don't create a new client, use the existing one
-        threading.Thread(target=mqtt.loop_forever, daemon=True).start()
-    except Exception as e:
-        print(f"[main] Failed to connect to MQTT broker: {e}")
+            # Start the MQTT loop in a separate thread
+            threading.Thread(target=mqtt.loop_forever, daemon=True).start()
+        except Exception as e:
+            logger.error(f"[main] Failed to connect to MQTT broker: {e}")
+    else:
+        logger.info("[main] MQTT is disabled or not configured")
 
     # 2) Wire in serial (hot-plug)
     set_event_loop(loop)
     threading.Thread(target=serial_loop, daemon=True).start()
 
-    # Start GPIO monitoring only if enabled
+    # Start GPIO monitoring only if enabled and available
     gpio_enabled = get_setting(db, "gpio_enabled", default=False)
     if gpio_enabled in [True, "true", "True", 1, "1"]:
-        start_gpio_monitoring()
+        if GPIO_AVAILABLE:
+            try:
+                from gpio_monitor import start_gpio_monitoring
+                start_gpio_monitoring()
+                print("[main] GPIO monitoring started")
+            except Exception as e:
+                print(f"[main] Failed to start GPIO monitoring: {e}")
+                fallback_start_gpio_monitoring()
+        else:
+            print("[main] GPIO monitoring requested but not available on this platform")
+            fallback_start_gpio_monitoring()
     else:
         # Set alarm states to false if not enabled
-        set_alarm_states({"alarm1": False, "alarm2": False})
+        if GPIO_AVAILABLE:
+            try:
+                from gpio_monitor import set_alarm_states
+                set_alarm_states({"alarm1": False, "alarm2": False})
+                print("[main] GPIO disabled - alarm states set to false")
+            except Exception as e:
+                print(f"[main] Failed to set alarm states: {e}")
+                fallback_set_alarm_states({"alarm1": False, "alarm2": False})
+        else:
+            fallback_set_alarm_states({"alarm1": False, "alarm2": False})
 
 
 @app.on_event("shutdown")
@@ -157,13 +227,20 @@ async def shutdown_event():
 
     if mqtt_client_ref:
         try:
-            mqtt_client_ref.publish("medical/spo2/availability", "offline", retain=True)
-            print("[main] Published offline status to medical/spo2/availability")
+            # Get base topic from settings for proper offline message
+            db = next(get_db())
+            base_topic = get_setting(db, 'mqtt_base_topic', 'shh')
+            db.close()
+            
+            mqtt_client_ref.publish(f"{base_topic}/spo2/availability", "offline", retain=True)
+            logger.info(f"[main] Published offline status to {base_topic}/spo2/availability")
 
             # Properly disconnect
             mqtt_client_ref.disconnect()
         except Exception as e:
-            print(f"[main] Failed to publish offline status: {e}")
+            logger.error(f"[main] Failed to publish offline status: {e}")
+    else:
+        logger.info("[main] No MQTT client to disconnect")
 
 
 @app.websocket("/ws/sensors")
@@ -377,10 +454,31 @@ async def update_multiple_settings(settings: SettingUpdate, db: Session = Depend
     broadcast_state()
     if gpio_enabled_changed:
         if gpio_enabled_new in [True, "true", "True", 1, "1"]:
-            start_gpio_monitoring()
+            if GPIO_AVAILABLE:
+                try:
+                    from gpio_monitor import start_gpio_monitoring
+                    start_gpio_monitoring()
+                    print("[main] GPIO monitoring enabled via settings")
+                except Exception as e:
+                    print(f"[main] Failed to start GPIO monitoring: {e}")
+                    fallback_start_gpio_monitoring()
+            else:
+                print("[main] GPIO monitoring requested but not available on this platform")
+                fallback_start_gpio_monitoring()
         else:
-            stop_gpio_monitoring()
-            set_alarm_states({"alarm1": False, "alarm2": False})
+            if GPIO_AVAILABLE:
+                try:
+                    from gpio_monitor import stop_gpio_monitoring, set_alarm_states
+                    stop_gpio_monitoring()
+                    set_alarm_states({"alarm1": False, "alarm2": False})
+                    print("[main] GPIO monitoring disabled via settings")
+                except Exception as e:
+                    print(f"[main] Failed to stop GPIO monitoring: {e}")
+                    fallback_stop_gpio_monitoring()
+                    fallback_set_alarm_states({"alarm1": False, "alarm2": False})
+            else:
+                fallback_stop_gpio_monitoring()
+                fallback_set_alarm_states({"alarm1": False, "alarm2": False})
     return results
 
 
@@ -870,4 +968,305 @@ async def get_medication_names_endpoint(db: Session = Depends(get_db)):
         return JSONResponse(
             status_code=500,
             content={"detail": f"Error retrieving medication names: {str(e)}"}
+        )
+
+
+# MQTT Settings Endpoints
+@app.get("/api/mqtt/settings")
+async def get_mqtt_settings(db: Session = Depends(get_db)):
+    """Get current MQTT settings"""
+    try:
+        settings = {}
+        mqtt_keys = [
+            'mqtt_enabled', 'mqtt_broker', 'mqtt_port', 'mqtt_username', 
+            'mqtt_password', 'mqtt_client_id', 'mqtt_discovery_enabled', 
+            'mqtt_test_mode', 'mqtt_base_topic'
+        ]
+        
+        for key in mqtt_keys:
+            setting = get_setting(db, key)
+            if setting is not None:
+                settings[key] = setting
+            else:
+                # Default values
+                defaults = {
+                    'mqtt_enabled': False,
+                    'mqtt_broker': '',
+                    'mqtt_port': 1883,
+                    'mqtt_username': '',
+                    'mqtt_password': '',
+                    'mqtt_client_id': 'sensor_monitor',
+                    'mqtt_discovery_enabled': True,
+                    'mqtt_test_mode': True,
+                    'mqtt_base_topic': 'shh'
+                }
+                settings[key] = defaults.get(key, '')
+        
+        # Load topic configurations
+        topics_setting = get_setting(db, 'mqtt_topics')
+        if topics_setting is not None:
+            # topics_setting is already parsed by get_setting when data_type is 'json'
+            if isinstance(topics_setting, dict):
+                settings['topics'] = topics_setting
+            else:
+                try:
+                    settings['topics'] = json.loads(str(topics_setting))
+                except json.JSONDecodeError:
+                    settings['topics'] = get_default_mqtt_topics()
+        else:
+            settings['topics'] = get_default_mqtt_topics()
+        
+        return settings
+    except Exception as e:
+        logger.error(f"Error getting MQTT settings: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error retrieving MQTT settings: {str(e)}"}
+        )
+
+def get_default_mqtt_topics():
+    """Get default MQTT topic configuration"""
+    return {
+        'spo2': {
+            'enabled': True,
+            'broadcast_topic': 'shh/spo2/state',
+            'listen_topic': 'shh/spo2/set'
+        },
+        'bpm': {
+            'enabled': True,
+            'broadcast_topic': 'shh/bpm/state',
+            'listen_topic': 'shh/bpm/set'
+        },
+        'perfusion': {
+            'enabled': True,
+            'broadcast_topic': 'shh/perfusion/state',
+            'listen_topic': 'shh/perfusion/set'
+        },
+        'blood_pressure': {
+            'enabled': True,
+            'broadcast_topic': 'shh/bp/state',
+            'listen_topic': 'shh/bp/set'
+        },
+        'temperature': {
+            'enabled': True,
+            'broadcast_topic': 'shh/temp/state',
+            'listen_topic': 'shh/temp/set'
+        },
+        'nutrition': {
+            'enabled': False,
+            'water_broadcast_topic': 'shh/water/state',
+            'water_listen_topic': 'shh/water/set',
+            'calories_broadcast_topic': 'shh/calories/state',
+            'calories_listen_topic': 'shh/calories/set'
+        },
+        'weight': {
+            'enabled': False,
+            'broadcast_topic': 'shh/weight/state',
+            'listen_topic': 'shh/weight/set'
+        },
+        'bathroom': {
+            'enabled': False,
+            'broadcast_topic': 'shh/bathroom/state',
+            'listen_topic': 'shh/bathroom/set'
+        },
+        'spo2_alarm': {
+            'enabled': True,
+            'broadcast_topic': 'shh/alarms/spo2',
+            'listen_topic': 'shh/alarms/spo2/set'
+        },
+        'bpm_alarm': {
+            'enabled': True,
+            'broadcast_topic': 'shh/alarms/bpm',
+            'listen_topic': 'shh/alarms/bpm/set'
+        },
+        'alarm1': {
+            'enabled': True,
+            'broadcast_topic': 'shh/alarms/gpio1',
+            'listen_topic': 'shh/alarms/gpio1/set'
+        },
+        'alarm2': {
+            'enabled': True,
+            'broadcast_topic': 'shh/alarms/gpio2',
+            'listen_topic': 'shh/alarms/gpio2/set'
+        }
+    }
+
+@app.post("/api/mqtt/settings")
+async def save_mqtt_settings(settings: dict, db: Session = Depends(get_db)):
+    """Save MQTT settings"""
+    try:
+        # Save basic MQTT settings with proper data types
+        for key, value in settings.items():
+            if key.startswith('mqtt_') and key != 'mqtt_topics':
+                # Determine data type and save accordingly
+                if isinstance(value, bool):
+                    save_setting(db, key, value, 'bool')
+                elif isinstance(value, int):
+                    save_setting(db, key, value, 'int')  
+                else:
+                    save_setting(db, key, str(value), 'string')
+        
+        # Save topic configurations as JSON
+        if 'topics' in settings:
+            import json
+            topics_json = json.dumps(settings['topics'])
+            save_setting(db, 'mqtt_topics', topics_json, 'json')
+        
+        # Restart MQTT connection with new settings if MQTT is enabled
+        restart_result = await restart_mqtt_if_enabled(db)
+        
+        return {"message": "MQTT settings saved successfully", "mqtt_restart": restart_result}
+    except Exception as e:
+        logger.error(f"Error saving MQTT settings: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error saving MQTT settings: {str(e)}"}
+        )
+
+async def restart_mqtt_if_enabled(db: Session):
+    """Restart MQTT connection if enabled in settings"""
+    global mqtt_client_ref
+    
+    try:
+        # Check if MQTT is enabled
+        mqtt_enabled = get_setting(db, 'mqtt_enabled', False)
+        
+        if not mqtt_enabled:
+            # Disconnect existing client if any
+            if mqtt_client_ref:
+                try:
+                    mqtt_client_ref.disconnect()
+                    logger.info("[restart_mqtt] Disconnected MQTT client (disabled)")
+                except:
+                    pass
+                mqtt_client_ref = None
+            return "MQTT disabled - disconnected"
+        
+        # Disconnect existing client
+        if mqtt_client_ref:
+            try:
+                mqtt_client_ref.disconnect()
+                logger.info("[restart_mqtt] Disconnected existing MQTT client")
+            except:
+                pass
+            mqtt_client_ref = None
+        
+        # Create new client with updated settings
+        mqtt = get_mqtt_client(asyncio.get_event_loop())
+        
+        if mqtt:
+            # Get MQTT settings from database
+            from mqtt_handler import get_mqtt_settings
+            mqtt_settings = get_mqtt_settings()
+            
+            # Connect using database settings
+            mqtt.connect(mqtt_settings['broker'], mqtt_settings['port'], 60)
+            logger.info(f"[restart_mqtt] Connected to MQTT broker at {mqtt_settings['broker']}:{mqtt_settings['port']}")
+
+            # Send MQTT discovery if enabled
+            discovery_enabled = get_setting(db, 'mqtt_discovery_enabled', True)
+            test_mode = get_setting(db, 'mqtt_test_mode', True)
+            
+            if discovery_enabled:
+                send_mqtt_discovery(mqtt, test_mode=test_mode)
+
+            # Set availability to online using base topic from settings
+            base_topic = get_setting(db, 'mqtt_base_topic', 'shh')
+            mqtt.publish(f"{base_topic}/spo2/availability", "online", retain=True)
+            logger.info(f"[restart_mqtt] Published online status to {base_topic}/spo2/availability")
+
+            # Set the MQTT client in the state manager
+            set_mqtt_client(mqtt)
+            mqtt_client_ref = mqtt
+
+            # Start the MQTT loop in a separate thread
+            threading.Thread(target=mqtt.loop_forever, daemon=True).start()
+            
+            return "MQTT connection restarted successfully"
+        else:
+            return "MQTT connection failed - invalid settings"
+            
+    except Exception as e:
+        logger.error(f"[restart_mqtt] Error restarting MQTT: {e}")
+        return f"MQTT restart failed: {str(e)}"
+
+@app.post("/api/mqtt/test-connection")
+async def test_mqtt_connection(settings: dict):
+    """Test MQTT connection with provided settings"""
+    try:
+        import paho.mqtt.client as mqtt
+        import time
+        
+        test_client = mqtt.Client(client_id=settings.get('mqtt_client_id', 'test_client'))
+        
+        # Set credentials if provided
+        username = settings.get('mqtt_username')
+        password = settings.get('mqtt_password')
+        if username and password:
+            test_client.username_pw_set(username, password)
+        
+        connection_result = {"connected": False, "error": None}
+        
+        def on_connect(client, userdata, flags, rc):
+            if rc == 0:
+                connection_result["connected"] = True
+            else:
+                connection_result["error"] = f"Connection failed with code {rc}"
+            client.disconnect()
+        
+        def on_disconnect(client, userdata, rc):
+            pass
+        
+        test_client.on_connect = on_connect
+        test_client.on_disconnect = on_disconnect
+        
+        # Try to connect
+        broker = settings.get('mqtt_broker', 'localhost')
+        port = int(settings.get('mqtt_port', 1883))
+        
+        test_client.connect(broker, port, 10)
+        test_client.loop_start()
+        
+        # Wait for connection attempt
+        time.sleep(2)
+        test_client.loop_stop()
+        
+        if connection_result["connected"]:
+            return {"status": "success", "message": "Successfully connected to MQTT broker"}
+        else:
+            error_msg = connection_result["error"] or "Connection failed"
+            return JSONResponse(
+                status_code=400,
+                content={"detail": error_msg}
+            )
+            
+    except Exception as e:
+        logger.error(f"Error testing MQTT connection: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error testing MQTT connection: {str(e)}"}
+        )
+
+@app.post("/api/mqtt/send-discovery")
+async def send_mqtt_discovery_endpoint(request: dict):
+    """Send MQTT discovery messages to Home Assistant"""
+    try:
+        test_mode = request.get('test_mode', True)
+        
+        # Get the current MQTT client (if connected)
+        global mqtt_client_ref
+        if mqtt_client_ref and mqtt_client_ref.is_connected():
+            send_mqtt_discovery(mqtt_client_ref, test_mode=test_mode)
+            return {"message": "MQTT discovery messages sent successfully"}
+        else:
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "MQTT client not connected"}
+            )
+            
+    except Exception as e:
+        logger.error(f"Error sending MQTT discovery: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error sending MQTT discovery: {str(e)}"}
         )

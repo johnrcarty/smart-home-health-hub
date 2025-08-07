@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from 'react';
+import MqttSettings from './settings/MqttSettings';
 import { getSettings, updateSettings } from '../services/settings';
 import config from '../config';
 
@@ -196,166 +197,412 @@ const SettingsForm = () => {
   }
 
   return (
-    <div className="settings-tabs-container">
-      <div className="settings-tabs">
+    <div style={{ padding: '8px' }}>
+      {/* Tab Navigation matching Equipment modal */}
+      <div style={{ 
+        display: 'flex', 
+        gap: '4px', 
+        marginBottom: '16px'
+      }}>
         <button
-          className={activeTab === 'general' ? 'tab active' : 'tab'}
           onClick={() => setActiveTab('general')}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: activeTab === 'general' ? '#007bff' : '#ffffff',
+            color: activeTab === 'general' ? '#ffffff' : '#000000',
+            border: 'none',
+            borderRadius: '6px',
+            fontSize: '14px',
+            fontWeight: '500',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease'
+          }}
         >
           General
         </button>
         <button
-          className={activeTab === 'thresholds' ? 'tab active' : 'tab'}
           onClick={() => setActiveTab('thresholds')}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: activeTab === 'thresholds' ? '#007bff' : '#ffffff',
+            color: activeTab === 'thresholds' ? '#ffffff' : '#000000',
+            border: 'none',
+            borderRadius: '6px',
+            fontSize: '14px',
+            fontWeight: '500',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease'
+          }}
         >
           Thresholds
         </button>
         <button
-          className={activeTab === 'dev' ? 'tab active' : 'tab'}
+          onClick={() => setActiveTab('mqtt')}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: activeTab === 'mqtt' ? '#007bff' : '#ffffff',
+            color: activeTab === 'mqtt' ? '#ffffff' : '#000000',
+            border: 'none',
+            borderRadius: '6px',
+            fontSize: '14px',
+            fontWeight: '500',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          MQTT
+        </button>
+        <button
           onClick={() => setActiveTab('dev')}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: activeTab === 'dev' ? '#007bff' : '#ffffff',
+            color: activeTab === 'dev' ? '#ffffff' : '#000000',
+            border: 'none',
+            borderRadius: '6px',
+            fontSize: '14px',
+            fontWeight: '500',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease'
+          }}
         >
           Dev
         </button>
       </div>
-      <form onSubmit={handleSubmit} className="settings-form">
+      <form onSubmit={handleSubmit} style={{ 
+        backgroundColor: 'rgba(30,32,40,0.95)', 
+        borderRadius: '12px', 
+        padding: '16px',
+        border: '1px solid #4a5568'
+      }}>
         {activeTab === 'general' && (
           <>
-            <div className="form-section">
-              <h3>Device Settings</h3>
-              <div className="form-group">
-                <label htmlFor="device_name">Device Name</label>
-                <input
-                  type="text"
-                  id="device_name"
-                  value={formData.device_name}
-                  onChange={(e) => handleInputChange('device_name', e.target.value)}
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="device_location">Location</label>
-                <input
-                  type="text"
-                  id="device_location"
-                  value={formData.device_location}
-                  onChange={(e) => handleInputChange('device_location', e.target.value)}
-                />
+            <div style={{ marginBottom: '24px' }}>
+              <h3 style={{ 
+                color: '#ffffff', 
+                fontSize: '1.25rem', 
+                marginBottom: '16px',
+                fontWeight: '600'
+              }}>Device Settings</h3>
+              <div style={{ display: 'grid', gap: '16px' }}>
+                <div>
+                  <label style={{ 
+                    color: '#e2e8f0', 
+                    fontSize: '13px', 
+                    fontWeight: '500', 
+                    marginBottom: '6px', 
+                    display: 'block' 
+                  }}>Device Name</label>
+                  <input
+                    type="text"
+                    value={formData.device_name}
+                    onChange={(e) => handleInputChange('device_name', e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      backgroundColor: '#2d3748',
+                      border: '1px solid #4a5568',
+                      borderRadius: '6px',
+                      color: '#ffffff',
+                      fontSize: '14px',
+                      outline: 'none',
+                      transition: 'border-color 0.2s ease',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ 
+                    color: '#e2e8f0', 
+                    fontSize: '13px', 
+                    fontWeight: '500', 
+                    marginBottom: '6px', 
+                    display: 'block' 
+                  }}>Location</label>
+                  <input
+                    type="text"
+                    value={formData.device_location}
+                    onChange={(e) => handleInputChange('device_location', e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      backgroundColor: '#2d3748',
+                      border: '1px solid #4a5568',
+                      borderRadius: '6px',
+                      color: '#ffffff',
+                      fontSize: '14px',
+                      outline: 'none',
+                      transition: 'border-color 0.2s ease',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
               </div>
             </div>
-            <div className="form-section">
-              <h3>Display Settings</h3>
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="temp_unit">Temperature Unit</label>
+            <div style={{ marginBottom: '24px' }}>
+              <h3 style={{ 
+                color: '#ffffff', 
+                fontSize: '1.25rem', 
+                marginBottom: '16px',
+                fontWeight: '600'
+              }}>Display Settings</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div>
+                  <label style={{ 
+                    color: '#e2e8f0', 
+                    fontSize: '13px', 
+                    fontWeight: '500', 
+                    marginBottom: '6px', 
+                    display: 'block' 
+                  }}>Temperature Unit</label>
                   <select
-                    id="temp_unit"
                     value={formData.temp_unit}
                     onChange={(e) => handleInputChange('temp_unit', e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      backgroundColor: '#2d3748',
+                      border: '1px solid #4a5568',
+                      borderRadius: '6px',
+                      color: '#ffffff',
+                      fontSize: '14px',
+                      outline: 'none',
+                      cursor: 'pointer',
+                      boxSizing: 'border-box'
+                    }}
                   >
                     <option value="F">Fahrenheit (°F)</option>
                     <option value="C">Celsius (°C)</option>
                   </select>
                 </div>
-                <div className="form-group">
-                  <label htmlFor="weight_unit">Weight Unit</label>
+                <div>
+                  <label style={{ 
+                    color: '#e2e8f0', 
+                    fontSize: '13px', 
+                    fontWeight: '500', 
+                    marginBottom: '6px', 
+                    display: 'block' 
+                  }}>Weight Unit</label>
                   <select
-                    id="weight_unit"
                     value={formData.weight_unit}
                     onChange={(e) => handleInputChange('weight_unit', e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      backgroundColor: '#2d3748',
+                      border: '1px solid #4a5568',
+                      borderRadius: '6px',
+                      color: '#ffffff',
+                      fontSize: '14px',
+                      outline: 'none',
+                      cursor: 'pointer',
+                      boxSizing: 'border-box'
+                    }}
                   >
                     <option value="lbs">Pounds (lbs)</option>
                     <option value="kg">Kilograms (kg)</option>
                   </select>
                 </div>
               </div>
-              <div className="form-group checkbox-group">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={formData.dark_mode}
-                    onChange={(e) => handleInputChange('dark_mode', e.target.checked)}
-                  />
-                  Dark Mode
-                </label>
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '10px', 
+                padding: '12px',
+                backgroundColor: '#1a202c',
+                borderRadius: '6px',
+                border: '1px solid #4a5568'
+              }}>
+                <input
+                  type="checkbox"
+                  checked={formData.dark_mode}
+                  onChange={(e) => handleInputChange('dark_mode', e.target.checked)}
+                  style={{
+                    width: '18px',
+                    height: '18px',
+                    accentColor: '#007bff',
+                    cursor: 'pointer'
+                  }}
+                />
+                <label style={{ 
+                  color: '#ffffff', 
+                  fontSize: '14px', 
+                  fontWeight: '500',
+                  cursor: 'pointer'
+                }}>Dark Mode</label>
               </div>
             </div>
           </>
         )}
         {activeTab === 'thresholds' && (
           <>
-            <div className="form-section">
-              <h3>Alert Thresholds</h3>
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="min_spo2">Min SpO₂ (%)</label>
+            <div style={{ marginBottom: '24px' }}>
+              <h3 style={{ 
+                color: '#ffffff', 
+                fontSize: '1.25rem', 
+                marginBottom: '16px',
+                fontWeight: '600'
+              }}>Alert Thresholds</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+                <div>
+                  <label style={{ 
+                    color: '#e2e8f0', 
+                    fontSize: '13px', 
+                    fontWeight: '500', 
+                    marginBottom: '6px', 
+                    display: 'block' 
+                  }}>Min SpO₂ (%)</label>
                   <input
                     type="number"
-                    id="min_spo2"
                     value={formData.min_spo2}
                     onChange={(e) => handleInputChange('min_spo2', e.target.value)}
                     min="80"
                     max="99"
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      backgroundColor: '#2d3748',
+                      border: '1px solid #4a5568',
+                      borderRadius: '6px',
+                      color: '#ffffff',
+                      fontSize: '14px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
                   />
                 </div>
-                <div className="form-group">
-                  <label htmlFor="max_spo2">Max SpO₂ (%)</label>
+                <div>
+                  <label style={{ 
+                    color: '#e2e8f0', 
+                    fontSize: '13px', 
+                    fontWeight: '500', 
+                    marginBottom: '6px', 
+                    display: 'block' 
+                  }}>Max SpO₂ (%)</label>
                   <input
                     type="number"
-                    id="max_spo2"
                     value={formData.max_spo2}
                     onChange={(e) => handleInputChange('max_spo2', e.target.value)}
                     min="90"
                     max="100"
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      backgroundColor: '#2d3748',
+                      border: '1px solid #4a5568',
+                      borderRadius: '6px',
+                      color: '#ffffff',
+                      fontSize: '14px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
                   />
                 </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="min_bpm">Min Heart Rate (BPM)</label>
+                <div>
+                  <label style={{ 
+                    color: '#e2e8f0', 
+                    fontSize: '13px', 
+                    fontWeight: '500', 
+                    marginBottom: '6px', 
+                    display: 'block' 
+                  }}>Min Heart Rate (BPM)</label>
                   <input
                     type="number"
-                    id="min_bpm"
                     value={formData.min_bpm}
                     onChange={(e) => handleInputChange('min_bpm', e.target.value)}
                     min="40"
                     max="100"
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      backgroundColor: '#2d3748',
+                      border: '1px solid #4a5568',
+                      borderRadius: '6px',
+                      color: '#ffffff',
+                      fontSize: '14px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
                   />
                 </div>
-                <div className="form-group">
-                  <label htmlFor="max_bpm">Max Heart Rate (BPM)</label>
+                <div>
+                  <label style={{ 
+                    color: '#e2e8f0', 
+                    fontSize: '13px', 
+                    fontWeight: '500', 
+                    marginBottom: '6px', 
+                    display: 'block' 
+                  }}>Max Heart Rate (BPM)</label>
                   <input
                     type="number"
-                    id="max_bpm"
                     value={formData.max_bpm}
                     onChange={(e) => handleInputChange('max_bpm', e.target.value)}
                     min="100"
                     max="220"
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      backgroundColor: '#2d3748',
+                      border: '1px solid #4a5568',
+                      borderRadius: '6px',
+                      color: '#ffffff',
+                      fontSize: '14px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
                   />
                 </div>
               </div>
             </div>
-            <div className="settings-section">
-              <h2 style={{ color: '#ffffff', marginBottom: '16px' }}>External Alarm Configuration</h2>
-              <form onSubmit={handleGpioSubmit} className="gpio-settings-form">
-                <div className="gpio-settings-card" style={{ 
-                  background: 'rgba(30,32,40,0.95)', 
-                  borderRadius: 18, 
-                  padding: 32, 
-                  marginBottom: 24,
+            <div style={{ marginBottom: '24px' }}>
+              <h3 style={{ 
+                color: '#ffffff', 
+                fontSize: '1.25rem', 
+                marginBottom: '16px',
+                fontWeight: '600'
+              }}>External Alarm Configuration</h3>
+              <form onSubmit={handleGpioSubmit}>
+                <div style={{ 
+                  background: 'rgba(20,24,32,0.8)', 
+                  borderRadius: '8px', 
+                  padding: '16px', 
+                  marginBottom: '16px',
                   border: '1px solid #4a5568'
                 }}>
-                  <h3 style={{ color: '#ffffff', marginBottom: '16px', fontSize: '1.5rem' }}>RJ9 Alarm Settings</h3>
-                  {gpioError && <div className="error-message">{gpioError}</div>}
-                  {gpioSuccess && <div className="success-message">Settings saved successfully!</div>}
-                  <div style={{ marginBottom: '24px' }}>
+                  <h4 style={{ color: '#ffffff', marginBottom: '12px', fontSize: '1.1rem', fontWeight: '500' }}>RJ9 Alarm Settings</h4>
+                  {gpioError && (
+                    <div style={{ 
+                      backgroundColor: '#fed7d7', 
+                      color: '#c53030', 
+                      padding: '10px 12px', 
+                      borderRadius: '6px', 
+                      marginBottom: '12px',
+                      fontSize: '13px'
+                    }}>{gpioError}</div>
+                  )}
+                  {gpioSuccess && (
+                    <div style={{ 
+                      backgroundColor: '#c6f6d5', 
+                      color: '#2f855a', 
+                      padding: '10px 12px', 
+                      borderRadius: '6px', 
+                      marginBottom: '12px',
+                      fontSize: '13px'
+                    }}>Settings saved successfully!</div>
+                  )}
+                  <div style={{ marginBottom: '16px' }}>
                     <label style={{ 
                       display: 'flex', 
                       alignItems: 'center', 
-                      fontSize: '1.2em', 
+                      gap: '10px',
+                      fontSize: '14px', 
                       color: '#ffffff',
                       fontWeight: '500',
-                      marginBottom: '24px',
-                      flexWrap: 'wrap',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      padding: '12px',
+                      backgroundColor: '#1a202c',
+                      borderRadius: '6px',
+                      border: '1px solid #4a5568'
                     }}>
                       <input
                         type="checkbox"
@@ -363,21 +610,24 @@ const SettingsForm = () => {
                         checked={gpioSettings.gpio_enabled}
                         onChange={handleGpioChange}
                         style={{ 
-                          marginRight: 12, 
-                          transform: 'scale(1.5)', 
-                          flexShrink: 0,
-                          width: '20px',
-                          height: '20px',
-                          accentColor: '#3182ce',
+                          width: '18px',
+                          height: '18px',
+                          accentColor: '#007bff',
                           cursor: 'pointer'
                         }}
                       />
-                      <span style={{ whiteSpace: 'nowrap' }}>Enable GPIO Monitoring</span>
+                      <span>Enable GPIO Monitoring</span>
                     </label>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px 32px', alignItems: 'start' }}>
-                    <div className="setting-group">
-                      <label style={{ color: '#e2e8f0', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                    <div>
+                      <label style={{ 
+                        color: '#e2e8f0', 
+                        fontSize: '13px', 
+                        fontWeight: '500', 
+                        marginBottom: '6px', 
+                        display: 'block' 
+                      }}>
                         RJ9 Port #1 Device Type:
                       </label>
                       <select 
@@ -385,13 +635,16 @@ const SettingsForm = () => {
                         value={gpioSettings.alarm1_device}
                         onChange={handleGpioChange}
                         style={{
+                          width: '100%',
+                          padding: '10px 12px',
                           backgroundColor: '#2d3748',
                           color: '#ffffff',
                           border: '1px solid #4a5568',
                           borderRadius: '6px',
-                          padding: '8px 12px',
-                          width: '100%',
-                          fontSize: '14px'
+                          fontSize: '14px',
+                          outline: 'none',
+                          cursor: 'pointer',
+                          boxSizing: 'border-box'
                         }}
                       >
                         <option value="vent">Ventilator</option>
@@ -399,8 +652,14 @@ const SettingsForm = () => {
                         <option value="other">Other Device</option>
                       </select>
                     </div>
-                    <div className="setting-group">
-                      <label style={{ color: '#e2e8f0', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
+                    <div>
+                      <label style={{ 
+                        color: '#e2e8f0', 
+                        fontSize: '13px', 
+                        fontWeight: '500', 
+                        marginBottom: '6px', 
+                        display: 'block' 
+                      }}>
                         RJ9 Port #1 Recovery Time (seconds):
                       </label>
                       <input
@@ -411,18 +670,26 @@ const SettingsForm = () => {
                         min="5"
                         max="300"
                         style={{
+                          width: '100%',
+                          padding: '10px 12px',
                           backgroundColor: '#2d3748',
                           color: '#ffffff',
                           border: '1px solid #4a5568',
                           borderRadius: '6px',
-                          padding: '8px 12px',
-                          width: '100%',
-                          fontSize: '14px'
+                          fontSize: '14px',
+                          outline: 'none',
+                          boxSizing: 'border-box'
                         }}
                       />
                     </div>
-                    <div className="setting-group">
-                      <label style={{ color: '#e2e8f0', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
+                    <div>
+                      <label style={{ 
+                        color: '#e2e8f0', 
+                        fontSize: '13px', 
+                        fontWeight: '500', 
+                        marginBottom: '6px', 
+                        display: 'block' 
+                      }}>
                         RJ9 Port #2 Device Type:
                       </label>
                       <select 
@@ -430,13 +697,16 @@ const SettingsForm = () => {
                         value={gpioSettings.alarm2_device}
                         onChange={handleGpioChange}
                         style={{
+                          width: '100%',
+                          padding: '10px 12px',
                           backgroundColor: '#2d3748',
                           color: '#ffffff',
                           border: '1px solid #4a5568',
                           borderRadius: '6px',
-                          padding: '8px 12px',
-                          width: '100%',
-                          fontSize: '14px'
+                          fontSize: '14px',
+                          outline: 'none',
+                          cursor: 'pointer',
+                          boxSizing: 'border-box'
                         }}
                       >
                         <option value="vent">Ventilator</option>
@@ -444,8 +714,14 @@ const SettingsForm = () => {
                         <option value="other">Other Device</option>
                       </select>
                     </div>
-                    <div className="setting-group">
-                      <label style={{ color: '#e2e8f0', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
+                    <div>
+                      <label style={{ 
+                        color: '#e2e8f0', 
+                        fontSize: '13px', 
+                        fontWeight: '500', 
+                        marginBottom: '6px', 
+                        display: 'block' 
+                      }}>
                         RJ9 Port #2 Recovery Time (seconds):
                       </label>
                       <input
@@ -456,47 +732,54 @@ const SettingsForm = () => {
                         min="5"
                         max="300"
                         style={{
+                          width: '100%',
+                          padding: '10px 12px',
                           backgroundColor: '#2d3748',
                           color: '#ffffff',
                           border: '1px solid #4a5568',
                           borderRadius: '6px',
-                          padding: '8px 12px',
-                          width: '100%',
-                          fontSize: '14px'
+                          fontSize: '14px',
+                          outline: 'none',
+                          boxSizing: 'border-box'
                         }}
                       />
                     </div>
                   </div>
-                  <div className="button-row" style={{ marginTop: 24 }}>
+                  <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
                     <button 
-                      className="primary-button"
                       disabled={gpioLoading}
                       type="submit"
                       style={{
-                        backgroundColor: '#3182ce',
+                        backgroundColor: '#007bff',
                         color: '#ffffff',
                         border: 'none',
                         borderRadius: '6px',
-                        padding: '12px 24px',
-                        fontSize: '16px',
+                        padding: '10px 20px',
+                        fontSize: '14px',
                         fontWeight: '500',
                         cursor: gpioLoading ? 'not-allowed' : 'pointer',
-                        opacity: gpioLoading ? 0.6 : 1
+                        opacity: gpioLoading ? 0.6 : 1,
+                        transition: 'all 0.2s ease'
                       }}
                     >
                       {gpioLoading ? 'Saving...' : 'Save Settings'}
                     </button>
                   </div>
-                  <div className="info-section" style={{ marginTop: 24 }}>
-                    <h4 style={{ color: '#ffffff', marginBottom: '12px', fontSize: '1.1rem' }}>
+                  <div style={{ 
+                    backgroundColor: '#1a202c', 
+                    borderRadius: '6px', 
+                    padding: '12px',
+                    border: '1px solid #4a5568'
+                  }}>
+                    <h5 style={{ color: '#ffffff', marginBottom: '8px', fontSize: '1rem', fontWeight: '500' }}>
                       About RJ9 Alarm Connections
-                    </h4>
-                    <p style={{ color: '#cbd5e0', marginBottom: '12px', lineHeight: '1.6' }}>
+                    </h5>
+                    <p style={{ color: '#cbd5e0', marginBottom: '8px', lineHeight: '1.5', fontSize: '13px' }}>
                       These settings configure how external device alarms connected via RJ9 phone lines
                       are processed. For each port, you can specify the device type and recovery time
                       (how long to wait before accepting a new alarm after an alert ends).
                     </p>
-                    <p style={{ color: '#cbd5e0', margin: 0, lineHeight: '1.6' }}>
+                    <p style={{ color: '#cbd5e0', margin: 0, lineHeight: '1.5', fontSize: '13px' }}>
                       <strong style={{ color: '#ffffff' }}>Note:</strong> Changes will take effect immediately without requiring a system restart.
                     </p>
                   </div>
@@ -505,49 +788,82 @@ const SettingsForm = () => {
             </div>
           </>
         )}
+        {activeTab === 'mqtt' && (
+          <MqttSettings />
+        )}
         {activeTab === 'dev' && (
           <>
-            <div className="form-section">
-              <h3 style={{ color: '#ffffff', marginBottom: '16px' }}>Development Tools</h3>
+            <div>
+              <h3 style={{ 
+                color: '#ffffff', 
+                fontSize: '1.25rem', 
+                marginBottom: '16px',
+                fontWeight: '600'
+              }}>Development Tools</h3>
               <div style={{
-                backgroundColor: 'rgba(30,32,40,0.95)',
+                backgroundColor: 'rgba(20,24,32,0.8)',
                 borderRadius: '8px',
-                padding: '24px',
+                padding: '16px',
                 border: '1px solid #4a5568'
               }}>
-                <h4 style={{ color: '#ffffff', marginBottom: '12px', fontSize: '1.1rem' }}>
+                <h4 style={{ color: '#ffffff', marginBottom: '12px', fontSize: '1.1rem', fontWeight: '500' }}>
                   WebSocket Testing
                 </h4>
-                <p style={{ color: '#cbd5e0', marginBottom: '16px', lineHeight: '1.6' }}>
+                <p style={{ color: '#cbd5e0', marginBottom: '16px', lineHeight: '1.5', fontSize: '13px' }}>
                   Trigger a websocket broadcast to test real-time data updates and client connections.
                 </p>
                 
-                {devError && <div className="error-message" style={{ marginBottom: '16px' }}>{devError}</div>}
-                {devSuccess && <div className="success-message" style={{ marginBottom: '16px' }}>Websocket broadcast triggered successfully!</div>}
+                {devError && (
+                  <div style={{ 
+                    backgroundColor: '#fed7d7', 
+                    color: '#c53030', 
+                    padding: '10px 12px', 
+                    borderRadius: '6px', 
+                    marginBottom: '12px',
+                    fontSize: '13px'
+                  }}>{devError}</div>
+                )}
+                {devSuccess && (
+                  <div style={{ 
+                    backgroundColor: '#c6f6d5', 
+                    color: '#2f855a', 
+                    padding: '10px 12px', 
+                    borderRadius: '6px', 
+                    marginBottom: '12px',
+                    fontSize: '13px'
+                  }}>Websocket broadcast triggered successfully!</div>
+                )}
                 
                 <button
                   onClick={handleWebsocketBroadcast}
                   disabled={devLoading}
                   style={{
-                    backgroundColor: '#10b981',
+                    backgroundColor: '#28a745',
                     color: '#ffffff',
                     border: 'none',
                     borderRadius: '6px',
-                    padding: '12px 24px',
+                    padding: '10px 20px',
                     fontSize: '14px',
                     fontWeight: '500',
                     cursor: devLoading ? 'not-allowed' : 'pointer',
-                    opacity: devLoading ? 0.6 : 1
+                    opacity: devLoading ? 0.6 : 1,
+                    transition: 'all 0.2s ease',
+                    marginBottom: '16px'
                   }}
                 >
                   {devLoading ? 'Broadcasting...' : 'Trigger WebSocket Broadcast'}
                 </button>
                 
-                <div style={{ marginTop: '16px' }}>
-                  <h5 style={{ color: '#ffffff', marginBottom: '8px', fontSize: '0.9rem' }}>
+                <div style={{ 
+                  backgroundColor: '#1a202c', 
+                  borderRadius: '6px', 
+                  padding: '12px',
+                  border: '1px solid #4a5568'
+                }}>
+                  <h5 style={{ color: '#ffffff', marginBottom: '8px', fontSize: '0.95rem', fontWeight: '500' }}>
                     What this does:
                   </h5>
-                  <ul style={{ color: '#cbd5e0', fontSize: '0.8rem', lineHeight: '1.5', margin: 0, paddingLeft: '20px' }}>
+                  <ul style={{ color: '#cbd5e0', fontSize: '13px', lineHeight: '1.4', margin: 0, paddingLeft: '16px' }}>
                     <li>Calls the backend broadcast_state() function</li>
                     <li>Sends current sensor state to all connected websocket clients</li>
                     <li>Useful for testing real-time data updates</li>
@@ -558,10 +874,43 @@ const SettingsForm = () => {
             </div>
           </>
         )}
-        {error && <div className="error-message">{error}</div>}
-        {success && <div className="success-message">Settings saved successfully!</div>}
-        <div className="form-actions">
-          <button type="submit" className="button primary" disabled={isSubmitting}>
+        {error && (
+          <div style={{ 
+            backgroundColor: '#fed7d7', 
+            color: '#c53030', 
+            padding: '10px 12px', 
+            borderRadius: '6px', 
+            marginBottom: '12px',
+            fontSize: '13px'
+          }}>{error}</div>
+        )}
+        {success && (
+          <div style={{ 
+            backgroundColor: '#c6f6d5', 
+            color: '#2f855a', 
+            padding: '10px 12px', 
+            borderRadius: '6px', 
+            marginBottom: '12px',
+            fontSize: '13px'
+          }}>Settings saved successfully!</div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+          <button 
+            type="submit" 
+            disabled={isSubmitting}
+            style={{
+              backgroundColor: '#007bff',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '10px 24px',
+              fontSize: '14px',
+              fontWeight: '500',
+              cursor: isSubmitting ? 'not-allowed' : 'pointer',
+              opacity: isSubmitting ? 0.6 : 1,
+              transition: 'all 0.2s ease'
+            }}
+          >
             {isSubmitting ? 'Saving...' : 'Save Settings'}
           </button>
         </div>
