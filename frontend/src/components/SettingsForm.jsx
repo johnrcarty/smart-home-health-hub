@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import MqttSettings from './settings/MqttSettings';
+import GpioSettings from './settings/GpioSettings';
 import { getSettings, updateSettings } from '../services/settings';
 import config from '../config';
 
@@ -19,21 +20,10 @@ const SettingsForm = () => {
     dark_mode: true,
   });
 
-  const [gpioSettings, setGpioSettings] = useState({
-    alarm1_device: 'vent',
-    alarm2_device: 'pulseox',
-    alarm1_recovery_time: 30,
-    alarm2_recovery_time: 30,
-    gpio_enabled: false
-  });
-
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [gpioLoading, setGpioLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
-  const [gpioError, setGpioError] = useState(null);
-  const [gpioSuccess, setGpioSuccess] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
   const [devLoading, setDevLoading] = useState(false);
   const [devSuccess, setDevSuccess] = useState(false);
@@ -68,45 +58,13 @@ const SettingsForm = () => {
       }
     };
 
-    // Load GPIO settings
-    const fetchGpioSettings = async () => {
-      try {
-        setGpioLoading(true);
-        const response = await fetch(`${config.apiUrl}/api/settings`);
-        if (!response.ok) throw new Error('Failed to load settings');
-        const data = await response.json();
-        const newSettings = {
-          alarm1_device: data.alarm1_device?.value || 'vent',
-          alarm2_device: data.alarm2_device?.value || 'pulseox',
-          alarm1_recovery_time: data.alarm1_recovery_time?.value || 30,
-          alarm2_recovery_time: data.alarm2_recovery_time?.value || 30,
-          gpio_enabled: data.gpio_enabled?.value === true || data.gpio_enabled?.value === 'true' ? true : false
-        };
-        setGpioSettings(newSettings);
-        setGpioError(null);
-      } catch (err) {
-        setGpioError('Failed to load GPIO settings. Please try again.');
-      } finally {
-        setGpioLoading(false);
-      }
-    };
-
     loadSettings();
-    fetchGpioSettings();
   }, []);
 
   const handleInputChange = (key, value) => {
     setFormData(prev => ({
       ...prev,
       [key]: value
-    }));
-  };
-
-  const handleGpioChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setGpioSettings(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
     }));
   };
 
@@ -137,36 +95,6 @@ const SettingsForm = () => {
       setError("Failed to save settings. Please try again.");
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleGpioSubmit = async (e) => {
-    e.preventDefault();
-    setGpioError(null);
-    setGpioSuccess(false);
-    setGpioLoading(true);
-    try {
-      const payload = {
-        settings: {
-          alarm1_device: gpioSettings.alarm1_device,
-          alarm2_device: gpioSettings.alarm2_device,
-          alarm1_recovery_time: parseInt(gpioSettings.alarm1_recovery_time),
-          alarm2_recovery_time: parseInt(gpioSettings.alarm2_recovery_time),
-          gpio_enabled: gpioSettings.gpio_enabled
-        }
-      };
-      const response = await fetch(`${config.apiUrl}/api/settings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!response.ok) throw new Error('Failed to save GPIO settings');
-      setGpioSuccess(true);
-      setTimeout(() => setGpioSuccess(false), 3000);
-    } catch (err) {
-      setGpioError('Failed to save GPIO settings. Please try again.');
-    } finally {
-      setGpioLoading(false);
     }
   };
 
@@ -235,6 +163,22 @@ const SettingsForm = () => {
           }}
         >
           Thresholds
+        </button>
+        <button
+          onClick={() => setActiveTab('gpio')}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: activeTab === 'gpio' ? '#007bff' : '#ffffff',
+            color: activeTab === 'gpio' ? '#ffffff' : '#000000',
+            border: 'none',
+            borderRadius: '6px',
+            fontSize: '14px',
+            fontWeight: '500',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          GPIO
         </button>
         <button
           onClick={() => setActiveTab('mqtt')}
@@ -554,239 +498,10 @@ const SettingsForm = () => {
                 </div>
               </div>
             </div>
-            <div style={{ marginBottom: '24px' }}>
-              <h3 style={{ 
-                color: '#ffffff', 
-                fontSize: '1.25rem', 
-                marginBottom: '16px',
-                fontWeight: '600'
-              }}>External Alarm Configuration</h3>
-              <form onSubmit={handleGpioSubmit}>
-                <div style={{ 
-                  background: 'rgba(20,24,32,0.8)', 
-                  borderRadius: '8px', 
-                  padding: '16px', 
-                  marginBottom: '16px',
-                  border: '1px solid #4a5568'
-                }}>
-                  <h4 style={{ color: '#ffffff', marginBottom: '12px', fontSize: '1.1rem', fontWeight: '500' }}>RJ9 Alarm Settings</h4>
-                  {gpioError && (
-                    <div style={{ 
-                      backgroundColor: '#fed7d7', 
-                      color: '#c53030', 
-                      padding: '10px 12px', 
-                      borderRadius: '6px', 
-                      marginBottom: '12px',
-                      fontSize: '13px'
-                    }}>{gpioError}</div>
-                  )}
-                  {gpioSuccess && (
-                    <div style={{ 
-                      backgroundColor: '#c6f6d5', 
-                      color: '#2f855a', 
-                      padding: '10px 12px', 
-                      borderRadius: '6px', 
-                      marginBottom: '12px',
-                      fontSize: '13px'
-                    }}>Settings saved successfully!</div>
-                  )}
-                  <div style={{ marginBottom: '16px' }}>
-                    <label style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: '10px',
-                      fontSize: '14px', 
-                      color: '#ffffff',
-                      fontWeight: '500',
-                      cursor: 'pointer',
-                      padding: '12px',
-                      backgroundColor: '#1a202c',
-                      borderRadius: '6px',
-                      border: '1px solid #4a5568'
-                    }}>
-                      <input
-                        type="checkbox"
-                        name="gpio_enabled"
-                        checked={gpioSettings.gpio_enabled}
-                        onChange={handleGpioChange}
-                        style={{ 
-                          width: '18px',
-                          height: '18px',
-                          accentColor: '#007bff',
-                          cursor: 'pointer'
-                        }}
-                      />
-                      <span>Enable GPIO Monitoring</span>
-                    </label>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-                    <div>
-                      <label style={{ 
-                        color: '#e2e8f0', 
-                        fontSize: '13px', 
-                        fontWeight: '500', 
-                        marginBottom: '6px', 
-                        display: 'block' 
-                      }}>
-                        RJ9 Port #1 Device Type:
-                      </label>
-                      <select 
-                        name="alarm1_device"
-                        value={gpioSettings.alarm1_device}
-                        onChange={handleGpioChange}
-                        style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          backgroundColor: '#2d3748',
-                          color: '#ffffff',
-                          border: '1px solid #4a5568',
-                          borderRadius: '6px',
-                          fontSize: '14px',
-                          outline: 'none',
-                          cursor: 'pointer',
-                          boxSizing: 'border-box'
-                        }}
-                      >
-                        <option value="vent">Ventilator</option>
-                        <option value="pulseox">Pulse Oximeter</option>
-                        <option value="other">Other Device</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ 
-                        color: '#e2e8f0', 
-                        fontSize: '13px', 
-                        fontWeight: '500', 
-                        marginBottom: '6px', 
-                        display: 'block' 
-                      }}>
-                        RJ9 Port #1 Recovery Time (seconds):
-                      </label>
-                      <input
-                        type="number"
-                        name="alarm1_recovery_time"
-                        value={gpioSettings.alarm1_recovery_time}
-                        onChange={handleGpioChange}
-                        min="5"
-                        max="300"
-                        style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          backgroundColor: '#2d3748',
-                          color: '#ffffff',
-                          border: '1px solid #4a5568',
-                          borderRadius: '6px',
-                          fontSize: '14px',
-                          outline: 'none',
-                          boxSizing: 'border-box'
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ 
-                        color: '#e2e8f0', 
-                        fontSize: '13px', 
-                        fontWeight: '500', 
-                        marginBottom: '6px', 
-                        display: 'block' 
-                      }}>
-                        RJ9 Port #2 Device Type:
-                      </label>
-                      <select 
-                        name="alarm2_device"
-                        value={gpioSettings.alarm2_device}
-                        onChange={handleGpioChange}
-                        style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          backgroundColor: '#2d3748',
-                          color: '#ffffff',
-                          border: '1px solid #4a5568',
-                          borderRadius: '6px',
-                          fontSize: '14px',
-                          outline: 'none',
-                          cursor: 'pointer',
-                          boxSizing: 'border-box'
-                        }}
-                      >
-                        <option value="vent">Ventilator</option>
-                        <option value="pulseox">Pulse Oximeter</option>
-                        <option value="other">Other Device</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ 
-                        color: '#e2e8f0', 
-                        fontSize: '13px', 
-                        fontWeight: '500', 
-                        marginBottom: '6px', 
-                        display: 'block' 
-                      }}>
-                        RJ9 Port #2 Recovery Time (seconds):
-                      </label>
-                      <input
-                        type="number"
-                        name="alarm2_recovery_time"
-                        value={gpioSettings.alarm2_recovery_time}
-                        onChange={handleGpioChange}
-                        min="5"
-                        max="300"
-                        style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          backgroundColor: '#2d3748',
-                          color: '#ffffff',
-                          border: '1px solid #4a5568',
-                          borderRadius: '6px',
-                          fontSize: '14px',
-                          outline: 'none',
-                          boxSizing: 'border-box'
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
-                    <button 
-                      disabled={gpioLoading}
-                      type="submit"
-                      style={{
-                        backgroundColor: '#007bff',
-                        color: '#ffffff',
-                        border: 'none',
-                        borderRadius: '6px',
-                        padding: '10px 20px',
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        cursor: gpioLoading ? 'not-allowed' : 'pointer',
-                        opacity: gpioLoading ? 0.6 : 1,
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      {gpioLoading ? 'Saving...' : 'Save Settings'}
-                    </button>
-                  </div>
-                  <div style={{ 
-                    backgroundColor: '#1a202c', 
-                    borderRadius: '6px', 
-                    padding: '12px',
-                    border: '1px solid #4a5568'
-                  }}>
-                    <h5 style={{ color: '#ffffff', marginBottom: '8px', fontSize: '1rem', fontWeight: '500' }}>
-                      About RJ9 Alarm Connections
-                    </h5>
-                    <p style={{ color: '#cbd5e0', marginBottom: '8px', lineHeight: '1.5', fontSize: '13px' }}>
-                      These settings configure how external device alarms connected via RJ9 phone lines
-                      are processed. For each port, you can specify the device type and recovery time
-                      (how long to wait before accepting a new alarm after an alert ends).
-                    </p>
-                    <p style={{ color: '#cbd5e0', margin: 0, lineHeight: '1.5', fontSize: '13px' }}>
-                      <strong style={{ color: '#ffffff' }}>Note:</strong> Changes will take effect immediately without requiring a system restart.
-                    </p>
-                  </div>
-                </div>
-              </form>
-            </div>
           </>
+        )}
+        {activeTab === 'gpio' && (
+          <GpioSettings />
         )}
         {activeTab === 'mqtt' && (
           <MqttSettings />

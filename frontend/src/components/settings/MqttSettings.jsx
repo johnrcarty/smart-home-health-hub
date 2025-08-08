@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import config from '../../config';
 
 const MqttSettings = () => {
   const [mqttSettings, setMqttSettings] = useState({
@@ -107,9 +108,10 @@ const MqttSettings = () => {
   const loadMqttSettings = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/mqtt/settings');
+      const response = await fetch(`${config.apiUrl}/api/mqtt/settings`, { method: 'GET' });
       if (response.ok) {
         const data = await response.json();
+        console.log('[MQTT Settings] Loaded from backend:', data);
         setMqttSettings(data);
       } else {
         throw new Error('Failed to load MQTT settings');
@@ -146,8 +148,7 @@ const MqttSettings = () => {
     setSuccess(false);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     setIsSaving(true);
     setError(null);
     setSuccess(false);
@@ -255,7 +256,7 @@ const MqttSettings = () => {
         }}>MQTT settings saved successfully!</div>
       )}
 
-      <form onSubmit={handleSubmit}>
+      <div>
         <div style={{ 
           background: 'rgba(20,24,32,0.8)', 
           borderRadius: '8px', 
@@ -865,7 +866,8 @@ const MqttSettings = () => {
 
         <div style={{ display: 'flex', gap: '10px' }}>
           <button 
-            type="submit" 
+            type="button"
+            onClick={handleSubmit}
             disabled={isSaving}
             style={{
               backgroundColor: '#007bff',
@@ -883,7 +885,7 @@ const MqttSettings = () => {
             {isSaving ? 'Saving...' : 'Save MQTT Settings'}
           </button>
         </div>
-      </form>
+      </div>
     </div>
   );
 };

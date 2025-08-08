@@ -1004,17 +1004,21 @@ async def get_mqtt_settings(db: Session = Depends(get_db)):
         
         # Load topic configurations
         topics_setting = get_setting(db, 'mqtt_topics')
+        default_topics = get_default_mqtt_topics()
+        merged_topics = default_topics.copy()
         if topics_setting is not None:
             # topics_setting is already parsed by get_setting when data_type is 'json'
             if isinstance(topics_setting, dict):
-                settings['topics'] = topics_setting
+                for k, v in topics_setting.items():
+                    merged_topics[k] = v
             else:
                 try:
-                    settings['topics'] = json.loads(str(topics_setting))
+                    loaded_topics = json.loads(str(topics_setting))
+                    for k, v in loaded_topics.items():
+                        merged_topics[k] = v
                 except json.JSONDecodeError:
-                    settings['topics'] = get_default_mqtt_topics()
-        else:
-            settings['topics'] = get_default_mqtt_topics()
+                    pass  # fallback to defaults
+        settings['topics'] = merged_topics
         
         return settings
     except Exception as e:
