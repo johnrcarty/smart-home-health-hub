@@ -575,13 +575,9 @@ export default function App() {
       </div>
 
       {/* Settings Modal */}
-      <ModalBase
-        isOpen={isSettingsModalOpen}
-        onClose={() => setIsSettingsModalOpen(false)}
-        title="Settings"
-      >
-        <SettingsForm />
-      </ModalBase>
+      {isSettingsModalOpen && (
+        <SettingsForm onClose={() => setIsSettingsModalOpen(false)} />
+      )}
 
       {/* Equipment Modal - fills entire modal space, no inner modal */}
       <ModalBase

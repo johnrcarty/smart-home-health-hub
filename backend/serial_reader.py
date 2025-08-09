@@ -4,12 +4,31 @@ import serial
 from serial.tools import list_ports
 from dotenv import load_dotenv
 
-from state_manager import update_sensor, set_serial_mode
+from state_manager import update_sensor, set_serial_mode, broadcast_serial_raw
 
 load_dotenv()
 
 # Default Baud Rate (can override with .env)
 BAUD_RATE = int(os.getenv("BAUD_RATE", 19200))
+
+try:
+    # Try to get baud_rate from DB settings if available without importing DB here
+    from crud import get_setting
+    from db import get_db
+    def get_baud_rate():
+        try:
+            db = next(get_db())
+            val = get_setting(db, "baud_rate", BAUD_RATE)
+            db.close()
+            try:
+                return int(val)
+            except Exception:
+                return BAUD_RATE
+        except Exception:
+            return BAUD_RATE
+except Exception:
+    def get_baud_rate():
+        return BAUD_RATE
 
 def find_serial_port():
     """
@@ -35,8 +54,8 @@ def connect_serial():
         port = find_serial_port()
         if port:
             try:
-                ser = serial.Serial(port, BAUD_RATE, timeout=1, rtscts=False, dsrdtr=False)
-                print(f"[serial_reader] Connected to {port} @ {BAUD_RATE} baud")
+                ser = serial.Serial(port, get_baud_rate(), timeout=1, rtscts=False, dsrdtr=False)
+                print(f"[serial_reader] Connected to {port} @ {ser.baudrate} baud")
                 set_serial_mode(True)
                 return ser
             except Exception as e:
@@ -50,11 +69,37 @@ def connect_serial():
 def serial_loop():
     ser = connect_serial()
 
+    last_baud_check = time.time()
+    check_interval = 2.0  # seconds
+
     while True:
         try:
+            # Periodically check if baud rate setting has changed
+            now = time.time()
+            if now - last_baud_check >= check_interval:
+                try:
+                    desired_baud = int(get_baud_rate())
+                    if desired_baud != ser.baudrate:
+                        print(f"[serial_reader] Baud rate changed from {ser.baudrate} to {desired_baud}. Reconnecting…")
+                        try:
+                            ser.close()
+                        except Exception:
+                            pass
+                        ser = connect_serial()
+                except Exception as e:
+                    print(f"[serial_reader] Error checking/updating baud rate: {e}")
+                finally:
+                    last_baud_check = now
+
             raw = ser.readline().decode("ascii", errors="ignore").strip()
             if not raw:
                 continue
+
+            # broadcast raw line for preview
+            try:
+                broadcast_serial_raw(raw)
+            except Exception:
+                pass
 
             parts = raw.split()
             if len(parts) < 5:

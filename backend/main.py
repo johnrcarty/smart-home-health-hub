@@ -13,7 +13,7 @@ import os
 from state_manager import (
     set_event_loop, set_mqtt_client, set_serial_mode,
     update_sensor, register_websocket_client, unregister_websocket_client,
-    broadcast_state
+    broadcast_state, get_serial_log, is_serial_mode
 )
 from crud import (get_latest_blood_pressure, get_blood_pressure_history, get_last_n_temperature, save_blood_pressure,
                   save_temperature, save_vital, get_vitals_by_type, get_all_settings, get_setting, save_setting,
@@ -1274,3 +1274,30 @@ async def send_mqtt_discovery_endpoint(request: dict):
             status_code=500,
             content={"detail": f"Error sending MQTT discovery: {str(e)}"}
         )
+
+
+@app.get("/api/serial/log")
+async def get_serial_log_endpoint():
+    """Return the last raw serial lines for preview."""
+    try:
+        return {"lines": get_serial_log()}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/api/serial/status")
+async def get_serial_status(db: Session = Depends(get_db)):
+    """Return serial reader status and configured baud rate."""
+    try:
+        from crud import get_setting
+        configured_baud = get_setting(db, "baud_rate", os.getenv("BAUD_RATE", 19200))
+        try:
+            configured_baud = int(configured_baud)
+        except Exception:
+            pass
+        return {
+            "serial_active": is_serial_mode(),
+            "baud_rate": configured_baud
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
