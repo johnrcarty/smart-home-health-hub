@@ -20,7 +20,7 @@ import logoImage from './assets/logo2.png';
 import config from './config';
 import AlertsList from "./components/AlertsList";
 // Import the PulseOxModal component
-import PulseOxModal from "./components/PulseOxModal";
+import AlertsModal from "./components/AlertsModal";
 import EquipmentModal from "./components/EquipmentModal";
 import HistoryModal from "./components/HistoryModal";
 import MedicationModal from "./components/MedicationModal";
@@ -263,7 +263,7 @@ export default function App() {
       closeAllModals();
       setIsPulseOxModalOpen(true);
     }
-    // DON'T clear notifications when clicked - wait for acknowledgment instead
+    // DON'T clear alerts when clicked - wait for acknowledgment instead
   };
 
   const handleSettingsClick = () => {
@@ -373,20 +373,9 @@ export default function App() {
         <div className="menu-container">
           <div className="icon-wrapper">
             <button 
-              className={`menu-button ${isVentModalOpen ? 'active' : ''}`}
-              onClick={handleVentClick}
-              aria-label="Ventilator"
-            >
-              <MinimalistVentIcon />
-              {equipmentDueCount > 0 && <div className="badge">{equipmentDueCount}</div>}
-            </button>
-          </div>
-          
-          <div className="icon-wrapper">
-            <button 
               className={`menu-button ${isPulseOxModalOpen ? 'active' : ''}`}
               onClick={handlePulseOxClick}
-              aria-label="Pulse Oximeter"
+              aria-label="Alerts"
             >
               <MinimalistPulseOxIcon />
               {pulseOxAlerts > 0 && <div className="badge">{pulseOxAlerts}</div>}
@@ -403,6 +392,18 @@ export default function App() {
               {medicationDueCount > 0 && <div className="badge">{medicationDueCount}</div>}
             </button>
           </div>
+          
+          <div className="icon-wrapper">
+            <button 
+              className={`menu-button ${isVentModalOpen ? 'active' : ''}`}
+              onClick={handleVentClick}
+              aria-label="Ventilator"
+            >
+              <MinimalistVentIcon />
+              {equipmentDueCount > 0 && <div className="badge">{equipmentDueCount}</div>}
+            </button>
+          </div>
+          
           <div className="icon-wrapper">
             <button 
               className={`menu-button ${isVitalsModalOpen ? 'active' : ''}`}
@@ -588,9 +589,10 @@ export default function App() {
         />
       )}
 
-      {/* Pulse Oximeter Modal - Example */}
+      {/* Alerts Modal */}
       {isPulseOxModalOpen && (
-        <PulseOxModal
+        <AlertsModal
+          isOpen={isPulseOxModalOpen}
           onClose={() => setIsPulseOxModalOpen(false)}
           alertsCount={pulseOxAlerts}
           onAlertAcknowledged={handleAlertAcknowledged}
