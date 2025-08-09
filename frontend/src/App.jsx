@@ -579,17 +579,14 @@ export default function App() {
         <SettingsForm onClose={() => setIsSettingsModalOpen(false)} />
       )}
 
-      {/* Equipment Modal - fills entire modal space, no inner modal */}
-      <ModalBase
-        isOpen={isVentModalOpen}
-        onClose={() => setIsVentModalOpen(false)}
-        title="Equipment Tracker"
-      >
-        <div className="equipment-tracker-full">
-          {/* Render only the inner equipment tracker UI, not the modal shell */}
-          <EquipmentModal isOpen={true} noModal={true} onClose={() => {}} equipmentDueCount={equipmentDueCount} />
-        </div>
-      </ModalBase>
+      {/* Equipment Modal - use EquipmentModal's own ModalBase */}
+      {isVentModalOpen && (
+        <EquipmentModal 
+          isOpen={isVentModalOpen} 
+          onClose={() => setIsVentModalOpen(false)} 
+          equipmentDueCount={equipmentDueCount} 
+        />
+      )}
 
       {/* Pulse Oximeter Modal - Example */}
       {isPulseOxModalOpen && (

@@ -208,75 +208,6 @@ export default function EquipmentModal({ isOpen, onClose, noModal, equipmentDueC
 
   const renderContent = () => (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ 
-        display: 'flex', 
-        gap: '10px', 
-        marginBottom: '20px',
-        borderBottom: '1px solid #e9ecef',
-        paddingBottom: '10px'
-      }}>
-        <button
-          onClick={() => setTab('list')}
-          style={{
-            padding: '10px 20px',
-            border: 'none',
-            borderRadius: '6px',
-            backgroundColor: tab === 'list' ? '#007bff' : '#f8f9fa',
-            color: tab === 'list' ? '#fff' : '#333',
-            cursor: 'pointer',
-            fontWeight: '500',
-            fontSize: '14px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}
-        >
-          Equipment List
-          {dueCount > 0 && (
-            <span style={{
-              backgroundColor: '#dc3545',
-              color: '#fff',
-              borderRadius: '12px',
-              padding: '2px 8px',
-              fontSize: '12px',
-              fontWeight: 'bold'
-            }}>
-              {dueCount} To Do
-            </span>
-          )}
-        </button>
-        <button
-          onClick={handleHistoryTab}
-          style={{
-            padding: '10px 20px',
-            border: 'none',
-            borderRadius: '6px',
-            backgroundColor: tab === 'history' ? '#007bff' : '#f8f9fa',
-            color: tab === 'history' ? '#fff' : '#333',
-            cursor: 'pointer',
-            fontWeight: '500',
-            fontSize: '14px'
-          }}
-        >
-          History
-        </button>
-        <button
-          onClick={() => setTab('add')}
-          style={{
-            padding: '10px 20px',
-            border: 'none',
-            borderRadius: '6px',
-            backgroundColor: '#28a745',
-            color: '#fff',
-            cursor: 'pointer',
-            fontWeight: '500',
-            fontSize: '14px',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          Add Equipment
-        </button>
-      </div>
       {tab === 'history' ? (
         <div style={{ flex: 1, overflow: 'auto', background: '#fff', borderRadius: 8, padding: 16 }}>
           <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -618,7 +549,70 @@ export default function EquipmentModal({ isOpen, onClose, noModal, equipmentDueC
   }
 
   return (
-    <ModalBase isOpen={isOpen} onClose={onClose} title="Equipment Tracker">
+    <ModalBase isOpen={isOpen} onClose={onClose} title={
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <button
+          onClick={() => setTab('list')}
+          style={{
+            padding: '8px 16px',
+            border: 'none',
+            borderRadius: '6px',
+            backgroundColor: tab === 'list' ? '#007bff' : '#f8f9fa',
+            color: tab === 'list' ? '#fff' : '#333',
+            cursor: 'pointer',
+            fontWeight: '500',
+            fontSize: '14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          Equipment List
+          {dueCount > 0 && (
+            <span style={{
+              backgroundColor: '#dc3545',
+              color: '#fff',
+              borderRadius: '12px',
+              padding: '2px 8px',
+              fontSize: '12px',
+              fontWeight: 'bold'
+            }}>
+              {dueCount} To Do
+            </span>
+          )}
+        </button>
+        <button
+          onClick={handleHistoryTab}
+          style={{
+            padding: '8px 16px',
+            border: 'none',
+            borderRadius: '6px',
+            backgroundColor: tab === 'history' ? '#007bff' : '#f8f9fa',
+            color: tab === 'history' ? '#fff' : '#333',
+            cursor: 'pointer',
+            fontWeight: '500',
+            fontSize: '14px'
+          }}
+        >
+          History
+        </button>
+        <button
+          onClick={() => setTab('add')}
+          style={{
+            padding: '8px 16px',
+            border: 'none',
+            borderRadius: '6px',
+            backgroundColor: '#28a745',
+            color: '#fff',
+            cursor: 'pointer',
+            fontWeight: '500',
+            fontSize: '14px'
+          }}
+        >
+          Add Equipment
+        </button>
+      </div>
+    }>
       {renderContent()}
     </ModalBase>
   );

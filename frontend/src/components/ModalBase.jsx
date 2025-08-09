@@ -31,7 +31,7 @@ const ModalBase = ({ isOpen, onClose, title, children }) => {
 ModalBase.propTypes = {
   isOpen: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
-  title: PropTypes.string.isRequired,
+  title: PropTypes.oneOfType([PropTypes.string, PropTypes.node]).isRequired,
   children: PropTypes.node.isRequired
 };
 
