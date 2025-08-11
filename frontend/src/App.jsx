@@ -14,7 +14,8 @@ import {
   MinimalistPulseOxIcon, 
   ClipboardIcon, 
   HistoryIcon,
-  MedicationIcon
+  MedicationIcon,
+  CareTasksIcon
 } from "./components/Icons";
 import logoImage from './assets/logo2.png';
 import config from './config';
@@ -24,6 +25,7 @@ import AlertsModal from "./components/AlertsModal";
 import EquipmentModal from "./components/EquipmentModal";
 import HistoryModal from "./components/HistoryModal";
 import MedicationModal from "./components/MedicationModal";
+import CareTaskModal from "./components/CareTaskModal";
 
 export default function App() {
   // Add state for modal
@@ -35,6 +37,7 @@ export default function App() {
   const [pulseOxAlerts, setPulseOxAlerts] = useState(0);
   const [equipmentDueCount, setEquipmentDueCount] = useState(0);
   const [medicationDueCount, setMedicationDueCount] = useState(0);
+  const [careTaskDueCount, setCareTaskDueCount] = useState(0);
 
   const [sensorValues, setSensorValues] = useState({
     spo2: null,
@@ -199,6 +202,7 @@ export default function App() {
   const [isVitalsModalOpen, setIsVitalsModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isMedicationModalOpen, setIsMedicationModalOpen] = useState(false);
+  const [isCareTaskModalOpen, setIsCareTaskModalOpen] = useState(false);
   const [isAlarmActive, setIsAlarmActive] = useState(false);
   const [isAlarmBlinking, setIsAlarmBlinking] = useState(false);
   const alarmBlinkInterval = useRef(null);
@@ -238,6 +242,7 @@ export default function App() {
     setIsVitalsModalOpen(false);
     setIsHistoryModalOpen(false);
     setIsMedicationModalOpen(false);
+    setIsCareTaskModalOpen(false);
   };
 
   // Add handler functions
@@ -303,6 +308,15 @@ export default function App() {
     } else {
       closeAllModals();
       setIsMedicationModalOpen(true);
+    }
+  };
+
+  const handleCareTaskClick = () => {
+    if (isCareTaskModalOpen) {
+      setIsCareTaskModalOpen(false);
+    } else {
+      closeAllModals();
+      setIsCareTaskModalOpen(true);
     }
   };
 
@@ -390,6 +404,17 @@ export default function App() {
             >
               <MedicationIcon />
               {medicationDueCount > 0 && <div className="badge">{medicationDueCount}</div>}
+            </button>
+          </div>
+          
+          <div className="icon-wrapper">
+            <button 
+              className={`menu-button ${isCareTaskModalOpen ? 'active' : ''}`}
+              onClick={handleCareTaskClick}
+              aria-label="Care Tasks"
+            >
+              <CareTasksIcon />
+              {careTaskDueCount > 0 && <div className="badge">{careTaskDueCount}</div>}
             </button>
           </div>
           
@@ -622,6 +647,11 @@ export default function App() {
       {/* Medication Modal */}
       {isMedicationModalOpen && (
         <MedicationModal onClose={() => setIsMedicationModalOpen(false)} />
+      )}
+
+      {/* Care Task Modal */}
+      {isCareTaskModalOpen && (
+        <CareTaskModal onClose={() => setIsCareTaskModalOpen(false)} />
       )}
     </div>
   );

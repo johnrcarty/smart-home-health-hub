@@ -191,3 +191,86 @@ class MedicationLog(Base):
     # Relationships
     medication = relationship('Medication', back_populates='administration_logs')
     schedule = relationship('MedicationSchedule', back_populates='administration_logs')
+
+class CareTaskCategory(Base):
+    __tablename__ = 'care_task_category'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False, unique=True)
+    description = Column(Text, nullable=True)
+    color = Column(String, nullable=True)  # Hex color code for category display
+    is_default = Column(Boolean, default=False, nullable=False)  # True for non-deletable default categories
+    active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    updated_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    
+    # Relationships
+    care_tasks = relationship('CareTask', back_populates='category')
+
+class CareTask(Base):
+    __tablename__ = 'care_task'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    category_id = Column(Integer, ForeignKey('care_task_category.id'), nullable=True)  # Reference to category
+    active = Column(Boolean, default=True)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    updated_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    
+    # Relationships
+    category = relationship('CareTaskCategory', back_populates='care_tasks')
+    schedules = relationship('CareTaskSchedule', back_populates='care_task', cascade='all, delete-orphan')
+    completion_logs = relationship('CareTaskLog', back_populates='care_task', cascade='all, delete-orphan')
+
+class CareTaskSchedule(Base):
+    __tablename__ = 'care_task_schedule'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    care_task_id = Column(Integer, ForeignKey('care_task.id'), nullable=False)
+    
+    # Cron expression for scheduling (e.g., "30 8 * * 1,3,5" for Mon/Wed/Fri at 8:30 AM)
+    cron_expression = Column(String, nullable=False)
+    
+    # Human-readable description of the schedule (optional, for display purposes)
+    description = Column(String, nullable=True)
+    
+    # Active indicator - allows users to temporarily disable schedules
+    active = Column(Boolean, default=True, nullable=False)
+    
+    # Optional notes for this specific schedule
+    notes = Column(Text, nullable=True)
+    
+    # Timestamps
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    updated_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    
+    # Relationships
+    care_task = relationship('CareTask', back_populates='schedules')
+    completion_logs = relationship('CareTaskLog', back_populates='schedule')
+
+class CareTaskLog(Base):
+    __tablename__ = 'care_task_log'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    care_task_id = Column(Integer, ForeignKey('care_task.id'), nullable=False)
+    schedule_id = Column(Integer, ForeignKey('care_task_schedule.id'), nullable=True)  # Null if completed without schedule
+    
+    # Completion details
+    completed_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    
+    # Schedule tracking (only relevant if schedule_id is not null)
+    is_scheduled = Column(Boolean, default=False, nullable=False)  # True if this was a scheduled task
+    scheduled_time = Column(TIMESTAMP(timezone=True), nullable=True)  # The originally scheduled time for this task
+    completed_early = Column(Boolean, default=False, nullable=False)  # True if completed before scheduled time
+    completed_late = Column(Boolean, default=False, nullable=False)   # True if completed after scheduled time
+    
+    # Task completion status
+    status = Column(String, default='completed', nullable=False)  # completed, skipped, partial
+    
+    # Optional details
+    notes = Column(Text, nullable=True)  # Any notes about this completion
+    completed_by = Column(String, nullable=True)  # Who completed it (optional)
+    
+    # Timestamps
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    
+    # Relationships
+    care_task = relationship('CareTask', back_populates='completion_logs')
+    schedule = relationship('CareTaskSchedule', back_populates='completion_logs')

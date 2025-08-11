@@ -27,7 +27,7 @@ from state_manager import reset_sensor_state
 import logging
 from fastapi.responses import JSONResponse
 from db import get_db
-from crud import add_medication, get_active_medications, get_inactive_medications, update_medication, delete_medication, add_medication_schedule, get_medication_schedules, get_all_medication_schedules, update_medication_schedule, delete_medication_schedule, toggle_medication_schedule_active, get_daily_medication_schedule
+from crud import add_medication, get_active_medications, get_inactive_medications, update_medication, delete_medication, add_medication_schedule, get_medication_schedules, get_all_medication_schedules, update_medication_schedule, delete_medication_schedule, toggle_medication_schedule_active, get_daily_medication_schedule, add_care_task, get_active_care_tasks, get_inactive_care_tasks, update_care_task, delete_care_task, add_care_task_schedule, get_care_task_schedules, get_all_care_task_schedules, update_care_task_schedule, delete_care_task_schedule, toggle_care_task_schedule_active, get_daily_care_task_schedule, add_care_task_category, get_care_task_categories, update_care_task_category, delete_care_task_category
 
 load_dotenv()
 
@@ -971,6 +971,308 @@ async def get_medication_names_endpoint(db: Session = Depends(get_db)):
         )
 
 
+# Care Task Endpoints
+
+@app.post("/api/add/care-task")
+async def api_add_care_task(data: dict = Body(...), db: Session = Depends(get_db)):
+    """Add a new care task"""
+    try:
+        task_id = add_care_task(
+            db=db,
+            name=data.get("name"),
+            description=data.get("description"),
+            category_id=data.get("category_id"),
+            active=data.get("active", True)
+        )
+        if task_id:
+            return {"message": "Care task added successfully", "id": task_id}
+        else:
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Failed to add care task"}
+            )
+    except Exception as e:
+        logger.error(f"Error adding care task: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error adding care task: {str(e)}"}
+        )
+
+@app.get("/api/care-tasks/active")
+async def get_active_care_tasks_endpoint(db: Session = Depends(get_db)):
+    """Get all active care tasks with their schedules"""
+    try:
+        care_tasks = get_active_care_tasks(db)
+        return {"care_tasks": care_tasks}
+    except Exception as e:
+        logger.error(f"Error getting active care tasks: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error retrieving active care tasks: {str(e)}"}
+        )
+
+@app.get("/api/care-tasks/inactive")
+async def get_inactive_care_tasks_endpoint(db: Session = Depends(get_db)):
+    """Get all inactive care tasks with their schedules"""
+    try:
+        care_tasks = get_inactive_care_tasks(db)
+        return {"care_tasks": care_tasks}
+    except Exception as e:
+        logger.error(f"Error getting inactive care tasks: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error retrieving inactive care tasks: {str(e)}"}
+        )
+
+@app.put("/api/care-tasks/{task_id}")
+async def update_care_task_endpoint(task_id: int, data: dict = Body(...), db: Session = Depends(get_db)):
+    """Update an existing care task"""
+    try:
+        success = update_care_task(db, task_id, **data)
+        if success:
+            return {"message": "Care task updated successfully"}
+        else:
+            return JSONResponse(
+                status_code=404,
+                content={"detail": "Care task not found"}
+            )
+    except Exception as e:
+        logger.error(f"Error updating care task {task_id}: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error updating care task: {str(e)}"}
+        )
+
+@app.delete("/api/care-tasks/{task_id}")
+async def delete_care_task_endpoint(task_id: int, db: Session = Depends(get_db)):
+    """Delete (deactivate) a care task"""
+    try:
+        success = delete_care_task(db, task_id)
+        if success:
+            return {"message": "Care task deleted successfully"}
+        else:
+            return JSONResponse(
+                status_code=404,
+                content={"detail": "Care task not found"}
+            )
+    except Exception as e:
+        logger.error(f"Error deleting care task {task_id}: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error deleting care task: {str(e)}"}
+        )
+
+@app.post("/api/care-tasks/{task_id}/toggle-active")
+async def toggle_care_task_active_endpoint(task_id: int, db: Session = Depends(get_db)):
+    """Toggle active status of a care task"""
+    try:
+        # Get current task
+        care_tasks = get_active_care_tasks(db) + get_inactive_care_tasks(db)
+        task = next((t for t in care_tasks if t['id'] == task_id), None)
+        
+        if not task:
+            return JSONResponse(
+                status_code=404,
+                content={"detail": "Care task not found"}
+            )
+        
+        # Toggle active status
+        new_active_status = not task['active']
+        success = update_care_task(db, task_id, active=new_active_status)
+        
+        if success:
+            return {"message": f"Care task {'activated' if new_active_status else 'deactivated'} successfully"}
+        else:
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Failed to toggle care task status"}
+            )
+    except Exception as e:
+        logger.error(f"Error toggling care task {task_id}: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error toggling care task status: {str(e)}"}
+        )
+
+# Care Task Schedule Endpoints
+
+@app.post("/api/add/care-task-schedule/{care_task_id}")
+async def api_add_care_task_schedule(
+    care_task_id: int, 
+    data: dict = Body(...), 
+    db: Session = Depends(get_db)
+):
+    """Add a schedule to a care task"""
+    try:
+        schedule_id = add_care_task_schedule(
+            db=db,
+            care_task_id=care_task_id,
+            cron_expression=data.get("cron_expression"),
+            description=data.get("description"),
+            active=data.get("active", True),
+            notes=data.get("notes")
+        )
+        if schedule_id:
+            return {"message": "Care task schedule added successfully", "schedule_id": schedule_id}
+        else:
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Failed to add care task schedule"}
+            )
+    except Exception as e:
+        logger.error(f"Error adding care task schedule: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error adding care task schedule: {str(e)}"}
+        )
+
+@app.get("/api/care-tasks/{care_task_id}/schedules")
+async def get_care_task_schedules_endpoint(care_task_id: int, db: Session = Depends(get_db)):
+    """Get all schedules for a specific care task"""
+    try:
+        schedules = get_care_task_schedules(db, care_task_id)
+        return {"schedules": schedules}
+    except Exception as e:
+        logger.error(f"Error getting care task schedules: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error retrieving care task schedules: {str(e)}"}
+        )
+
+@app.get("/api/care-task-schedules")
+async def get_all_care_task_schedules_endpoint(active_only: bool = True, db: Session = Depends(get_db)):
+    """Get all care task schedules"""
+    try:
+        schedules = get_all_care_task_schedules(db, active_only)
+        return {"schedules": schedules}
+    except Exception as e:
+        logger.error(f"Error getting all care task schedules: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error retrieving care task schedules: {str(e)}"}
+        )
+
+@app.get("/api/care-task-schedules/daily")
+async def get_daily_care_task_schedule_endpoint(db: Session = Depends(get_db)):
+    """Get today's care task schedule"""
+    try:
+        schedule = get_daily_care_task_schedule(db)
+        return schedule
+    except Exception as e:
+        logger.error(f"Error getting daily care task schedule: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error retrieving daily care task schedule: {str(e)}"}
+        )
+
+@app.post("/api/care-tasks/{task_id}/complete")
+async def complete_care_task_endpoint(task_id: int, data: dict = Body(...), db: Session = Depends(get_db)):
+    """Complete a care task"""
+    try:
+        from crud import complete_care_task
+        log_id = complete_care_task(
+            db=db,
+            task_id=task_id,
+            schedule_id=data.get("schedule_id"),
+            scheduled_time=data.get("scheduled_time"),
+            notes=data.get("notes"),
+            status=data.get("status", "completed")
+        )
+        if log_id:
+            return {"message": "Care task completed successfully", "log_id": log_id}
+        else:
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Failed to complete care task"}
+            )
+    except Exception as e:
+        logger.error(f"Error completing care task {task_id}: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error completing care task: {str(e)}"}
+        )
+
+
+# Care Task Category Endpoints
+
+@app.post("/api/add/care-task-category")
+async def api_add_care_task_category(data: dict = Body(...), db: Session = Depends(get_db)):
+    """Add a new care task category"""
+    try:
+        category_id = add_care_task_category(
+            db=db,
+            name=data.get("name"),
+            description=data.get("description"),
+            color=data.get("color"),
+            is_default=data.get("is_default", False),
+            active=data.get("active", True)
+        )
+        if category_id:
+            return {"message": "Care task category added successfully", "id": category_id}
+        else:
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Failed to add care task category"}
+            )
+    except Exception as e:
+        logger.error(f"Error adding care task category: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error adding care task category: {str(e)}"}
+        )
+
+@app.get("/api/care-task-categories")
+async def get_care_task_categories_endpoint(active_only: bool = True, db: Session = Depends(get_db)):
+    """Get all care task categories"""
+    try:
+        categories = get_care_task_categories(db, active_only)
+        return {"categories": categories}
+    except Exception as e:
+        logger.error(f"Error getting care task categories: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error retrieving care task categories: {str(e)}"}
+        )
+
+@app.put("/api/care-task-categories/{category_id}")
+async def update_care_task_category_endpoint(category_id: int, data: dict = Body(...), db: Session = Depends(get_db)):
+    """Update an existing care task category"""
+    try:
+        success = update_care_task_category(db, category_id, **data)
+        if success:
+            return {"message": "Care task category updated successfully"}
+        else:
+            return JSONResponse(
+                status_code=404,
+                content={"detail": "Care task category not found"}
+            )
+    except Exception as e:
+        logger.error(f"Error updating care task category {category_id}: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error updating care task category: {str(e)}"}
+        )
+
+@app.delete("/api/care-task-categories/{category_id}")
+async def delete_care_task_category_endpoint(category_id: int, db: Session = Depends(get_db)):
+    """Delete a care task category (only if not default and no tasks assigned)"""
+    try:
+        success = delete_care_task_category(db, category_id)
+        if success:
+            return {"message": "Care task category deleted successfully"}
+        else:
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "Cannot delete category: either it's a default category or has tasks assigned"}
+            )
+    except Exception as e:
+        logger.error(f"Error deleting care task category {category_id}: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error deleting care task category: {str(e)}"}
+        )
+
+
 # MQTT Settings Endpoints
 @app.get("/api/mqtt/settings")
 async def get_mqtt_settings(db: Session = Depends(get_db)):
@@ -1301,3 +1603,76 @@ async def get_serial_status(db: Session = Depends(get_db)):
         }
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+# Pulse Ox History Analysis Endpoints
+
+@app.get("/api/monitoring/history/dates")
+async def get_available_dates(db: Session = Depends(get_db)):
+    """Get list of dates that have pulse ox data"""
+    from crud import get_available_pulse_ox_dates
+    try:
+        dates = get_available_pulse_ox_dates(db)
+        return
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving available dates: {str(e)}")
+
+
+@app.get("/api/monitoring/history/analyze/{date}")
+async def analyze_pulse_ox_history(date: str, db: Session = Depends(get_db)):
+    """Analyze pulse ox data for a specific date"""
+    from crud import analyze_pulse_ox_day
+    try:
+        # Validate date format
+        from datetime import datetime
+        try:
+            datetime.strptime(date, '%Y-%m-%d')
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+        
+        analysis = analyze_pulse_ox_day(db, date)
+        return analysis
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error analyzing pulse ox data: {str(e)}")
+
+
+@app.get("/api/monitoring/history/raw/{date}")
+async def get_raw_pulse_ox_data(date: str, db: Session = Depends(get_db)):
+    """Get raw pulse ox data for a specific date"""
+    from crud import get_pulse_ox_data_by_date
+    try:
+        # Validate date format
+        from datetime import datetime
+        try:
+            datetime.strptime(date, '%Y-%m-%d')
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+        
+        data = get_pulse_ox_data_by_date(db, date)
+        
+        # Convert to dictionaries for JSON response
+        result = []
+        for reading in data:
+            result.append({
+                'id': reading.id,
+                'timestamp': reading.timestamp.isoformat() if reading.timestamp else None,
+                'spo2': reading.spo2,
+                'bpm': reading.bpm,
+                'pa': reading.pa,
+                'status': reading.status,
+                'motion': reading.motion,
+                'spo2_alarm': reading.spo2_alarm,
+                'hr_alarm': reading.hr_alarm
+            })
+        
+        return {
+            'date': date,
+            'readings': result,
+            'count': len(result)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving raw pulse ox data: {str(e)}")

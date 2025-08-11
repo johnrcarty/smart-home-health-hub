@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import ModalBase from './ModalBase';
 import AlertsList from './alerts/AlertsList';
+import AlertsHistory from './alerts/AlertsHistory';
 
 export default function AlertsModal({ isOpen, onClose, alertsCount, onAlertAcknowledged }) {
   const [tab, setTab] = useState('list');
@@ -21,13 +22,11 @@ export default function AlertsModal({ isOpen, onClose, alertsCount, onAlertAckno
   const renderContent = () => {
     switch (tab) {
       case 'list':
+        return <AlertsList onAlertAcknowledge={handleAlertAcknowledge} />;
+      case 'history':
+        return <AlertsHistory />;
       default:
         return <AlertsList onAlertAcknowledge={handleAlertAcknowledge} />;
-      // Future tabs can be added here
-      // case 'analytics':
-      //   return <AlertAnalytics />;
-      // case 'settings':
-      //   return <AlertSettings />;
     }
   };
 
@@ -70,6 +69,21 @@ export default function AlertsModal({ isOpen, onClose, alertsCount, onAlertAckno
               {alertsCount}
             </span>
           )}
+        </button>
+        <button
+          onClick={() => setTab('history')}
+          style={{
+            padding: '8px 16px',
+            border: 'none',
+            borderRadius: '6px',
+            backgroundColor: tab === 'history' ? '#007bff' : '#f8f9fa',
+            color: tab === 'history' ? '#fff' : '#333',
+            cursor: 'pointer',
+            fontWeight: '500',
+            fontSize: '14px'
+          }}
+        >
+          History
         </button>
         {/* Future navigation tabs can be added here */}
         {/* 

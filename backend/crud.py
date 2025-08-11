@@ -5,7 +5,8 @@ from croniter import croniter
 from sqlalchemy.orm import Session
 from db import get_db
 from models import (BloodPressure, Temperature, Vital, Setting, PulseOxData,
-    MonitoringAlert, Equipment, EquipmentChangeLog, VentilatorAlert, ExternalAlarm, Medication, MedicationSchedule, MedicationLog)
+    MonitoringAlert, Equipment, EquipmentChangeLog, VentilatorAlert, ExternalAlarm, 
+    Medication, MedicationSchedule, MedicationLog, CareTask, CareTaskSchedule, CareTaskLog, CareTaskCategory)
 
 logger = logging.getLogger('crud')
 
@@ -1754,3 +1755,773 @@ def get_medication_names_for_dropdown(db: Session):
     except Exception as e:
         logger.error(f"Error getting medication names for dropdown: {e}")
         return []
+def save_pulse_ox_batch(db: Session, data_points):
+    """
+    Save a batch of pulse oximeter readings to database
+
+    Args:
+        db (Session): Database session
+        data_points (list): List of pulse ox data dictionaries
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        now = datetime.now().isoformat()
+        
+        for data_point in data_points:
+            pulse_ox = PulseOxData(
+                timestamp=data_point['timestamp'],
+                spo2=data_point['spo2'],
+                bpm=data_point['bpm'],
+                pa=data_point.get('perfusion'),
+                status=data_point.get('status'),
+                motion=data_point.get('motion'),
+                spo2_alarm=data_point.get('spo2_alarm'),
+                hr_alarm=data_point.get('hr_alarm'),
+                raw_data=data_point.get('raw_data'),
+                created_at=now
+            )
+            db.add(pulse_ox)
+        
+        db.commit()
+        logger.info(f"Batch saved {len(data_points)} pulse ox readings")
+        return True
+    except Exception as e:
+        logger.error(f"Error saving pulse ox batch: {e}")
+        db.rollback()
+        return False
+
+
+def get_pulse_ox_data_by_date(db: Session, date_str):
+    """
+    Get all pulse ox data for a specific date
+
+    Args:
+        db (Session): Database session
+        date_str (str): Date string in YYYY-MM-DD format
+
+    Returns:
+        list: List of pulse ox readings for the date
+    """
+    try:
+        # Parse the date and create start/end datetime objects
+        from datetime import datetime, time
+        date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+        start_datetime = datetime.combine(date_obj, time.min)
+        end_datetime = datetime.combine(date_obj, time.max)
+        
+        data = db.query(PulseOxData).filter(
+            PulseOxData.timestamp >= start_datetime,
+            PulseOxData.timestamp <= end_datetime
+        ).order_by(PulseOxData.timestamp.asc()).all()
+        
+        return data
+    except Exception as e:
+        logger.error(f"Error getting pulse ox data for date {date_str}: {e}")
+        return []
+
+
+def analyze_pulse_ox_day(db: Session, date_str):
+    """
+    Analyze pulse ox data for a specific day and return SpO2 distribution
+
+    Args:
+        db (Session): Database session
+        date_str (str): Date string in YYYY-MM-DD format
+
+    Returns:
+        dict: Analysis results including time logged, SpO2 distribution, etc.
+    """
+    try:
+        data = get_pulse_ox_data_by_date(db, date_str)
+        
+        if not data:
+            return {
+                'date': date_str,
+                'total_readings': 0,
+                'time_logged_minutes': 0,
+                'spo2_distribution': {},
+                'avg_spo2': None,
+                'min_spo2': None,
+                'max_spo2': None,
+                'avg_bpm': None,
+                'min_bpm': None,
+                'max_bpm': None
+            }
+        
+        # Filter out None values and 0 values for SpO2 (0 indicates sensor error)
+        valid_spo2_readings = [reading for reading in data if reading.spo2 is not None and reading.spo2 > 0]
+        valid_bpm_readings = [reading for reading in data if reading.bpm is not None and reading.bpm > 0]
+        
+        # Count zero/error readings for reporting
+        zero_spo2_readings = [reading for reading in data if reading.spo2 is not None and reading.spo2 == 0]
+        zero_bpm_readings = [reading for reading in data if reading.bpm is not None and reading.bpm == 0]
+        
+        # Calculate time logged (assume readings every ~5 seconds, so multiply by 5 and convert to minutes)
+        time_logged_minutes = (len(data) * 5) / 60
+        
+        # Categorize SpO2 readings - Full breakdown
+        spo2_distribution = {
+            'high_90s_97_plus': 0,     # 97+
+            'mid_90s_94_96': 0,        # 94-96
+            'low_90s_90_93': 0,        # 90-93
+            'high_eighties_85_89': 0,  # 85-89
+            'low_eighties_80_84': 0,   # 80-84
+            'seventies_70_79': 0,      # 70-79
+            'sixties_60_69': 0,        # 60-69
+            'fifties_50_59': 0,        # 50-59
+            'forties_40_49': 0,        # 40-49
+            'thirties_30_39': 0,       # 30-39
+            'twenties_20_29': 0,       # 20-29
+            'below_twenty': 0,         # <20 but >0
+            'zero_errors': 0           # 0 (errors)
+        }
+        
+        for reading in valid_spo2_readings:
+            spo2 = reading.spo2
+            if spo2 >= 97:
+                spo2_distribution['high_90s_97_plus'] += 1
+            elif spo2 >= 94:
+                spo2_distribution['mid_90s_94_96'] += 1
+            elif spo2 >= 90:
+                spo2_distribution['low_90s_90_93'] += 1
+            elif spo2 >= 85:
+                spo2_distribution['high_eighties_85_89'] += 1
+            elif spo2 >= 80:
+                spo2_distribution['low_eighties_80_84'] += 1
+            elif spo2 >= 70:
+                spo2_distribution['seventies_70_79'] += 1
+            elif spo2 >= 60:
+                spo2_distribution['sixties_60_69'] += 1
+            elif spo2 >= 50:
+                spo2_distribution['fifties_50_59'] += 1
+            elif spo2 >= 40:
+                spo2_distribution['forties_40_49'] += 1
+            elif spo2 >= 30:
+                spo2_distribution['thirties_30_39'] += 1
+            elif spo2 >= 20:
+                spo2_distribution['twenties_20_29'] += 1
+            else:
+                spo2_distribution['below_twenty'] += 1  # Values below 20 but >0
+        
+        # Count zero/error readings separately
+        spo2_distribution['zero_errors'] = len(zero_spo2_readings)
+        
+        # Convert counts to percentages
+        total_all_readings = len(valid_spo2_readings) + len(zero_spo2_readings)
+        if total_all_readings > 0:
+            for key in spo2_distribution:
+                spo2_distribution[key] = {
+                    'count': spo2_distribution[key],
+                    'percentage': round((spo2_distribution[key] / total_all_readings) * 100, 2)
+                }
+        
+        # Calculate basic statistics (excluding zero/error readings for averages)
+        spo2_values = [r.spo2 for r in valid_spo2_readings]
+        bpm_values = [r.bpm for r in valid_bpm_readings]
+        
+        result = {
+            'date': date_str,
+            'total_readings': len(data),
+            'valid_spo2_readings': len(valid_spo2_readings),
+            'valid_bpm_readings': len(valid_bpm_readings),
+            'error_spo2_readings': len(zero_spo2_readings),
+            'error_bpm_readings': len(zero_bpm_readings),
+            'time_logged_minutes': round(time_logged_minutes, 1) if time_logged_minutes else 0,
+            'time_logged_hours': round(time_logged_minutes / 60, 2) if time_logged_minutes else 0,
+            'spo2_distribution': spo2_distribution,
+            'avg_spo2': round(sum(spo2_values) / len(spo2_values), 1) if spo2_values else None,
+            'min_spo2': min(spo2_values) if spo2_values else None,
+            'max_spo2': max(spo2_values) if spo2_values else None,
+            'avg_bpm': round(sum(bpm_values) / len(bpm_values), 1) if bpm_values else None,
+            'min_bpm': min(bpm_values) if bpm_values else None,
+            'max_bpm': max(bpm_values) if bpm_values else None
+        };
+        
+        return result;
+        
+    except Exception as e:
+        logger.error(f"Error analyzing pulse ox data for date {date_str}: {e}")
+        return {
+            'date': date_str,
+            'error': str(e),
+            'total_readings': 0,
+            'time_logged_minutes': 0,
+            'spo2_distribution': {}
+        }
+
+
+def get_available_pulse_ox_dates(db: Session, limit=30):
+    """
+    Get list of dates that have pulse ox data
+
+    Args:
+        db (Session): Database session
+        limit (int): Maximum number of dates to return
+
+    Returns:
+        list: List of dates that have pulse ox data
+    """
+    try:
+        from sqlalchemy import func, distinct
+        
+        # Get distinct dates from pulse ox data
+        dates = db.query(
+            func.date(PulseOxData.timestamp).label('date')
+        ).distinct().order_by(
+            func.date(PulseOxData.timestamp).desc()
+        ).limit(limit).all()
+        
+        return [date.date.strftime('%Y-%m-%d') for date in dates]
+        
+    except Exception as e:
+        logger.error(f"Error getting available pulse ox dates: {e}")
+        return []
+
+# --- CareTask CRUD ---
+
+def add_care_task(db: Session, name, description=None, category_id=None, active=True):
+    """
+    Add a new care task to the database.
+    """
+    from datetime import datetime
+    now = datetime.now()
+    care_task = CareTask(
+        name=name,
+        description=description,
+        category_id=category_id,
+        active=active,
+        created_at=now,
+        updated_at=now
+    )
+    db.add(care_task)
+    db.commit()
+    db.refresh(care_task)
+    logger.info(f"Care task added: {name}")
+    return care_task.id
+
+def get_active_care_tasks(db: Session):
+    """
+    Get all active care tasks with their categories
+    """
+    try:
+        care_tasks = db.query(CareTask).filter(CareTask.active == True).order_by(CareTask.name).all()
+        
+        result = []
+        for task in care_tasks:
+            # Get schedules for this task
+            schedules = get_care_task_schedules(db, task.id)
+            
+            # Get category information
+            category_info = None
+            if task.category_id:
+                category = db.query(CareTaskCategory).filter(CareTaskCategory.id == task.category_id).first()
+                if category:
+                    category_info = {
+                        'id': category.id,
+                        'name': category.name,
+                        'description': category.description
+                    }
+            
+            result.append({
+                'id': task.id,
+                'name': task.name,
+                'description': task.description,
+                'category_id': task.category_id,
+                'category': category_info,
+                'active': task.active,
+                'created_at': task.created_at,
+                'updated_at': task.updated_at,
+                'schedules': schedules
+            })
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error getting active care tasks: {e}")
+        return []
+
+def get_inactive_care_tasks(db: Session):
+    """
+    Get all inactive care tasks with their categories
+    """
+    try:
+        care_tasks = db.query(CareTask).filter(CareTask.active == False).order_by(CareTask.name).all()
+        
+        result = []
+        for task in care_tasks:
+            # Get schedules for this task
+            schedules = get_care_task_schedules(db, task.id)
+            
+            # Get category information
+            category_info = None
+            if task.category_id:
+                category = db.query(CareTaskCategory).filter(CareTaskCategory.id == task.category_id).first()
+                if category:
+                    category_info = {
+                        'id': category.id,
+                        'name': category.name,
+                        'description': category.description
+                    }
+            
+            result.append({
+                'id': task.id,
+                'name': task.name,
+                'description': task.description,
+                'category_id': task.category_id,
+                'category': category_info,
+                'active': task.active,
+                'created_at': task.created_at,
+                'updated_at': task.updated_at,
+                'schedules': schedules
+            })
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error getting inactive care tasks: {e}")
+        return []
+
+def update_care_task(db: Session, task_id, **kwargs):
+    """
+    Update an existing care task
+    """
+    try:
+        care_task = db.query(CareTask).filter(CareTask.id == task_id).first()
+        if care_task:
+            for key, value in kwargs.items():
+                if hasattr(care_task, key):
+                    setattr(care_task, key, value)
+            care_task.updated_at = datetime.now()
+            db.commit()
+            logger.info(f"Care task {task_id} updated")
+            return True
+        return False
+    except Exception as e:
+        logger.error(f"Error updating care task {task_id}: {e}")
+        db.rollback()
+        return False
+
+def delete_care_task(db: Session, task_id):
+    """
+    Delete a care task (soft delete by setting active=False)
+    """
+    try:
+        care_task = db.query(CareTask).filter(CareTask.id == task_id).first()
+        if care_task:
+            care_task.active = False
+            care_task.updated_at = datetime.now()
+            db.commit()
+            logger.info(f"Care task {task_id} deleted (soft delete)")
+            return True
+        return False
+    except Exception as e:
+        logger.error(f"Error deleting care task {task_id}: {e}")
+        db.rollback()
+        return False
+
+# --- CareTaskSchedule CRUD ---
+
+def add_care_task_schedule(db: Session, care_task_id, cron_expression, description=None, active=True, notes=None):
+    """
+    Add a new care task schedule
+    """
+    try:
+        now = datetime.now()
+        schedule = CareTaskSchedule(
+            care_task_id=care_task_id,
+            cron_expression=cron_expression,
+            description=description,
+            active=active,
+            notes=notes,
+            created_at=now,
+            updated_at=now
+        )
+        db.add(schedule)
+        db.commit()
+        db.refresh(schedule)
+        logger.info(f"Care task schedule added for task {care_task_id}: {cron_expression}")
+        return schedule.id
+    except Exception as e:
+        logger.error(f"Error adding care task schedule: {e}")
+        db.rollback()
+        return None
+
+def get_care_task_schedules(db: Session, care_task_id):
+    """
+    Get all schedules for a specific care task
+    """
+    try:
+        schedules = db.query(CareTaskSchedule).filter(
+            CareTaskSchedule.care_task_id == care_task_id
+        ).order_by(CareTaskSchedule.created_at.desc()).all()
+        
+        return [
+            {
+                'id': s.id,
+                'care_task_id': s.care_task_id,
+                'cron_expression': s.cron_expression,
+                'description': s.description,
+                'active': s.active,
+                'notes': s.notes,
+                'created_at': s.created_at,
+                'updated_at': s.updated_at
+            } for s in schedules
+        ]
+        
+    except Exception as e:
+        logger.error(f"Error getting care task schedules: {e}")
+        return []
+
+def get_all_care_task_schedules(db: Session, active_only=True):
+    """
+    Get all care task schedules with care task details
+    """
+    try:
+        query = db.query(CareTaskSchedule).join(CareTask)
+        if active_only:
+            query = query.filter(CareTaskSchedule.active == True, CareTask.active == True)
+        
+        schedules = query.order_by(CareTaskSchedule.created_at.desc()).all()
+        
+        return [
+            {
+                'id': s.id,
+                'care_task_id': s.care_task_id,
+                'care_task_name': s.care_task.name,
+                'care_task_description': s.care_task.description,
+                'care_task_group': s.care_task.group,
+                'cron_expression': s.cron_expression,
+                'description': s.description,
+                'active': s.active,
+                'notes': s.notes,
+                'created_at': s.created_at,
+                'updated_at': s.updated_at
+            } for s in schedules
+        ]
+        
+    except Exception as e:
+        logger.error(f"Error getting all care task schedules: {e}")
+        return []
+
+def update_care_task_schedule(db: Session, schedule_id, **kwargs):
+    """
+    Update an existing care task schedule
+    """
+    try:
+        schedule = db.query(CareTaskSchedule).filter(CareTaskSchedule.id == schedule_id).first()
+        if schedule:
+            for key, value in kwargs.items():
+                if hasattr(schedule, key):
+                    setattr(schedule, key, value)
+            schedule.updated_at = datetime.now()
+            db.commit()
+            logger.info(f"Care task schedule {schedule_id} updated")
+            return True
+        return False
+    except Exception as e:
+        logger.error(f"Error updating care task schedule {schedule_id}: {e}")
+        db.rollback()
+        return False
+
+def delete_care_task_schedule(db: Session, schedule_id):
+    """
+    Delete a care task schedule
+    """
+    try:
+        schedule = db.query(CareTaskSchedule).filter(CareTaskSchedule.id == schedule_id).first()
+        if schedule:
+            db.delete(schedule)
+            db.commit()
+            logger.info(f"Care task schedule {schedule_id} deleted")
+            return True
+        return False
+    except Exception as e:
+        logger.error(f"Error deleting care task schedule {schedule_id}: {e}")
+        db.rollback()
+        return False
+
+def toggle_care_task_schedule_active(db: Session, schedule_id):
+    """
+    Toggle the active status of a care task schedule
+    """
+    try:
+        schedule = db.query(CareTaskSchedule).filter(CareTaskSchedule.id == schedule_id).first()
+        if schedule:
+            schedule.active = not schedule.active
+            schedule.updated_at = datetime.now()
+            db.commit()
+            logger.info(f"Care task schedule {schedule_id} active status toggled to {schedule.active}")
+            return schedule.active
+        return None
+    except Exception as e:
+        logger.error(f"Error toggling care task schedule {schedule_id}: {e}")
+        db.rollback()
+        return None
+
+def get_daily_care_task_schedule(db: Session):
+    """
+    Get today's care task schedule with timing information
+    """
+    try:
+        from datetime import datetime, date
+        from croniter import croniter
+        
+        # Get all active schedules
+        schedules = get_all_care_task_schedules(db, active_only=True)
+        
+        today = date.today()
+        scheduled_tasks = []
+        
+        for schedule in schedules:
+            try:
+                cron = croniter(schedule['cron_expression'], datetime.combine(today, datetime.min.time()))
+                
+                # Get all scheduled times for today
+                scheduled_times = []
+                current_time = datetime.combine(today, datetime.min.time())
+                end_time = datetime.combine(today, datetime.max.time())
+                
+                while current_time <= end_time:
+                    next_time = cron.get_next(datetime)
+                    if next_time.date() == today:
+                        scheduled_times.append(next_time)
+                        current_time = next_time
+                    else:
+                        break
+                
+                for scheduled_time in scheduled_times:
+                    scheduled_tasks.append({
+                        'schedule_id': schedule['id'],
+                        'care_task_id': schedule['care_task_id'],
+                        'care_task_name': schedule['care_task_name'],
+                        'care_task_description': schedule['care_task_description'],
+                        'care_task_group': schedule['care_task_group'],
+                        'scheduled_time': scheduled_time,
+                        'cron_expression': schedule['cron_expression'],
+                        'description': schedule['description'],
+                        'notes': schedule['notes']
+                    })
+                    
+            except Exception as e:
+                logger.error(f"Error processing care task schedule {schedule['id']}: {e}")
+                continue
+        
+        # Sort by scheduled time
+        scheduled_tasks.sort(key=lambda x: x['scheduled_time'])
+        
+        return {'scheduled_care_tasks': scheduled_tasks}
+        
+    except Exception as e:
+        logger.error(f"Error getting daily care task schedule: {e}")
+        return {'scheduled_care_tasks': []}
+
+def complete_care_task(db: Session, task_id, schedule_id=None, scheduled_time=None, notes=None, status='completed'):
+    """
+    Log completion of a care task
+    """
+    try:
+        now = datetime.now()
+        
+        # Determine if this was scheduled and timing
+        is_scheduled = schedule_id is not None
+        completed_early = False
+        completed_late = False
+        
+        if is_scheduled and scheduled_time:
+            scheduled_dt = datetime.fromisoformat(scheduled_time.replace('Z', '+00:00')) if isinstance(scheduled_time, str) else scheduled_time
+            time_diff = (now - scheduled_dt).total_seconds() / 60  # difference in minutes
+            
+            if time_diff < -5:  # More than 5 minutes early
+                completed_early = True
+            elif time_diff > 15:  # More than 15 minutes late
+                completed_late = True
+        
+        care_task_log = CareTaskLog(
+            care_task_id=task_id,
+            schedule_id=schedule_id,
+            completed_at=now,
+            is_scheduled=is_scheduled,
+            scheduled_time=scheduled_time,
+            completed_early=completed_early,
+            completed_late=completed_late,
+            status=status,
+            notes=notes,
+            created_at=now
+        )
+        
+        db.add(care_task_log)
+        db.commit()
+        db.refresh(care_task_log)
+        
+        logger.info(f"Care task {task_id} completed with status {status}")
+        return care_task_log.id
+        
+    except Exception as e:
+        logger.error(f"Error completing care task {task_id}: {e}")
+        db.rollback()
+        return None
+
+def get_care_task_history(db: Session, limit=25, task_name=None, start_date=None, end_date=None, status_filter=None):
+    """
+    Get care task completion history with filtering options
+    """
+    try:
+        query = db.query(CareTaskLog).join(CareTask)
+        
+        # Apply filters
+        if task_name:
+            query = query.filter(CareTask.name.ilike(f'%{task_name}%'))
+        
+        if start_date:
+            start_dt = datetime.fromisoformat(start_date)
+            query = query.filter(CareTaskLog.completed_at >= start_dt)
+        
+        if end_date:
+            end_dt = datetime.fromisoformat(end_date)
+            query = query.filter(CareTaskLog.completed_at <= end_dt)
+        
+        if status_filter and status_filter != 'all':
+            query = query.filter(CareTaskLog.status == status_filter)
+        
+        logs = query.order_by(CareTaskLog.completed_at.desc()).limit(limit).all()
+        
+        return [
+            {
+                'id': log.id,
+                'care_task_id': log.care_task_id,
+                'care_task_name': log.care_task.name,
+                'care_task_description': log.care_task.description,
+                'care_task_group': log.care_task.group,
+                'schedule_id': log.schedule_id,
+                'completed_at': log.completed_at,
+                'is_scheduled': log.is_scheduled,
+                'scheduled_time': log.scheduled_time,
+                'completed_early': log.completed_early,
+                'completed_late': log.completed_late,
+                'status': log.status,
+                'notes': log.notes,
+                'completed_by': log.completed_by,
+                'created_at': log.created_at
+            } for log in logs
+        ]
+        
+    except Exception as e:
+        logger.error(f"Error getting care task history: {e}")
+        return []
+
+def get_care_task_names_for_dropdown(db: Session):
+    """
+    Get distinct care task names for dropdown/autocomplete
+    """
+    try:
+        names = db.query(CareTask.name).filter(CareTask.active == True).distinct().order_by(CareTask.name).all()
+        return [name[0] for name in names]
+    except Exception as e:
+        logger.error(f"Error getting care task names: {e}")
+        return []
+
+# --- CareTaskCategory CRUD ---
+
+def add_care_task_category(db: Session, name, description=None, color=None, is_default=False, active=True):
+    """
+    Add a new care task category to the database.
+    """
+    from datetime import datetime
+    now = datetime.now()
+    category = CareTaskCategory(
+        name=name,
+        description=description,
+        color=color,
+        is_default=is_default,
+        active=active,
+        created_at=now,
+        updated_at=now
+    )
+    db.add(category)
+    db.commit()
+    db.refresh(category)
+    logger.info(f"Care task category added: {name}")
+    return category.id
+
+def get_care_task_categories(db: Session, active_only=True):
+    """
+    Get all care task categories
+    """
+    try:
+        query = db.query(CareTaskCategory)
+        if active_only:
+            query = query.filter(CareTaskCategory.active == True)
+        
+        categories = query.order_by(CareTaskCategory.name).all()
+        
+        result = []
+        for category in categories:
+            result.append({
+                'id': category.id,
+                'name': category.name,
+                'description': category.description,
+                'color': category.color,
+                'is_default': category.is_default,
+                'active': category.active,
+                'created_at': category.created_at,
+                'updated_at': category.updated_at
+            })
+        
+        return result
+    except Exception as e:
+        logger.error(f"Error getting care task categories: {e}")
+        return []
+
+def update_care_task_category(db: Session, category_id, **updates):
+    """
+    Update a care task category
+    """
+    try:
+        from datetime import datetime
+        category = db.query(CareTaskCategory).filter(CareTaskCategory.id == category_id).first()
+        if not category:
+            return False
+        
+        for key, value in updates.items():
+            if hasattr(category, key):
+                setattr(category, key, value)
+        
+        category.updated_at = datetime.now()
+        db.commit()
+        logger.info(f"Care task category {category_id} updated")
+        return True
+    except Exception as e:
+        logger.error(f"Error updating care task category {category_id}: {e}")
+        db.rollback()
+        return False
+
+def delete_care_task_category(db: Session, category_id):
+    """
+    Delete a care task category (only if not default and no tasks assigned)
+    """
+    try:
+        category = db.query(CareTaskCategory).filter(CareTaskCategory.id == category_id).first()
+        if not category:
+            return False
+        
+        # Check if it's a default category
+        if category.is_default:
+            logger.warning(f"Cannot delete default category: {category.name}")
+            return False
+        
+        # Check if any tasks are using this category
+        task_count = db.query(CareTask).filter(CareTask.category_id == category_id).count()
+        if task_count > 0:
+            logger.warning(f"Cannot delete category {category.name}: {task_count} tasks still assigned")
+            return False
+        
+        db.delete(category)
+        db.commit()
+        logger.info(f"Care task category {category.name} deleted")
+        return True
+    except Exception as e:
+        logger.error(f"Error deleting care task category {category_id}: {e}")
+        db.rollback()
+        return False
