@@ -1192,6 +1192,78 @@ async def complete_care_task_endpoint(task_id: int, data: dict = Body(...), db: 
             content={"detail": f"Error completing care task: {str(e)}"}
         )
 
+@app.post("/api/care-task-schedule/{schedule_id}/complete")
+async def complete_care_task_schedule_endpoint(schedule_id: int, data: dict = Body(...), db: Session = Depends(get_db)):
+    """Complete a scheduled care task"""
+    try:
+        from crud import complete_care_task
+        from models import CareTaskSchedule
+        # Get the schedule to find the care task ID
+        schedule = db.query(CareTaskSchedule).filter(CareTaskSchedule.id == schedule_id).first()
+        if not schedule:
+            return JSONResponse(
+                status_code=404,
+                content={"detail": "Schedule not found"}
+            )
+        
+        log_id = complete_care_task(
+            db=db,
+            task_id=schedule.care_task_id,
+            schedule_id=schedule_id,
+            scheduled_time=data.get("scheduled_time"),
+            notes=data.get("notes"),
+            status="completed"
+        )
+        if log_id:
+            return {"message": "Care task completed successfully", "log_id": log_id}
+        else:
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Failed to complete care task"}
+            )
+    except Exception as e:
+        logger.error(f"Error completing care task schedule {schedule_id}: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error completing care task: {str(e)}"}
+        )
+
+@app.post("/api/care-task-schedule/{schedule_id}/skip")
+async def skip_care_task_schedule_endpoint(schedule_id: int, data: dict = Body(...), db: Session = Depends(get_db)):
+    """Skip a scheduled care task"""
+    try:
+        from crud import complete_care_task
+        from models import CareTaskSchedule
+        # Get the schedule to find the care task ID
+        schedule = db.query(CareTaskSchedule).filter(CareTaskSchedule.id == schedule_id).first()
+        if not schedule:
+            return JSONResponse(
+                status_code=404,
+                content={"detail": "Schedule not found"}
+            )
+        
+        log_id = complete_care_task(
+            db=db,
+            task_id=schedule.care_task_id,
+            schedule_id=schedule_id,
+            scheduled_time=data.get("scheduled_time"),
+            notes=data.get("notes", "Task skipped"),
+            status="skipped"
+        )
+        if log_id:
+            return {"message": "Care task skipped successfully", "log_id": log_id}
+        else:
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Failed to skip care task"}
+            )
+    except Exception as e:
+        logger.error(f"Error skipping care task schedule {schedule_id}: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Error skipping care task: {str(e)}"}
+        )
+
 
 # Care Task Category Endpoints
 

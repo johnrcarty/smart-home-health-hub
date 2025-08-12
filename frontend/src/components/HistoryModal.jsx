@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useRef } from "react";
 import config from '../config';
 import ModalBase from './ModalBase';
 import SimpleEventChart from './SimpleEventChart';
+import VitalsForm from './history/VitalsForm';
 import Chart from 'chart.js/auto';
 import 'chartjs-adapter-date-fns';
 
@@ -119,6 +120,18 @@ const HistoryModal = ({ onClose }) => {
   const [pageSize] = useState(20);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('graphs');
+  const [showAddVitals, setShowAddVitals] = useState(false);
+
+  const handleVitalsSubmit = (vitalsData) => {
+    // Handle vitals submission here
+    console.log('Vitals data:', vitalsData);
+    setShowAddVitals(false);
+  };
+
+  const handleCloseVitals = () => {
+    setShowAddVitals(false);
+  };
 
   useEffect(() => {
     fetch(`${config.apiUrl}/api/vitals/types`)
@@ -251,41 +264,122 @@ const HistoryModal = ({ onClose }) => {
   }, [records, selectedType]);
 
   return (
-    <ModalBase isOpen={true} onClose={onClose} title="History">
-      <div className="vital-type-buttons" style={{ 
-        display: 'flex', 
-        gap: '10px', 
-        marginBottom: '20px',
-        flexWrap: 'wrap'
-      }}>
-        {vitalTypes.map((type) => (
+    <ModalBase isOpen={true} onClose={onClose} title={
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ display: 'flex', gap: '12px' }}>
             <button
-              key={type}
-              className={type === selectedType ? "active" : ""}
-              onClick={() => handleTypeSelect(type)}
+              onClick={() => {
+                setActiveTab('graphs');
+                setShowAddVitals(false);
+              }}
               style={{
                 padding: '8px 16px',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                backgroundColor: type === selectedType ? '#007bff' : '#f8f9fa',
-                color: type === selectedType ? '#fff' : '#333',
+                border: 'none',
+                borderRadius: '6px',
+                backgroundColor: activeTab === 'graphs' ? '#007bff' : '#f8f9fa',
+                color: activeTab === 'graphs' ? '#fff' : '#333',
                 cursor: 'pointer',
-                textTransform: 'capitalize'
+                fontWeight: '500',
+                fontSize: '14px'
               }}
             >
-              {type}
+              Graphs
             </button>
-          ))}
+            {/* Placeholder for future tab */}
+            <button
+              onClick={() => {
+                setActiveTab('reports');
+                setShowAddVitals(false);
+              }}
+              style={{
+                padding: '8px 16px',
+                border: 'none',
+                borderRadius: '6px',
+                backgroundColor: activeTab === 'reports' ? '#007bff' : '#f8f9fa',
+                color: activeTab === 'reports' ? '#fff' : '#333',
+                cursor: 'pointer',
+                fontWeight: '500',
+                fontSize: '14px'
+              }}
+            >
+              Reports
+            </button>
+          </div>
         </div>
-        {selectedType && (
-          <>
-            <div className="chart-container" style={{ 
-              height: 300, 
-              margin: "20px 0",
-              background: "#161e2e",
-              borderRadius: "8px",
-              padding: "10px"
+        <div style={{ display: 'flex', gap: '12px', marginLeft: '24px' }}>
+          <button
+            onClick={() => setShowAddVitals(true)}
+            style={{
+              padding: '8px 16px',
+              border: 'none',
+              borderRadius: '6px',
+              backgroundColor: '#28a745',
+              color: '#fff',
+              cursor: 'pointer',
+              fontWeight: '500',
+              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            + Add Vitals
+          </button>
+        </div>
+      </div>
+    }>
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          {showAddVitals ? (
+            <VitalsForm 
+              onSave={handleVitalsSubmit}
+              onClose={handleCloseVitals}
+            />
+          ) : (
+            <>
+              {activeTab === 'graphs' && (
+            <div style={{ 
+              backgroundColor: 'rgba(30,32,40,0.95)', 
+              borderRadius: '12px', 
+              padding: '16px',
+              border: '1px solid #4a5568',
+              height: '100%'
             }}>
+              <div className="vital-type-buttons" style={{ 
+                display: 'flex', 
+                gap: '10px', 
+                marginBottom: '20px',
+                flexWrap: 'wrap'
+              }}>
+                {vitalTypes.map((type) => (
+                  <button
+                    key={type}
+                    className={type === selectedType ? "active" : ""}
+                    onClick={() => handleTypeSelect(type)}
+                    style={{
+                      padding: '8px 16px',
+                      border: '1px solid #ccc',
+                      borderRadius: '4px',
+                      backgroundColor: type === selectedType ? '#007bff' : '#f8f9fa',
+                      color: type === selectedType ? '#fff' : '#333',
+                      cursor: 'pointer',
+                      textTransform: 'capitalize'
+                    }}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+              {selectedType && (
+                <>
+                  <div className="chart-container" style={{ 
+                    height: 300, 
+                    margin: "20px 0",
+                    background: "#161e2e",
+                    borderRadius: "8px",
+                    padding: "10px"
+                  }}>
               {records.length > 0 ? (
                 selectedType.toLowerCase().includes('bathroom') ? (
                   <BathroomHistoryChart data={chartData} title={`${selectedType} History`} />
@@ -483,11 +577,34 @@ const HistoryModal = ({ onClose }) => {
                   }}
                 >
                   Next →
-                </button>
+                  </button>
+                </div>
+              </div>
+              </>
+              )}
+            </div>
+          )}
+          {activeTab === 'reports' && (
+            <div style={{ 
+              backgroundColor: 'rgba(30,32,40,0.95)', 
+              borderRadius: '12px', 
+              padding: '16px',
+              border: '1px solid #4a5568',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <div style={{ textAlign: 'center', color: '#ccc' }}>
+                <h3 style={{ color: '#fff', marginBottom: '16px' }}>Reports</h3>
+                <p>Reports functionality coming soon...</p>
               </div>
             </div>
-          </>
-        )}
+          )}
+            </>
+          )}
+        </div>
+      </div>
     </ModalBase>
   );
 };

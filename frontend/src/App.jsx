@@ -6,16 +6,15 @@ import BloodPressureCard from "./components/BloodPressureCard";
 import TemperatureCard from "./components/TemperatureCard";
 import ModalBase from "./components/ModalBase";
 import SettingsForm from "./components/SettingsForm";
-import VitalsForm from "./components/VitalsForm";
 // Import the minimalist icons from the file
 import { 
   SettingsIcon, 
   MinimalistVentIcon, 
   MinimalistPulseOxIcon, 
-  ClipboardIcon, 
   HistoryIcon,
   MedicationIcon,
-  CareTasksIcon
+  CareTasksIcon,
+  MessagesIcon
 } from "./components/Icons";
 import logoImage from './assets/logo2.png';
 import config from './config';
@@ -199,10 +198,10 @@ export default function App() {
   // Add these state hooks and handlers
   const [isVentModalOpen, setIsVentModalOpen] = useState(false);
   const [isPulseOxModalOpen, setIsPulseOxModalOpen] = useState(false);
-  const [isVitalsModalOpen, setIsVitalsModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isMedicationModalOpen, setIsMedicationModalOpen] = useState(false);
   const [isCareTaskModalOpen, setIsCareTaskModalOpen] = useState(false);
+  const [isMessagesModalOpen, setIsMessagesModalOpen] = useState(false);
   const [isAlarmActive, setIsAlarmActive] = useState(false);
   const [isAlarmBlinking, setIsAlarmBlinking] = useState(false);
   const alarmBlinkInterval = useRef(null);
@@ -239,10 +238,10 @@ export default function App() {
     setIsVentModalOpen(false);
     setIsPulseOxModalOpen(false);
     setIsSettingsModalOpen(false);
-    setIsVitalsModalOpen(false);
     setIsHistoryModalOpen(false);
     setIsMedicationModalOpen(false);
     setIsCareTaskModalOpen(false);
+    setIsMessagesModalOpen(false);
   };
 
   // Add handler functions
@@ -282,23 +281,21 @@ export default function App() {
     }
   };
 
-  const handleVitalsClick = () => {
-    if (isVitalsModalOpen) {
-      // If already open, just close it
-      setIsVitalsModalOpen(false);
-    } else {
-      // Close all then open this one
-      closeAllModals();
-      setIsVitalsModalOpen(true);
-    }
-  };
-
   const handleHistoryClick = () => {
     if (isHistoryModalOpen) {
       setIsHistoryModalOpen(false);
     } else {
       closeAllModals();
       setIsHistoryModalOpen(true);
+    }
+  };
+
+  const handleMessagesClick = () => {
+    if (isMessagesModalOpen) {
+      setIsMessagesModalOpen(false);
+    } else {
+      closeAllModals();
+      setIsMessagesModalOpen(true);
     }
   };
 
@@ -431,16 +428,6 @@ export default function App() {
           
           <div className="icon-wrapper">
             <button 
-              className={`menu-button ${isVitalsModalOpen ? 'active' : ''}`}
-              onClick={handleVitalsClick}
-              aria-label="Manual Vitals Entry"
-            >
-              <ClipboardIcon />
-            </button>
-          </div>
-          
-          <div className="icon-wrapper">
-            <button 
               className={`menu-button ${isHistoryModalOpen ? 'active' : ''}`}
               onClick={handleHistoryClick}
               aria-label="History"
@@ -448,6 +435,17 @@ export default function App() {
               <HistoryIcon />
             </button>
           </div>
+
+          <div className="icon-wrapper">
+            <button 
+              className={`menu-button ${isMessagesModalOpen ? 'active' : ''}`}
+              onClick={handleMessagesClick}
+              aria-label="Messages"
+            >
+              <MessagesIcon />
+            </button>
+          </div>
+
           <div className="icon-wrapper">
             <button 
               className={`menu-button ${isSettingsModalOpen ? 'active' : ''}`}
@@ -624,24 +622,34 @@ export default function App() {
         />
       )}
 
-      {/* Manual Vitals Entry Modal */}
-      <ModalBase
-        isOpen={isVitalsModalOpen}
-        onClose={() => setIsVitalsModalOpen(false)}
-        title="Manual Vitals Entry"
-      >
-        <VitalsForm 
-          onSave={(data) => {
-            console.log("Vitals saved:", data);
-            // Potentially update any state here as needed
-          }}
-          onClose={() => setIsVitalsModalOpen(false)}
-        />
-      </ModalBase>
-
       {/* History Modal */}
       {isHistoryModalOpen && (
         <HistoryModal onClose={() => setIsHistoryModalOpen(false)} />
+      )}
+
+      {/* Messages Modal */}
+      {isMessagesModalOpen && (
+        <ModalBase
+          isOpen={isMessagesModalOpen}
+          onClose={() => setIsMessagesModalOpen(false)}
+          title="Messages"
+        >
+          <div style={{
+            backgroundColor: 'rgba(30,32,40,0.95)',
+            borderRadius: '12px',
+            padding: '40px',
+            border: '1px solid #4a5568',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <div style={{ textAlign: 'center', color: '#ccc' }}>
+              <h3 style={{ color: '#fff', marginBottom: '16px' }}>Messages</h3>
+              <p>Messaging functionality coming soon...</p>
+            </div>
+          </div>
+        </ModalBase>
       )}
 
       {/* Medication Modal */}

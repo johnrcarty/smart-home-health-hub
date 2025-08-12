@@ -2191,7 +2191,8 @@ def get_all_care_task_schedules(db: Session, active_only=True):
                 'care_task_id': s.care_task_id,
                 'care_task_name': s.care_task.name,
                 'care_task_description': s.care_task.description,
-                'care_task_group': s.care_task.group,
+                'care_task_category_name': s.care_task.category.name if s.care_task.category else None,
+                'care_task_category_color': s.care_task.category.color if s.care_task.category else None,
                 'cron_expression': s.cron_expression,
                 'description': s.description,
                 'active': s.active,
@@ -2293,15 +2294,19 @@ def get_daily_care_task_schedule(db: Session):
                 
                 for scheduled_time in scheduled_times:
                     scheduled_tasks.append({
+                        'id': schedule['id'],  # Add this for frontend compatibility
                         'schedule_id': schedule['id'],
                         'care_task_id': schedule['care_task_id'],
                         'care_task_name': schedule['care_task_name'],
                         'care_task_description': schedule['care_task_description'],
-                        'care_task_group': schedule['care_task_group'],
+                        'care_task_category_name': schedule['care_task_category_name'],
+                        'care_task_category_color': schedule['care_task_category_color'],
                         'scheduled_time': scheduled_time,
                         'cron_expression': schedule['cron_expression'],
                         'description': schedule['description'],
-                        'notes': schedule['notes']
+                        'notes': schedule['notes'],
+                        'status': 'upcoming',  # Add status field
+                        'is_completed': False  # Add completion flag
                     })
                     
             except Exception as e:
@@ -2393,7 +2398,8 @@ def get_care_task_history(db: Session, limit=25, task_name=None, start_date=None
                 'care_task_id': log.care_task_id,
                 'care_task_name': log.care_task.name,
                 'care_task_description': log.care_task.description,
-                'care_task_group': log.care_task.group,
+                'care_task_category_name': log.care_task.category.name if log.care_task.category else None,
+                'care_task_category_color': log.care_task.category.color if log.care_task.category else None,
                 'schedule_id': log.schedule_id,
                 'completed_at': log.completed_at,
                 'is_scheduled': log.is_scheduled,

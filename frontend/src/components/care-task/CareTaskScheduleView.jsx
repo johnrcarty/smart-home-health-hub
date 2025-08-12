@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import config from '../../config';
 
 const CareTaskScheduleView = ({ taskId, taskName, onClose }) => {
   const [schedules, setSchedules] = useState([]);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [formData, setFormData] = useState({
-    cron_expression: '',
-    description: '',
-    active: true
-  });
-  const [editingSchedule, setEditingSchedule] = useState(null);
+  const [scheduleMode, setScheduleMode] = useState('weekly'); // 'weekly' or 'monthly'
+  const [selectedDays, setSelectedDays] = useState([]); // for weekly
+  const [selectedDayOfMonth, setSelectedDayOfMonth] = useState(1); // for monthly
+  const [time, setTime] = useState('08:00');
+  const [loading, setLoading] = useState(false);
+
+  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   useEffect(() => {
     fetchSchedules();
@@ -16,7 +17,7 @@ const CareTaskScheduleView = ({ taskId, taskName, onClose }) => {
 
   const fetchSchedules = async () => {
     try {
-      const response = await fetch(`/api/care-task-schedules/${taskId}`);
+      const response = await fetch(`${config.apiUrl}/api/care-task-schedules/${taskId}`);
       if (response.ok) {
         const data = await response.json();
         setSchedules(data);
@@ -26,394 +27,520 @@ const CareTaskScheduleView = ({ taskId, taskName, onClose }) => {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // Helper function to parse cron expression
+  const parseCronExpression = (cronExpression) => {
+    const parts = cronExpression.split(' ');
+    if (parts.length !== 5) return null;
+    
+    const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
+    
+    // Format time
+    const timeStr = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
+    
+    // Check if it's weekly (dayOfWeek is not *)
+    if (dayOfWeek !== '*') {
+      const daysMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const days = dayOfWeek.split(',').map(d => daysMap[parseInt(d)]).join(', ');
+      return { type: 'weekly', time: timeStr, days };
+    }
+    
+    // Check if it's monthly (dayOfMonth is not *)
+    if (dayOfMonth !== '*') {
+      return { type: 'monthly', time: timeStr, dayOfMonth: parseInt(dayOfMonth) };
+    }
+    
+    return null;
+  };
+
+  // Helper function to separate schedules by type
+  const separateSchedules = (schedules) => {
+    const weekly = [];
+    const monthly = [];
+    
+    schedules.forEach((schedule) => {
+      const cronExpression = schedule.cron_expression;
+      const isActive = schedule.active;
+      const scheduleId = schedule.id;
+      const description = schedule.description;
+      
+      const parsed = parseCronExpression(cronExpression);
+      if (parsed) {
+        const scheduleObj = {
+          id: scheduleId,
+          isActive,
+          parsed,
+          description
+        };
+        
+        if (parsed.type === 'weekly') {
+          weekly.push(scheduleObj);
+        } else if (parsed.type === 'monthly') {
+          monthly.push(scheduleObj);
+        }
+      }
+    });
+    
+    return { weekly, monthly };
+  };
+
+  const handleAddSchedule = async () => {
+    let cron = '';
+    let description = '';
+    let [hour, minute] = time.split(':').map(Number);
+    
+    if (scheduleMode === 'weekly') {
+      if (selectedDays.length === 0) return;
+      const dow = selectedDays.sort().join(',');
+      cron = `${minute} ${hour} * * ${dow}`;
+      
+      // Generate human-readable description for weekly schedule
+      const daysMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const dayNames = selectedDays.map(d => daysMap[parseInt(d)]).join(', ');
+      description = `${dayNames} at ${time}`;
+    } else {
+      cron = `${minute} ${hour} ${selectedDayOfMonth} * *`;
+      
+      // Generate human-readable description for monthly schedule
+      description = `Day ${selectedDayOfMonth} of each month at ${time}`;
+    }
     
     try {
-      const url = editingSchedule 
-        ? `/api/care-task-schedule/${editingSchedule.id}`
-        : '/api/add/care-task-schedule';
-      
-      const method = editingSchedule ? 'PUT' : 'POST';
-      
-      const payload = {
-        ...formData,
-        care_task_id: taskId
-      };
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (response.ok) {
-        setFormData({
-          cron_expression: '',
-          description: '',
+      setLoading(true);
+      const response = await fetch(`${config.apiUrl}/api/add/care-task-schedule/${taskId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cron_expression: cron,
+          description: description,
           active: true
-        });
-        setShowAddForm(false);
-        setEditingSchedule(null);
-        fetchSchedules();
-      } else {
-        console.error('Failed to save schedule');
+        })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to add schedule');
       }
+      
+      // Refresh schedules
+      await fetchSchedules();
+      
+      // Reset form
+      setSelectedDays([]);
+      setSelectedDayOfMonth(1);
+      setTime('08:00');
+      setScheduleMode('weekly');
     } catch (error) {
-      console.error('Error saving schedule:', error);
+      console.error('Error adding schedule:', error);
+      alert(`Error adding schedule: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleEdit = (schedule) => {
-    setEditingSchedule(schedule);
-    setFormData({
-      cron_expression: schedule.cron_expression,
-      description: schedule.description || '',
-      active: schedule.active
-    });
-    setShowAddForm(true);
-  };
-
-  const handleDelete = async (scheduleId) => {
+  const handleDeleteSchedule = async (scheduleId) => {
     if (!confirm('Are you sure you want to delete this schedule?')) return;
     
     try {
-      const response = await fetch(`/api/care-task-schedule/${scheduleId}`, {
-        method: 'DELETE',
+      setLoading(true);
+      const response = await fetch(`${config.apiUrl}/api/care-task-schedule/${scheduleId}`, {
+        method: 'DELETE'
       });
-
-      if (response.ok) {
-        fetchSchedules();
-      } else {
-        console.error('Failed to delete schedule');
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete schedule');
       }
+      
+      // Refresh schedules
+      await fetchSchedules();
     } catch (error) {
       console.error('Error deleting schedule:', error);
+      alert('Error deleting schedule. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const toggleScheduleActive = async (scheduleId, currentActive) => {
+  const handleToggleSchedule = async (scheduleId) => {
     try {
-      const response = await fetch(`/api/care-task-schedule/${scheduleId}/toggle`, {
-        method: 'POST',
+      setLoading(true);
+      const response = await fetch(`${config.apiUrl}/api/care-task-schedule/${scheduleId}/toggle`, {
+        method: 'POST'
       });
-
-      if (response.ok) {
-        fetchSchedules();
-      } else {
-        console.error('Failed to toggle schedule');
+      
+      if (!response.ok) {
+        throw new Error('Failed to toggle schedule');
       }
+      
+      // Refresh schedules
+      await fetchSchedules();
     } catch (error) {
       console.error('Error toggling schedule:', error);
+      alert('Error updating schedule status. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const cancelEdit = () => {
-    setEditingSchedule(null);
-    setFormData({
-      cron_expression: '',
-      description: '',
-      active: true
-    });
-    setShowAddForm(false);
-  };
-
-  const formatCronDescription = (cronExpression) => {
-    // Basic cron description mapping
-    const cronDescriptions = {
-      '0 8 * * *': 'Daily at 8:00 AM',
-      '0 20 * * *': 'Daily at 8:00 PM',
-      '0 8 * * 1-5': 'Weekdays at 8:00 AM',
-      '0 9,17 * * *': 'Daily at 9:00 AM and 5:00 PM',
-      '0 8 * * 0': 'Sundays at 8:00 AM',
-      '0 8 1 * *': 'Monthly on 1st at 8:00 AM',
-      '0 */4 * * *': 'Every 4 hours',
-      '0 */8 * * *': 'Every 8 hours',
-      '0 */12 * * *': 'Every 12 hours'
-    };
-    
-    return cronDescriptions[cronExpression] || cronExpression;
-  };
-
-  const commonCronExpressions = [
-    { value: '0 8 * * *', label: 'Daily at 8:00 AM' },
-    { value: '0 20 * * *', label: 'Daily at 8:00 PM' },
-    { value: '0 8 * * 1-5', label: 'Weekdays at 8:00 AM' },
-    { value: '0 9,17 * * *', label: 'Daily at 9:00 AM and 5:00 PM' },
-    { value: '0 8 * * 0', label: 'Sundays at 8:00 AM' },
-    { value: '0 8 1 * *', label: 'Monthly on 1st at 8:00 AM' },
-    { value: '0 */4 * * *', label: 'Every 4 hours' },
-    { value: '0 */8 * * *', label: 'Every 8 hours' },
-    { value: '0 */12 * * *', label: 'Every 12 hours' }
-  ];
-
   return (
-    <div style={{ padding: '20px' }}>
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        marginBottom: '20px',
-        borderBottom: '2px solid #e9ecef',
-        paddingBottom: '15px'
-      }}>
-        <h3 style={{ margin: 0, color: '#333' }}>
-          Schedule for: {taskName}
-        </h3>
-        <button
-          onClick={onClose}
-          style={{
-            padding: '8px 16px',
-            border: 'none',
-            borderRadius: '4px',
-            backgroundColor: '#6c757d',
-            color: '#fff',
-            cursor: 'pointer'
-          }}
-        >
-          Back to Tasks
-        </button>
+    <div style={{ padding: 24 }}>
+      {/* Add New Schedule Form */}
+      <div style={{ marginBottom: 24, padding: 20, backgroundColor: '#f8f9fa', borderRadius: 8, border: '1px solid #dee2e6' }}>
+        <h4 style={{ margin: '0 0 16px 0', color: '#333', fontSize: 16, fontWeight: 600 }}>Add New Schedule</h4>
+        
+        <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+          <button
+            type="button"
+            onClick={() => setScheduleMode('weekly')}
+            style={{ 
+              padding: '8px 18px', 
+              border: 'none', 
+              borderRadius: 6, 
+              background: scheduleMode === 'weekly' ? '#007bff' : '#f8f9fa', 
+              color: scheduleMode === 'weekly' ? '#fff' : '#333', 
+              fontWeight: 500, 
+              fontSize: 14,
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            Weekly
+          </button>
+          <button
+            type="button"
+            onClick={() => setScheduleMode('monthly')}
+            style={{ 
+              padding: '8px 18px', 
+              border: 'none', 
+              borderRadius: 6, 
+              background: scheduleMode === 'monthly' ? '#007bff' : '#f8f9fa', 
+              color: scheduleMode === 'monthly' ? '#fff' : '#333', 
+              fontWeight: 500, 
+              fontSize: 14,
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            Monthly
+          </button>
+        </div>
+
+        {scheduleMode === 'weekly' ? (
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontWeight: 600, color: '#333', marginBottom: 8, display: 'block' }}>Select Days</label>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {daysOfWeek.map((d, i) => (
+                <label 
+                  key={d} 
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 4, 
+                    background: selectedDays.includes(i.toString()) ? '#007bff' : '#fff', 
+                    color: selectedDays.includes(i.toString()) ? '#fff' : '#333', 
+                    borderRadius: 4, 
+                    padding: '6px 12px', 
+                    cursor: 'pointer', 
+                    fontWeight: 500,
+                    border: '1px solid #ddd',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedDays.includes(i.toString())}
+                    onChange={() => {
+                      setSelectedDays(prev => 
+                        prev.includes(i.toString()) 
+                          ? prev.filter(x => x !== i.toString()) 
+                          : [...prev, i.toString()]
+                      );
+                    }}
+                    style={{ accentColor: '#007bff' }}
+                  />
+                  {d}
+                </label>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontWeight: 600, color: '#333', marginBottom: 8, display: 'block' }}>Day of Month</label>
+            <select
+              value={selectedDayOfMonth}
+              onChange={e => setSelectedDayOfMonth(Number(e.target.value))}
+              style={{ 
+                padding: '8px 16px', 
+                border: '2px solid #ddd', 
+                borderRadius: 6, 
+                fontSize: 14, 
+                background: '#fff', 
+                color: '#333',
+                minWidth: 100
+              }}
+            >
+              {[...Array(28)].map((_, i) => (
+                <option key={i+1} value={i+1}>{i+1}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 16, alignItems: 'end', marginBottom: 16 }}>
+          <div>
+            <label style={{ fontWeight: 600, color: '#333', marginBottom: 8, display: 'block' }}>Time</label>
+            <input
+              type="time"
+              value={time}
+              onChange={e => setTime(e.target.value)}
+              style={{ 
+                padding: '8px 12px', 
+                border: '2px solid #ddd', 
+                borderRadius: 6, 
+                fontSize: 14, 
+                background: '#fff', 
+                color: '#333', 
+                width: 120 
+              }}
+            />
+          </div>
+
+          <div>
+            <button
+              type="button"
+              onClick={handleAddSchedule}
+              style={{ 
+                padding: '10px 20px', 
+                border: 'none', 
+                borderRadius: 6, 
+                background: '#28a745', 
+                color: '#fff', 
+                fontWeight: 500, 
+                fontSize: 14,
+                cursor: 'pointer',
+                transition: 'background-color 0.2s'
+              }}
+              disabled={loading || (scheduleMode === 'weekly' ? selectedDays.length === 0 : false)}
+              onMouseOver={(e) => {
+                if (!loading && !(scheduleMode === 'weekly' && selectedDays.length === 0)) {
+                  e.target.style.background = '#1e7e34';
+                }
+              }}
+              onMouseOut={(e) => {
+                if (!loading && !(scheduleMode === 'weekly' && selectedDays.length === 0)) {
+                  e.target.style.background = '#28a745';
+                }
+              }}
+            >
+              {loading ? 'Adding...' : 'Add Schedule'}
+            </button>
+          </div>
+        </div>
       </div>
 
-      {!showAddForm ? (
-        <button
-          onClick={() => setShowAddForm(true)}
-          style={{
-            padding: '10px 20px',
-            border: 'none',
-            borderRadius: '6px',
-            backgroundColor: '#28a745',
-            color: '#fff',
-            cursor: 'pointer',
-            fontWeight: '500',
-            marginBottom: '20px'
-          }}
-        >
-          Add Schedule
-        </button>
-      ) : (
-        <div style={{
-          backgroundColor: '#f8f9fa',
-          padding: '20px',
-          borderRadius: '8px',
-          marginBottom: '20px'
-        }}>
-          <h4 style={{ marginTop: 0, color: '#333' }}>
-            {editingSchedule ? 'Edit Schedule' : 'Add New Schedule'}
-          </h4>
-          <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>
-                Schedule Pattern:
-              </label>
-              <select
-                value={formData.cron_expression}
-                onChange={(e) => setFormData({ ...formData, cron_expression: e.target.value })}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  fontSize: '14px'
-                }}
-                required
-              >
-                <option value="">Select a schedule pattern</option>
-                {commonCronExpressions.map((expr) => (
-                  <option key={expr.value} value={expr.value}>
-                    {expr.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+      {/* Existing Schedules */}
+      <div style={{ marginBottom: 16 }}>
+        <h4 style={{ margin: '0 0 16px 0', color: '#333', fontSize: 16, fontWeight: 600 }}>Current Schedules</h4>
+        
+        {schedules && schedules.length > 0 ? (() => {
+          const { weekly, monthly } = separateSchedules(schedules);
+          
+          return (
+            <>
+              {weekly.length > 0 && (
+                <div style={{ marginBottom: 24 }}>
+                  <h5 style={{ margin: '0 0 12px 0', color: '#495057', fontSize: 14, fontWeight: 600 }}>Weekly Schedules</h5>
+                  <div style={{ backgroundColor: '#fff', borderRadius: 8, border: '1px solid #dee2e6', overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#f8f9fa' }}>
+                          <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#495057', borderBottom: '1px solid #dee2e6' }}>
+                            Time
+                          </th>
+                          <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#495057', borderBottom: '1px solid #dee2e6' }}>
+                            Days
+                          </th>
+                          <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#495057', borderBottom: '1px solid #dee2e6' }}>
+                            Description
+                          </th>
+                          <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#495057', borderBottom: '1px solid #dee2e6' }}>
+                            Status
+                          </th>
+                          <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#495057', borderBottom: '1px solid #dee2e6' }}>
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {weekly.map((schedule, index) => (
+                          <tr key={schedule.id} style={{ borderBottom: index < weekly.length - 1 ? '1px solid #f1f3f4' : 'none' }}>
+                            <td style={{ padding: '12px 16px', fontSize: 14, color: '#333' }}>
+                              {schedule.parsed.time}
+                            </td>
+                            <td style={{ padding: '12px 16px', fontSize: 14, color: '#333' }}>
+                              {schedule.parsed.days}
+                            </td>
+                            <td style={{ padding: '12px 16px', fontSize: 14, color: '#666' }}>
+                              {schedule.description || 'No description'}
+                            </td>
+                            <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                              <span style={{ 
+                                padding: '4px 8px', 
+                                borderRadius: 4, 
+                                fontSize: 12, 
+                                fontWeight: 600,
+                                background: schedule.isActive ? '#d4edda' : '#f8d7da',
+                                color: schedule.isActive ? '#155724' : '#721c24'
+                              }}>
+                                {schedule.isActive ? 'Active' : 'Inactive'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                              <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                                <button
+                                  onClick={() => handleToggleSchedule(schedule.id)}
+                                  style={{
+                                    padding: '4px 8px',
+                                    border: 'none',
+                                    borderRadius: 4,
+                                    background: schedule.isActive ? '#6c757d' : '#28a745',
+                                    color: '#fff',
+                                    fontSize: 12,
+                                    fontWeight: 500,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  {schedule.isActive ? 'Pause' : 'Resume'}
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteSchedule(schedule.id)}
+                                  style={{
+                                    padding: '4px 8px',
+                                    border: 'none',
+                                    borderRadius: 4,
+                                    background: '#dc3545',
+                                    color: '#fff',
+                                    fontSize: 12,
+                                    fontWeight: 500,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>
-                Custom Cron Expression (optional):
-              </label>
-              <input
-                type="text"
-                value={formData.cron_expression}
-                onChange={(e) => setFormData({ ...formData, cron_expression: e.target.value })}
-                placeholder="e.g., 0 8 * * * (8:00 AM daily)"
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  fontSize: '14px'
-                }}
-              />
-              <small style={{ color: '#666', fontSize: '12px' }}>
-                Format: minute hour day month weekday (0=Sunday)
-              </small>
-            </div>
-
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>
-                Description (optional):
-              </label>
-              <input
-                type="text"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Brief description of this schedule"
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  fontSize: '14px'
-                }}
-              />
-            </div>
-
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <input
-                  type="checkbox"
-                  checked={formData.active}
-                  onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
-                />
-                <span style={{ fontWeight: '500' }}>Active</span>
-              </label>
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                type="submit"
-                style={{
-                  padding: '10px 20px',
-                  border: 'none',
-                  borderRadius: '6px',
-                  backgroundColor: '#007bff',
-                  color: '#fff',
-                  cursor: 'pointer',
-                  fontWeight: '500'
-                }}
-              >
-                {editingSchedule ? 'Update Schedule' : 'Add Schedule'}
-              </button>
-              <button
-                type="button"
-                onClick={cancelEdit}
-                style={{
-                  padding: '10px 20px',
-                  border: '1px solid #ddd',
-                  borderRadius: '6px',
-                  backgroundColor: '#fff',
-                  color: '#333',
-                  cursor: 'pointer'
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      <div>
-        <h4 style={{ color: '#333', marginBottom: '15px' }}>Current Schedules</h4>
-        {schedules.length === 0 ? (
+              {monthly.length > 0 && (
+                <div style={{ marginBottom: 24 }}>
+                  <h5 style={{ margin: '0 0 12px 0', color: '#495057', fontSize: 14, fontWeight: 600 }}>Monthly Schedules</h5>
+                  <div style={{ backgroundColor: '#fff', borderRadius: 8, border: '1px solid #dee2e6', overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#f8f9fa' }}>
+                          <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#495057', borderBottom: '1px solid #dee2e6' }}>
+                            Time
+                          </th>
+                          <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#495057', borderBottom: '1px solid #dee2e6' }}>
+                            Day
+                          </th>
+                          <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#495057', borderBottom: '1px solid #dee2e6' }}>
+                            Description
+                          </th>
+                          <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#495057', borderBottom: '1px solid #dee2e6' }}>
+                            Status
+                          </th>
+                          <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#495057', borderBottom: '1px solid #dee2e6' }}>
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {monthly.map((schedule, index) => (
+                          <tr key={schedule.id} style={{ borderBottom: index < monthly.length - 1 ? '1px solid #f1f3f4' : 'none' }}>
+                            <td style={{ padding: '12px 16px', fontSize: 14, color: '#333' }}>
+                              {schedule.parsed.time}
+                            </td>
+                            <td style={{ padding: '12px 16px', fontSize: 14, color: '#333' }}>
+                              Day {schedule.parsed.dayOfMonth}
+                            </td>
+                            <td style={{ padding: '12px 16px', fontSize: 14, color: '#666' }}>
+                              {schedule.description || 'No description'}
+                            </td>
+                            <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                              <span style={{ 
+                                padding: '4px 8px', 
+                                borderRadius: 4, 
+                                fontSize: 12, 
+                                fontWeight: 600,
+                                background: schedule.isActive ? '#d4edda' : '#f8d7da',
+                                color: schedule.isActive ? '#155724' : '#721c24'
+                              }}>
+                                {schedule.isActive ? 'Active' : 'Inactive'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                              <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                                <button
+                                  onClick={() => handleToggleSchedule(schedule.id)}
+                                  style={{
+                                    padding: '4px 8px',
+                                    border: 'none',
+                                    borderRadius: 4,
+                                    background: schedule.isActive ? '#6c757d' : '#28a745',
+                                    color: '#fff',
+                                    fontSize: 12,
+                                    fontWeight: 500,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  {schedule.isActive ? 'Pause' : 'Resume'}
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteSchedule(schedule.id)}
+                                  style={{
+                                    padding: '4px 8px',
+                                    border: 'none',
+                                    borderRadius: 4,
+                                    background: '#dc3545',
+                                    color: '#fff',
+                                    fontSize: 12,
+                                    fontWeight: 500,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        })() : (
           <div style={{
             textAlign: 'center',
             padding: '40px',
             color: '#666',
             backgroundColor: '#f8f9fa',
-            borderRadius: '8px'
+            borderRadius: '8px',
+            border: '1px solid #dee2e6'
           }}>
-            <p>No schedules found for this care task.</p>
+            <p style={{ margin: 0, fontSize: 16 }}>No schedules found for this care task.</p>
+            <p style={{ margin: '8px 0 0 0', fontSize: 14, color: '#888' }}>
+              Add a schedule above to get started.
+            </p>
           </div>
-        ) : (
-          schedules.map((schedule) => (
-            <div
-              key={schedule.id}
-              style={{
-                backgroundColor: '#fff',
-                border: `2px solid ${schedule.active ? '#28a745' : '#6c757d'}`,
-                borderRadius: '8px',
-                padding: '16px',
-                marginBottom: '12px',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ marginBottom: '8px' }}>
-                    <span style={{ fontWeight: '600', color: '#333', fontSize: '16px' }}>
-                      {formatCronDescription(schedule.cron_expression)}
-                    </span>
-                    <span style={{
-                      marginLeft: '10px',
-                      padding: '2px 8px',
-                      borderRadius: '12px',
-                      fontSize: '12px',
-                      fontWeight: '500',
-                      backgroundColor: schedule.active ? '#d4edda' : '#f8d7da',
-                      color: schedule.active ? '#155724' : '#721c24'
-                    }}>
-                      {schedule.active ? 'Active' : 'Inactive'}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: '14px', color: '#666', marginBottom: '4px' }}>
-                    Cron: {schedule.cron_expression}
-                  </div>
-                  {schedule.description && (
-                    <div style={{ fontSize: '14px', color: '#666' }}>
-                      {schedule.description}
-                    </div>
-                  )}
-                </div>
-                <div style={{ display: 'flex', gap: '8px', marginLeft: '16px' }}>
-                  <button
-                    onClick={() => handleEdit(schedule)}
-                    style={{
-                      padding: '6px 12px',
-                      border: 'none',
-                      borderRadius: '4px',
-                      backgroundColor: '#007bff',
-                      color: '#fff',
-                      cursor: 'pointer',
-                      fontSize: '12px'
-                    }}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => toggleScheduleActive(schedule.id, schedule.active)}
-                    style={{
-                      padding: '6px 12px',
-                      border: 'none',
-                      borderRadius: '4px',
-                      backgroundColor: schedule.active ? '#6c757d' : '#28a745',
-                      color: '#fff',
-                      cursor: 'pointer',
-                      fontSize: '12px'
-                    }}
-                  >
-                    {schedule.active ? 'Pause' : 'Resume'}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(schedule.id)}
-                    style={{
-                      padding: '6px 12px',
-                      border: 'none',
-                      borderRadius: '4px',
-                      backgroundColor: '#dc3545',
-                      color: '#fff',
-                      cursor: 'pointer',
-                      fontSize: '12px'
-                    }}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))
         )}
       </div>
     </div>

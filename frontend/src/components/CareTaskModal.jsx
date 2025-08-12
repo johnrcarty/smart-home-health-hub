@@ -3,6 +3,7 @@ import ModalBase from './ModalBase';
 import config from '../config';
 import CareTaskListView from './care-task/CareTaskListView';
 import CareTaskScheduleView from './care-task/CareTaskScheduleView';
+import CareTaskScheduledView from './care-task/CareTaskScheduledView';
 
 const CareTaskModal = ({ onClose }) => {
   const [tab, setTab] = useState('scheduled');
@@ -307,16 +308,46 @@ const CareTaskModal = ({ onClose }) => {
   };
 
   const getStatusColor = (status) => {
-    const colors = {
-      'ready_to_take': '#28a745',
-      'upcoming': '#17a2b8', 
-      'on_time': '#28a745',
-      'warning': '#ffc107',
-      'late_early': '#fd7e14',
-      'missed': '#dc3545',
-      'skipped': '#6c757d'
-    };
-    return colors[status] || '#6c757d';
+    switch (status) {
+      case 'ready_to_take':
+      case 'on_time':
+        return {
+          bg: '#d4edda',
+          border: '#28a745',
+          text: '#155724'
+        };
+      case 'upcoming':
+        return {
+          bg: '#d1ecf1',
+          border: '#17a2b8',
+          text: '#0c5460'
+        };
+      case 'warning':
+      case 'late_early':
+        return {
+          bg: '#fff3cd',
+          border: '#ffc107',
+          text: '#856404'
+        };
+      case 'missed':
+        return {
+          bg: '#f8d7da',
+          border: '#dc3545',
+          text: '#721c24'
+        };
+      case 'skipped':
+        return {
+          bg: '#f8f9fa',
+          border: '#6c757d',
+          text: '#495057'
+        };
+      default:
+        return {
+          bg: '#f8f9fa',
+          border: '#6c757d',
+          text: '#495057'
+        };
+    }
   };
 
   const getStatusText = (item) => {
@@ -337,6 +368,46 @@ const CareTaskModal = ({ onClose }) => {
       return 'missed';
     }
     return 'upcoming';
+  };
+
+  const handleMarkCompleted = async (task) => {
+    try {
+      const response = await fetch(`${config.API_BASE_URL}/api/care-task-schedule/${task.id}/complete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        // Refresh scheduled tasks to update the view
+        fetchScheduledTasks();
+      } else {
+        console.error('Failed to mark task as completed');
+      }
+    } catch (error) {
+      console.error('Error marking task as completed:', error);
+    }
+  };
+
+  const handleSkipTask = async (task) => {
+    try {
+      const response = await fetch(`${config.API_BASE_URL}/api/care-task-schedule/${task.id}/skip`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        // Refresh scheduled tasks to update the view
+        fetchScheduledTasks();
+      } else {
+        console.error('Failed to skip task');
+      }
+    } catch (error) {
+      console.error('Error skipping task:', error);
+    }
   };
 
   // Helper function to parse cron expression
@@ -458,15 +529,13 @@ const CareTaskModal = ({ onClose }) => {
   if (showScheduleFor) {
     const selectedTask = allTasks.find(task => task.id === showScheduleFor);
     return (
-      <CareTaskScheduleView
-        task={selectedTask}
-        onBack={() => setShowScheduleFor(null)}
-        fetchTasks={fetchTasks}
-        loading={loading}
-        setLoading={setLoading}
-        scheduledTasks={tab === 'scheduled' ? scheduledTasks.scheduled_care_tasks : null}
-        showStatusFilters={tab === 'scheduled'}
-      />
+      <ModalBase isOpen={true} onClose={() => setShowScheduleFor(null)} title={`Schedule - ${selectedTask ? selectedTask.name : 'Unknown Task'}`}>
+        <CareTaskScheduleView
+          taskId={showScheduleFor}
+          taskName={selectedTask ? selectedTask.name : 'Unknown Task'}
+          onClose={() => setShowScheduleFor(null)}
+        />
+      </ModalBase>
     );
   }
 
@@ -596,52 +665,17 @@ const CareTaskModal = ({ onClose }) => {
           )}
 
           {!loading && tab === 'scheduled' && (
-            <div>
-              <h3>Today's Scheduled Care Tasks</h3>
-              {scheduledTasks.scheduled_care_tasks && scheduledTasks.scheduled_care_tasks.length > 0 ? (
-                scheduledTasks.scheduled_care_tasks.map(task => (
-                  <div key={`${task.care_task_id}-${task.scheduled_time}`} className="scheduled-task-item">
-                    {/* Render scheduled task */}
-                    <div style={{
-                      backgroundColor: '#fff',
-                      borderRadius: '6px',
-                      padding: '12px',
-                      marginBottom: '8px',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-                      border: '1px solid #ddd'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <h4 style={{ margin: 0, color: '#333' }}>{task.care_task_name}</h4>
-                          <p style={{ margin: '4px 0', color: '#666' }}>{task.care_task_description}</p>
-                          <small style={{ color: '#888' }}>
-                            {formatTime(task.scheduled_time)} - {task.care_task_group}
-                          </small>
-                        </div>
-                        <button
-                          style={{
-                            padding: '6px 12px',
-                            border: 'none',
-                            borderRadius: '4px',
-                            backgroundColor: '#28a745',
-                            color: '#fff',
-                            cursor: 'pointer'
-                          }}
-                          onClick={() => {
-                            // Complete task logic
-                            console.log('Complete task:', task.care_task_id);
-                          }}
-                        >
-                          Complete
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p>No care tasks scheduled for today.</p>
-              )}
-            </div>
+            <CareTaskScheduledView
+              scheduledTasks={scheduledTasks}
+              getStatusColor={getStatusColor}
+              getStatusText={getStatusText}
+              handleMarkCompleted={handleMarkCompleted}
+              handleSkipTask={handleSkipTask}
+              statusFilters={statusFilters}
+              setStatusFilters={setStatusFilters}
+              showFilters={showFilters}
+              setShowFilters={setShowFilters}
+            />
           )}
 
           {!loading && (tab === 'active' || tab === 'inactive') && (
