@@ -54,6 +54,8 @@ export default function App() {
   const [bpHistory, setBpHistory] = useState([]);
   const [tempHistory, setTempHistory] = useState([]);
   const [chartTimeRange, setChartTimeRange] = useState('5m'); // Default to 5 minutes
+  const [perfusionAsPercent, setPerfusionAsPercent] = useState(false); // Default to PI display
+  const [showStatistics, setShowStatistics] = useState(true); // Default to true for Min/Max/Avg display
   
   // Dynamic chart data from settings
   const [dashboardChart1, setDashboardChart1] = useState({ vital_type: 'bp', data: [] });
@@ -62,11 +64,11 @@ export default function App() {
   const initialDataReceived = useRef(false);
   const prevAlarmActive = useRef(false);
 
-  // Load chart time range setting
+  // Load chart time range and perfusion display settings
   useEffect(() => {
-    const loadChartTimeRange = async () => {
+    const loadSettings = async () => {
       try {
-        console.log('Loading chart time range setting...');
+        console.log('Loading dashboard settings...');
         const response = await fetch(`${config.apiUrl}/api/settings`);
         if (response.ok) {
           const settings = await response.json();
@@ -77,22 +79,40 @@ export default function App() {
           } else {
             console.log('No chart_time_range setting found, using default');
           }
+          if (settings.perfusion_as_percent !== undefined) {
+            console.log('Found perfusion_as_percent setting:', settings.perfusion_as_percent.value);
+            let perfusionValue = settings.perfusion_as_percent.value;
+            if (perfusionValue === "True" || perfusionValue === "true") perfusionValue = true;
+            if (perfusionValue === "False" || perfusionValue === "false") perfusionValue = false;
+            setPerfusionAsPercent(perfusionValue);
+          } else {
+            console.log('No perfusion_as_percent setting found, using default (false)');
+          }
+          if (settings.show_statistics !== undefined) {
+            console.log('Found show_statistics setting:', settings.show_statistics.value);
+            let statisticsValue = settings.show_statistics.value;
+            if (statisticsValue === "True" || statisticsValue === "true") statisticsValue = true;
+            if (statisticsValue === "False" || statisticsValue === "false") statisticsValue = false;
+            setShowStatistics(statisticsValue);
+          } else {
+            console.log('No show_statistics setting found, using default (true)');
+          }
         } else {
           console.error('Failed to load settings:', response.status);
         }
       } catch (err) {
-        console.error('Error loading chart time range setting:', err);
+        console.error('Error loading settings:', err);
       }
     };
-    loadChartTimeRange();
+    loadSettings();
   }, []);
 
-  // Reload chart time range when settings modal is closed
+  // Reload settings when settings modal is closed
   useEffect(() => {
     if (!isSettingsModalOpen) {
-      const reloadChartTimeRange = async () => {
+      const reloadSettings = async () => {
         try {
-          console.log('Settings modal closed, reloading chart time range...');
+          console.log('Settings modal closed, reloading settings...');
           const response = await fetch(`${config.apiUrl}/api/settings`);
           if (response.ok) {
             const settings = await response.json();
@@ -100,12 +120,26 @@ export default function App() {
               console.log('Updated chart_time_range setting:', settings.chart_time_range.value);
               setChartTimeRange(settings.chart_time_range.value);
             }
+            if (settings.perfusion_as_percent !== undefined) {
+              console.log('Updated perfusion_as_percent setting:', settings.perfusion_as_percent.value);
+              let perfusionValue = settings.perfusion_as_percent.value;
+              if (perfusionValue === "True" || perfusionValue === "true") perfusionValue = true;
+              if (perfusionValue === "False" || perfusionValue === "false") perfusionValue = false;
+              setPerfusionAsPercent(perfusionValue);
+            }
+            if (settings.show_statistics !== undefined) {
+              console.log('Updated show_statistics setting:', settings.show_statistics.value);
+              let statisticsValue = settings.show_statistics.value;
+              if (statisticsValue === "True" || statisticsValue === "true") statisticsValue = true;
+              if (statisticsValue === "False" || statisticsValue === "false") statisticsValue = false;
+              setShowStatistics(statisticsValue);
+            }
           }
         } catch (err) {
-          console.error('Error reloading chart time range setting:', err);
+          console.error('Error reloading settings:', err);
         }
       };
-      reloadChartTimeRange();
+      reloadSettings();
     }
   }, [isSettingsModalOpen]);
 
@@ -546,23 +580,25 @@ export default function App() {
               <div className="value">{sensorValues.spo2 ?? "--"}</div>
               <div className="unit">%</div>
             </div>
-            <div className="value-stats">
-              {datasets.spo2.length > 0 ? (
-                <>
-                  <span>
-                    Avg: {calculateAvg(datasets.spo2.filter(item => item.y !== 0)).toFixed(1)}%
-                  </span>
-                  <span>
-                    Min: {calculateMin(datasets.spo2.filter(item => item.y !== 0)).toFixed(0)}%
-                  </span>
-                  <span>
-                    Max: {calculateMax(datasets.spo2.filter(item => item.y !== 0)).toFixed(0)}%
-                  </span>
-                </>
-              ) : (
-                <span>No data available</span>
-              )}
-            </div>
+            {showStatistics && (
+              <div className="value-stats">
+                {datasets.spo2.length > 0 ? (
+                  <>
+                    <span>
+                      Avg: {calculateAvg(datasets.spo2.filter(item => item.y !== 0)).toFixed(1)}%
+                    </span>
+                    <span>
+                      Min: {calculateMin(datasets.spo2.filter(item => item.y !== 0)).toFixed(0)}%
+                    </span>
+                    <span>
+                      Max: {calculateMax(datasets.spo2.filter(item => item.y !== 0)).toFixed(0)}%
+                    </span>
+                  </>
+                ) : (
+                  <span>No data available</span>
+                )}
+              </div>
+            )}
           </div>
           
           <div className="value-display bpm">
@@ -571,48 +607,52 @@ export default function App() {
               <div className="value">{sensorValues.bpm ?? "--"}</div>
               <div className="unit">BPM</div>
             </div>
-            <div className="value-stats">
-              {datasets.bpm.length > 0 ? (
-                <>
-                  <span>
-                    Avg: {calculateAvg(datasets.bpm.filter(item => item.y !== 0)).toFixed(0)}
-                  </span>
-                  <span>
-                    Min: {calculateMin(datasets.bpm.filter(item => item.y !== 0)).toFixed(0)}
-                  </span>
-                  <span>
-                    Max: {calculateMax(datasets.bpm.filter(item => item.y !== 0)).toFixed(0)}
-                  </span>
-                </>
-              ) : (
-                <span>No data available</span>
-              )}
-            </div>
+            {showStatistics && (
+              <div className="value-stats">
+                {datasets.bpm.length > 0 ? (
+                  <>
+                    <span>
+                      Avg: {calculateAvg(datasets.bpm.filter(item => item.y !== 0)).toFixed(0)}
+                    </span>
+                    <span>
+                      Min: {calculateMin(datasets.bpm.filter(item => item.y !== 0)).toFixed(0)}
+                    </span>
+                    <span>
+                      Max: {calculateMax(datasets.bpm.filter(item => item.y !== 0)).toFixed(0)}
+                    </span>
+                  </>
+                ) : (
+                  <span>No data available</span>
+                )}
+              </div>
+            )}
           </div>
           
           <div className="value-display perfusion">
             <h3 className="value-title">Perfusion</h3>
             <div className="value-content">
               <div className="value">{sensorValues.perfusion ?? "--"}</div>
-              <div className="unit">%</div>
+              <div className="unit">{perfusionAsPercent ? "%" : "PI"}</div>
             </div>
-            <div className="value-stats">
-              {datasets.perfusion.length > 0 ? (
-                <>
-                  <span>
-                    Avg: {calculateAvg(datasets.perfusion.filter(item => item.y !== 0)).toFixed(1)}
-                  </span>
-                  <span>
-                    Min: {calculateMin(datasets.perfusion.filter(item => item.y !== 0)).toFixed(1)}
-                  </span>
-                  <span>
-                    Max: {calculateMax(datasets.perfusion.filter(item => item.y !== 0)).toFixed(1)}
-                  </span>
-                </>
-              ) : (
-                <span>No data available</span>
-              )}
-            </div>
+            {showStatistics && (
+              <div className="value-stats">
+                {datasets.perfusion.length > 0 ? (
+                  <>
+                    <span>
+                      Avg: {calculateAvg(datasets.perfusion.filter(item => item.y !== 0)).toFixed(1)}
+                    </span>
+                    <span>
+                      Min: {calculateMin(datasets.perfusion.filter(item => item.y !== 0)).toFixed(1)}
+                    </span>
+                    <span>
+                      Max: {calculateMax(datasets.perfusion.filter(item => item.y !== 0)).toFixed(1)}
+                    </span>
+                  </>
+                ) : (
+                  <span>No data available</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -651,7 +691,7 @@ export default function App() {
             <div className="chart-inner">
               <ChartBlock
                 title="Perfusion Monitor"
-                yLabel="PAI (%)"
+                yLabel={perfusionAsPercent ? "PAI (%)" : "PAI (PI)"}
                 yMin={40}
                 yMax={160}
                 color="orange"

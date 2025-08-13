@@ -8,13 +8,9 @@ import config from '../../config';
 const DashboardSettings = () => {
   const [formData, setFormData] = useState({
     chart_time_range: '5m', // '1m', '3m', '5m', '10m', '30m', '1h'
-    show_blood_pressure_card: true,
-    show_temperature_card: true,
     show_alerts_count: true,
-    chart_refresh_rate: 1000, // milliseconds
-    data_retention_minutes: 30,
     show_statistics: true,
-    temperature_display_mode: 'both', // 'body', 'skin', 'both'
+    perfusion_as_percent: false, // true = show %, false = show PI
     dashboard_chart_1_vital: '', // First sub-chart vital type
     dashboard_chart_2_vital: '', // Second sub-chart vital type
   });
@@ -37,13 +33,10 @@ const DashboardSettings = () => {
           fetch(`${config.apiUrl}/api/vitals/types`)
         ]);
         
-        console.log('Loaded settings from backend:', settingsResponse);
-        
         // Process vitals response
         let vitalsData = [];
         if (vitalsResponse.ok) {
           vitalsData = await vitalsResponse.json();
-          console.log('Loaded available vitals:', vitalsData);
         }
         
         // Add default vital types that are always available
@@ -54,21 +47,26 @@ const DashboardSettings = () => {
         const dashboardFormData = {};
         for (const [key, setting] of Object.entries(settingsResponse)) {
           // Only include dashboard-related settings
-          if (key.startsWith('show_') || key.includes('chart_') || key.includes('dashboard_') || key.includes('display_mode') || key.includes('retention') || key.includes('time_range')) {
-            dashboardFormData[key] = setting.value;
-            console.log(`Found dashboard setting: ${key} = ${setting.value}`);
+          if (key.startsWith('show_') || key.includes('chart_') || key.includes('dashboard_') || key.includes('perfusion_')) {
+            let value = setting.value;
+            
+            // Convert string boolean values to actual booleans
+            if (value === "True" || value === "true") {
+              value = true;
+            } else if (value === "False" || value === "false") {
+              value = false;
+            }
+            
+            dashboardFormData[key] = value;
           }
         }
         
-        console.log('Dashboard form data to apply:', dashboardFormData);
-        
-        // Only update state if we received some dashboard settings
-        if (Object.keys(dashboardFormData).length > 0) {
-          setFormData(prev => ({
-            ...prev,
-            ...dashboardFormData
-          }));
-        }
+        // Always update state with loaded settings, even if some are missing
+        // This ensures boolean false values properly override defaults
+        setFormData(prev => ({
+          ...prev,
+          ...dashboardFormData
+        }));
         
         setError(null);
       } catch (err) {
@@ -120,20 +118,14 @@ const DashboardSettings = () => {
       // Convert numeric inputs to numbers
       const settingsToUpdate = {
         chart_time_range: formData.chart_time_range,
-        show_blood_pressure_card: formData.show_blood_pressure_card,
-        show_temperature_card: formData.show_temperature_card,
         show_alerts_count: formData.show_alerts_count,
-        chart_refresh_rate: parseInt(formData.chart_refresh_rate),
-        data_retention_minutes: parseInt(formData.data_retention_minutes),
         show_statistics: formData.show_statistics,
-        temperature_display_mode: formData.temperature_display_mode,
+        perfusion_as_percent: formData.perfusion_as_percent,
         dashboard_chart_1_vital: formData.dashboard_chart_1_vital,
         dashboard_chart_2_vital: formData.dashboard_chart_2_vital,
       };
 
-      console.log('Saving dashboard settings:', settingsToUpdate);
       const result = await updateSettings(settingsToUpdate);
-      console.log('Settings save result:', result);
       
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
@@ -158,15 +150,16 @@ const DashboardSettings = () => {
         fontWeight: '600'
       }}>Dashboard Configuration</h3>
       
-      {/* Chart Time Range */}
+      {/* Chart Time Range and Display Options */}
       <div style={{ marginBottom: '24px' }}>
         <h4 style={{ 
           color: '#ffffff', 
           fontSize: '1.1rem', 
           marginBottom: '12px',
           fontWeight: '500'
-        }}>Chart Time Range</h4>
-        <div>
+        }}>Chart Display Settings</h4>
+        
+        <div style={{ marginBottom: '16px' }}>
           <label style={{ 
             color: '#e2e8f0', 
             fontSize: '13px', 
@@ -206,6 +199,42 @@ const DashboardSettings = () => {
             Controls how much historical data is shown in the SpO₂, Heart Rate, and Perfusion charts
           </div>
         </div>
+
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '10px', 
+          padding: '12px',
+          backgroundColor: '#1a202c',
+          borderRadius: '6px',
+          border: '1px solid #4a5568'
+        }}>
+          <input
+            type="checkbox"
+            checked={formData.show_statistics}
+            onChange={(e) => handleInputChange('show_statistics', e.target.checked)}
+            style={{
+              width: '18px',
+              height: '18px',
+              accentColor: '#007bff',
+              cursor: 'pointer'
+            }}
+          />
+          <label style={{ 
+            color: '#ffffff', 
+            fontSize: '14px', 
+            fontWeight: '500',
+            cursor: 'pointer'
+          }}>Show Value Statistics (Min/Max/Avg)</label>
+        </div>
+        <div style={{ 
+          color: '#cbd5e0', 
+          fontSize: '12px', 
+          marginTop: '6px',
+          fontStyle: 'italic'
+        }}>
+          Display minimum, maximum, and average statistics below each vital sign value
+        </div>
       </div>
 
         {/* Card Display Options */}
@@ -215,7 +244,7 @@ const DashboardSettings = () => {
             fontSize: '1.1rem', 
             marginBottom: '12px',
             fontWeight: '500'
-          }}>Dashboard Cards</h4>
+          }}>Dashboard Charts</h4>
           
           {/* Sub-chart Selection */}
           <div style={{ marginBottom: '16px' }}>
@@ -302,199 +331,50 @@ const DashboardSettings = () => {
               </div>
             </div>
           </div>
-          
-          {/* Existing Card Toggles */}
-          <div style={{ display: 'grid', gap: '12px' }}>
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '10px', 
-              padding: '12px',
-              backgroundColor: '#1a202c',
-              borderRadius: '6px',
-              border: '1px solid #4a5568'
-            }}>
-              <input
-                type="checkbox"
-                checked={formData.show_blood_pressure_card}
-                onChange={(e) => handleInputChange('show_blood_pressure_card', e.target.checked)}
-                style={{
-                  width: '18px',
-                  height: '18px',
-                  accentColor: '#007bff',
-                  cursor: 'pointer'
-                }}
-              />
-              <label style={{ 
-                color: '#ffffff', 
-                fontSize: '14px', 
-                fontWeight: '500',
-                cursor: 'pointer'
-              }}>Show Blood Pressure Card</label>
-            </div>
-            
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '10px', 
-              padding: '12px',
-              backgroundColor: '#1a202c',
-              borderRadius: '6px',
-              border: '1px solid #4a5568'
-            }}>
-              <input
-                type="checkbox"
-                checked={formData.show_temperature_card}
-                onChange={(e) => handleInputChange('show_temperature_card', e.target.checked)}
-                style={{
-                  width: '18px',
-                  height: '18px',
-                  accentColor: '#007bff',
-                  cursor: 'pointer'
-                }}
-              />
-              <label style={{ 
-                color: '#ffffff', 
-                fontSize: '14px', 
-                fontWeight: '500',
-                cursor: 'pointer'
-              }}>Show Temperature Card</label>
-            </div>
-            
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '10px', 
-              padding: '12px',
-              backgroundColor: '#1a202c',
-              borderRadius: '6px',
-              border: '1px solid #4a5568'
-            }}>
-              <input
-                type="checkbox"
-                checked={formData.show_statistics}
-                onChange={(e) => handleInputChange('show_statistics', e.target.checked)}
-                style={{
-                  width: '18px',
-                  height: '18px',
-                  accentColor: '#007bff',
-                  cursor: 'pointer'
-                }}
-              />
-              <label style={{ 
-                color: '#ffffff', 
-                fontSize: '14px', 
-                fontWeight: '500',
-                cursor: 'pointer'
-              }}>Show Value Statistics (Min/Max/Avg)</label>
-            </div>
-          </div>
         </div>
 
-        {/* Performance Settings */}
+        {/* Perfusion Display Mode */}
         <div style={{ marginBottom: '24px' }}>
           <h4 style={{ 
             color: '#ffffff', 
             fontSize: '1.1rem', 
             marginBottom: '12px',
             fontWeight: '500'
-          }}>Performance & Data</h4>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div>
-              <label style={{ 
-                color: '#e2e8f0', 
-                fontSize: '13px', 
-                fontWeight: '500', 
-                marginBottom: '6px', 
-                display: 'block' 
-              }}>Chart Refresh Rate (ms)</label>
-              <input
-                type="number"
-                value={formData.chart_refresh_rate}
-                onChange={(e) => handleInputChange('chart_refresh_rate', e.target.value)}
-                min="100"
-                max="5000"
-                step="100"
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  backgroundColor: '#2d3748',
-                  border: '1px solid #4a5568',
-                  borderRadius: '6px',
-                  color: '#ffffff',
-                  fontSize: '14px',
-                  outline: 'none',
-                  boxSizing: 'border-box'
-                }}
-              />
-            </div>
-            <div>
-              <label style={{ 
-                color: '#e2e8f0', 
-                fontSize: '13px', 
-                fontWeight: '500', 
-                marginBottom: '6px', 
-                display: 'block' 
-              }}>Data Retention (minutes)</label>
-              <input
-                type="number"
-                value={formData.data_retention_minutes}
-                onChange={(e) => handleInputChange('data_retention_minutes', e.target.value)}
-                min="5"
-                max="120"
-                step="5"
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  backgroundColor: '#2d3748',
-                  border: '1px solid #4a5568',
-                  borderRadius: '6px',
-                  color: '#ffffff',
-                  fontSize: '14px',
-                  outline: 'none',
-                  boxSizing: 'border-box'
-                }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Temperature Display Mode */}
-        <div style={{ marginBottom: '24px' }}>
-          <h4 style={{ 
-            color: '#ffffff', 
-            fontSize: '1.1rem', 
-            marginBottom: '12px',
-            fontWeight: '500'
-          }}>Temperature Display</h4>
-          <div>
-            <label style={{ 
-              color: '#e2e8f0', 
-              fontSize: '13px', 
-              fontWeight: '500', 
-              marginBottom: '6px', 
-              display: 'block' 
-            }}>Temperature Display Mode</label>
-            <select
-              value={formData.temperature_display_mode}
-              onChange={(e) => handleInputChange('temperature_display_mode', e.target.value)}
+          }}>Perfusion Display</h4>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '10px', 
+            padding: '12px',
+            backgroundColor: '#1a202c',
+            borderRadius: '6px',
+            border: '1px solid #4a5568'
+          }}>
+            <input
+              type="checkbox"
+              checked={formData.perfusion_as_percent}
+              onChange={(e) => handleInputChange('perfusion_as_percent', e.target.checked)}
               style={{
-                width: '100%',
-                padding: '10px 12px',
-                backgroundColor: '#2d3748',
-                border: '1px solid #4a5568',
-                borderRadius: '6px',
-                color: '#ffffff',
-                fontSize: '14px',
-                outline: 'none',
-                cursor: 'pointer',
-                boxSizing: 'border-box'
+                width: '18px',
+                height: '18px',
+                accentColor: '#007bff',
+                cursor: 'pointer'
               }}
-            >
-              <option value="both">Show Both Body & Skin Temperature</option>
-              <option value="body">Show Body Temperature Only</option>
-              <option value="skin">Show Skin Temperature Only</option>
-            </select>
+            />
+            <label style={{ 
+              color: '#ffffff', 
+              fontSize: '14px', 
+              fontWeight: '500',
+              cursor: 'pointer'
+            }}>Display Perfusion as Percent (%)</label>
+          </div>
+          <div style={{ 
+            color: '#cbd5e0', 
+            fontSize: '12px', 
+            marginTop: '6px',
+            fontStyle: 'italic'
+          }}>
+            When checked, perfusion displays with "%" symbol. When unchecked, displays "PI" (Perfusion Index).
           </div>
         </div>
 
