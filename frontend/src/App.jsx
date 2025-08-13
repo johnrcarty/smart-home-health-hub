@@ -2,8 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import "./App.css";
 import ChartBlock from "./components/ChartBlock";
 import ClockCard from "./components/ClockCard";
-import BloodPressureCard from "./components/BloodPressureCard";
-import TemperatureCard from "./components/TemperatureCard";
+import DynamicVitalsCard from "./components/DynamicVitalsCard";
 import ModalBase from "./components/ModalBase";
 import SettingsForm from "./components/SettingsForm";
 // Import the minimalist icons from the file
@@ -54,9 +53,77 @@ export default function App() {
 
   const [bpHistory, setBpHistory] = useState([]);
   const [tempHistory, setTempHistory] = useState([]);
+  const [chartTimeRange, setChartTimeRange] = useState('5m'); // Default to 5 minutes
+  
+  // Dynamic chart data from settings
+  const [dashboardChart1, setDashboardChart1] = useState({ vital_type: 'bp', data: [] });
+  const [dashboardChart2, setDashboardChart2] = useState({ vital_type: 'temperature', data: [] });
 
   const initialDataReceived = useRef(false);
   const prevAlarmActive = useRef(false);
+
+  // Load chart time range setting
+  useEffect(() => {
+    const loadChartTimeRange = async () => {
+      try {
+        console.log('Loading chart time range setting...');
+        const response = await fetch(`${config.apiUrl}/api/settings`);
+        if (response.ok) {
+          const settings = await response.json();
+          console.log('All settings loaded:', settings);
+          if (settings.chart_time_range) {
+            console.log('Found chart_time_range setting:', settings.chart_time_range.value);
+            setChartTimeRange(settings.chart_time_range.value);
+          } else {
+            console.log('No chart_time_range setting found, using default');
+          }
+        } else {
+          console.error('Failed to load settings:', response.status);
+        }
+      } catch (err) {
+        console.error('Error loading chart time range setting:', err);
+      }
+    };
+    loadChartTimeRange();
+  }, []);
+
+  // Reload chart time range when settings modal is closed
+  useEffect(() => {
+    if (!isSettingsModalOpen) {
+      const reloadChartTimeRange = async () => {
+        try {
+          console.log('Settings modal closed, reloading chart time range...');
+          const response = await fetch(`${config.apiUrl}/api/settings`);
+          if (response.ok) {
+            const settings = await response.json();
+            if (settings.chart_time_range) {
+              console.log('Updated chart_time_range setting:', settings.chart_time_range.value);
+              setChartTimeRange(settings.chart_time_range.value);
+            }
+          }
+        } catch (err) {
+          console.error('Error reloading chart time range setting:', err);
+        }
+      };
+      reloadChartTimeRange();
+    }
+  }, [isSettingsModalOpen]);
+
+  // Convert time range to data points (assuming 1 data point per second)
+  const getMaxDataPoints = () => {
+    console.log('Converting time range to data points:', chartTimeRange);
+    switch (chartTimeRange) {
+      case '1m': return 60;
+      case '3m': return 180;
+      case '5m': return 300;
+      case '10m': return 600;
+      case '30m': return 1800;
+      case '1h': return 3600;
+      default: 
+        console.log('Unknown time range, using default 300');
+        return 300; // Default to 5 minutes
+    }
+  };
 
   useEffect(() => {
     console.log(`Connecting to WebSocket at: ${config.wsUrl}`);
@@ -122,19 +189,20 @@ export default function App() {
         setDatasets(prev => {
           const newState = { ...prev };
           let hasValidUpdate = false;
+          const maxDataPoints = getMaxDataPoints();
 
           if (msg.state.spo2 !== null && msg.state.spo2 !== undefined) {
-            newState.spo2 = [...prev.spo2, { x: now, y: msg.state.spo2 }].slice(-1800);
+            newState.spo2 = [...prev.spo2, { x: now, y: msg.state.spo2 }].slice(-maxDataPoints);
             hasValidUpdate = true;
           }
 
           if (msg.state.bpm !== null && msg.state.bpm !== undefined) {
-            newState.bpm = [...prev.bpm, { x: now, y: msg.state.bpm }].slice(-1800);
+            newState.bpm = [...prev.bpm, { x: now, y: msg.state.bpm }].slice(-maxDataPoints);
             hasValidUpdate = true;
           }
 
           if (msg.state.perfusion !== null && msg.state.perfusion !== undefined) {
-            newState.perfusion = [...prev.perfusion, { x: now, y: msg.state.perfusion }].slice(-1800);
+            newState.perfusion = [...prev.perfusion, { x: now, y: msg.state.perfusion }].slice(-maxDataPoints);
             hasValidUpdate = true;
           }
 
@@ -163,6 +231,14 @@ export default function App() {
         // Update medication due count from websocket
         if (msg.state.medications !== undefined) {
           setMedicationDueCount(msg.state.medications);
+        }
+        
+        // Update dynamic chart data from websocket
+        if (msg.state.dashboard_chart_1) {
+          setDashboardChart1(msg.state.dashboard_chart_1);
+        }
+        if (msg.state.dashboard_chart_2) {
+          setDashboardChart2(msg.state.dashboard_chart_2);
         }
       }
       
@@ -588,12 +664,21 @@ export default function App() {
         </div>
 
         <div className="right-column">
-          <div className="bp-container">
-            <BloodPressureCard bpHistory={bpHistory} />
+          {/* Dynamic Charts based on settings */}
+          <div className="dynamic-chart-container">
+            <DynamicVitalsCard 
+              vitalType={dashboardChart1.vital_type}
+              data={dashboardChart1.data}
+              title={`Chart 1: ${dashboardChart1.vital_type}`}
+            />
           </div>
 
-          <div className="temp-container">
-            <TemperatureCard tempHistory={tempHistory} />
+          <div className="dynamic-chart-container">
+            <DynamicVitalsCard 
+              vitalType={dashboardChart2.vital_type}
+              data={dashboardChart2.data}
+              title={`Chart 2: ${dashboardChart2.vital_type}`}
+            />
           </div>
         </div>
       </div>

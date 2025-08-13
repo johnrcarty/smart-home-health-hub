@@ -1,6 +1,6 @@
 import logging
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from croniter import croniter
 from sqlalchemy.orm import Session
 from db import get_db
@@ -35,7 +35,7 @@ def save_temperature(db: Session, skin_temp, body_temp, raw_data):
     """
     Save temperature reading to database (Postgres)
     """
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     temp = Temperature(
         timestamp=now,
         skin_temp=skin_temp,
@@ -54,8 +54,27 @@ def save_vital(db: Session, vital_type, value, timestamp=None, notes=None, vital
     """
     Save a generic vital reading to database (Postgres)
     """
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     ts = timestamp or now
+    
+    # Ensure timestamp is timezone-aware (convert to UTC if naive)
+    if ts and hasattr(ts, 'tzinfo') and ts.tzinfo is None:
+        # Assume naive datetime is in local timezone and convert to UTC
+        import pytz
+        eastern = pytz.timezone('US/Eastern')
+        ts = eastern.localize(ts).astimezone(timezone.utc)
+    elif isinstance(ts, str):
+        # Parse string timestamp and ensure it's UTC
+        try:
+            ts = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+            if ts.tzinfo is None:
+                # Assume it's Eastern time if no timezone info
+                import pytz
+                eastern = pytz.timezone('US/Eastern')
+                ts = eastern.localize(ts).astimezone(timezone.utc)
+        except:
+            ts = now
+    
     vital = Vital(
         timestamp=ts,
         vital_type=vital_type,

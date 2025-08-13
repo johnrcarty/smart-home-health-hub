@@ -206,7 +206,7 @@ html, body, #root {
   display: flex;
   justify-content: stretch;
   align-items: stretch;
-  z-index: 1000;
+  z-index: 1100;
   backdrop-filter: blur(2px);
 }
 
@@ -386,15 +386,14 @@ html, body, #root {
   background-color: #161e2e; /* Match main background */
 }
 
-/* BP container now takes 50% of right column */
-.bp-container {
+/* Dynamic chart containers */
+.dynamic-chart-container {
   height: 50%;
   margin-bottom: 10px;
 }
 
-/* Temperature container */
-.temp-container {
-  height: 50%;
+.dynamic-chart-container:last-child {
+  margin-bottom: 0;
 }
 
 /* Placeholder takes remaining 50% */

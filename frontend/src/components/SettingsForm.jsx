@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import MqttSettings from './settings/MqttSettings';
 import GpioSettings from './settings/GpioSettings';
 import SerialSettings from './settings/SerialSettings';
+import DashboardSettings from './settings/DashboardSettings';
 import ModalBase from './ModalBase';
 import { getSettings, updateSettings } from '../services/settings';
 import config from '../config';
@@ -123,7 +124,11 @@ const SettingsForm = ({ onClose }) => {
   };
 
   if (isLoading) {
-    return <div className="loading">Loading settings...</div>;
+    return (
+      <ModalBase isOpen={true} onClose={onClose} title="Settings">
+        <div className="loading">Loading settings...</div>
+      </ModalBase>
+    );
   }
 
   return (
@@ -145,6 +150,21 @@ const SettingsForm = ({ onClose }) => {
               }}
             >
               General
+            </button>
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              style={{
+                padding: '8px 16px',
+                border: 'none',
+                borderRadius: '6px',
+                backgroundColor: activeTab === 'dashboard' ? '#007bff' : '#f8f9fa',
+                color: activeTab === 'dashboard' ? '#fff' : '#333',
+                cursor: 'pointer',
+                fontWeight: '500',
+                fontSize: '14px'
+              }}
+            >
+              Dashboard
             </button>
             <button
               onClick={() => setActiveTab('thresholds')}
@@ -392,6 +412,9 @@ const SettingsForm = ({ onClose }) => {
               </div>
             </>
           )}
+          {activeTab === 'dashboard' && (
+            <DashboardSettings />
+          )}
           {activeTab === 'thresholds' && (
             <>
               <div style={{ marginBottom: '24px' }}>
@@ -626,26 +649,29 @@ const SettingsForm = ({ onClose }) => {
               fontSize: '13px'
             }}>Settings saved successfully!</div>
           )}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
-            <button 
-              type="submit" 
-              disabled={isSubmitting}
-              style={{
-                backgroundColor: '#007bff',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '6px',
-                padding: '10px 24px',
-                fontSize: '14px',
-                fontWeight: '500',
-                cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                opacity: isSubmitting ? 0.6 : 1,
-                transition: 'all 0.2s ease'
-              }}
-            >
-              {isSubmitting ? 'Saving...' : 'Save Settings'}
-            </button>
-          </div>
+          {/* Only show main Save Settings button for tabs that don't have their own save functionality */}
+          {activeTab !== 'dashboard' && activeTab !== 'gpio' && activeTab !== 'serial' && activeTab !== 'mqtt' && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+              <button 
+                type="submit" 
+                disabled={isSubmitting}
+                style={{
+                  backgroundColor: '#007bff',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '10px 24px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                  opacity: isSubmitting ? 0.6 : 1,
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                {isSubmitting ? 'Saving...' : 'Save Settings'}
+              </button>
+            </div>
+          )}
         </form>
         </div>
       </div>
