@@ -154,7 +154,7 @@ const MqttSettings = () => {
     setSuccess(false);
 
     try {
-      const response = await fetch('/api/mqtt/settings', {
+      const response = await fetch(`${config.apiUrl}/api/mqtt/settings`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -179,7 +179,7 @@ const MqttSettings = () => {
   const testConnection = async () => {
     setConnectionStatus('testing');
     try {
-      const response = await fetch('/api/mqtt/test-connection', {
+      const response = await fetch(`${config.apiUrl}/api/mqtt/test-connection`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -202,7 +202,7 @@ const MqttSettings = () => {
 
   const sendDiscovery = async () => {
     try {
-      const response = await fetch('/api/mqtt/send-discovery', {
+      const response = await fetch(`${config.apiUrl}/api/mqtt/send-discovery`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
