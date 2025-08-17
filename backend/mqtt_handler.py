@@ -29,9 +29,13 @@ def get_mqtt_settings():
         topics_json = get_setting(db, 'mqtt_topics')
         if topics_json:
             try:
-                settings['topics'] = json.loads(topics_json)
-            except json.JSONDecodeError:
-                logger.error("Failed to parse MQTT topics JSON from database")
+                # Handle both dict and JSON string cases
+                if isinstance(topics_json, dict):
+                    settings['topics'] = topics_json
+                else:
+                    settings['topics'] = json.loads(topics_json)
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.error(f"Failed to parse MQTT topics from database: {e}")
                 settings['topics'] = {}
         else:
             settings['topics'] = {}
@@ -93,7 +97,8 @@ def get_mqtt_client(loop):
             # Subscribe to all enabled topics
             enabled_topics = get_enabled_topics(mqtt_settings)
             for topic_name, topic_path in enabled_topics.items():
-                if topic_path and 'broadcast' in topic_name:  # Only subscribe to broadcast topics (state)
+                # SUBSCRIBE TO LISTEN TOPICS, NOT BROADCAST/STATE
+                if topic_path and 'listen' in topic_name:
                     client.subscribe(topic_path)
                     logger.info(f"Subscribed to {topic_path}")
         else:
@@ -110,18 +115,23 @@ def get_mqtt_client(loop):
                 continue
                 
             if vital_name == 'nutrition':
-                if (msg.topic == config.get('water_broadcast_topic') or 
-                    msg.topic == config.get('calories_broadcast_topic')):
+                if (msg.topic == config.get('water_listen_topic') or 
+                    msg.topic == config.get('calories_listen_topic')):
                     matching_vital = vital_name
                     break
             else:
-                if msg.topic == config.get('broadcast_topic'):
+                if msg.topic == config.get('listen_topic'):
                     matching_vital = vital_name
                     break
 
         if matching_vital:
             try:
                 payload = json.loads(raw_data)
+                
+                # Ignore messages that originated from this client to prevent loops
+                if payload.get('origin') == mqtt_settings['client_id']:
+                    logger.info(f"Ignoring message from our own client: {msg.topic}")
+                    return
                 
                 # Handle blood pressure data (updated from "map" to "bp")
                 if matching_vital == "blood_pressure":
@@ -141,7 +151,8 @@ def get_mqtt_client(loop):
                                 map_value=map_value,
                                 raw_data=raw_data
                             )
-                            broadcast_state()
+                            # Use update_sensor instead of broadcast_state to maintain consistency
+                            update_sensor(("systolic_bp", systolic), ("diastolic_bp", diastolic), ("map_bp", map_value), from_mqtt=True)
                         finally:
                             db.close()
                     else:
@@ -164,7 +175,7 @@ def get_mqtt_client(loop):
                             )
                             update_sensor(("skin_temp", skin_temp), from_mqtt=True)
                             update_sensor(("body_temp", body_temp), from_mqtt=True)
-                            broadcast_state()
+                            # Removed extra broadcast_state() call since update_sensor already handles it
                         finally:
                             db.close()
                     else:
@@ -173,11 +184,11 @@ def get_mqtt_client(loop):
                 # Handle nutrition data (water and calories)
                 elif matching_vital == "nutrition":
                     water_config = mqtt_settings['topics']['nutrition']
-                    if msg.topic == water_config.get('water_broadcast_topic'):
+                    if msg.topic == water_config.get('water_listen_topic'):
                         water_value = payload.get("water")
                         if water_value is not None:
                             update_sensor(("water", water_value), from_mqtt=True)
-                    elif msg.topic == water_config.get('calories_broadcast_topic'):
+                    elif msg.topic == water_config.get('calories_listen_topic'):
                         calories_value = payload.get("calories")
                         if calories_value is not None:
                             update_sensor(("calories", calories_value), from_mqtt=True)

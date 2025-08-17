@@ -147,73 +147,384 @@ def is_serial_mode() -> bool:
 
 def publish_to_mqtt():
     """
-    Publish current sensor state to Home Assistant MQTT topics
-    following the format of the original script.
+    Publish current sensor state to configured MQTT topics based on database settings.
     """
-    if not mqtt_client:
-        print("[state_manager] Cannot publish to MQTT, mqtt_client not set.")
-        return
+    global mqtt_client  # Declare global at the top
     
-    # Check if MQTT client is connected
+    # Get MQTT settings from database first to check if enabled
+    from crud import get_setting
+    from db import SessionLocal
+    
+    # Create a database session for getting settings
+    db = SessionLocal()
     try:
-        if not mqtt_client.is_connected():
-            print("[state_manager] MQTT client is not connected. Attempting to reconnect...")
-            mqtt_client.reconnect()
-    except Exception as e:
-        print(f"[state_manager] Error checking MQTT connection: {e}")
-        return
-    
-    # Use medical-test prefix for testing
-    base_topic = "medical/spo2/state"
-    
-    # Status to motion conversion
-    if sensor_state["status"] is None:
-        motion = "OFF"
-    else:
-        motion = "ON" if "MO" in sensor_state["status"] else "OFF"
-
-    # Alarm Logic
-    if sensor_state["spo2"] is None:
-        spo2_alarm = "OFF"
-    else:
-        spo2_alarm = "ON" if not (MIN_SPO2 <= int(sensor_state["spo2"]) <= MAX_SPO2) else "OFF"
-
-    if sensor_state["bpm"] is None:
-        hr_alarm = "OFF"
-    else:
-        hr_alarm = "ON" if not (MIN_BPM <= int(sensor_state["bpm"]) <= MAX_BPM) else "OFF"
-
-    # Create payload matching the original script format
-    timestamp = datetime.now().strftime("%y-%b-%d %H:%M:%S")
-    
-    payload = {
-        "timestamp": timestamp,
-        "spo2": sensor_state["spo2"],
-        "bpm": sensor_state["bpm"],
-        "pa": sensor_state["perfusion"],
-        "status": sensor_state["status"],
-        "motion": motion,
-        "spo2_alarm": spo2_alarm,
-        "hr_alarm": hr_alarm
-    }
-
-    # Send to test topic with better error handling
-    try:
-        json_payload = json.dumps(payload)
-        result = mqtt_client.publish(base_topic, json_payload, retain=True)
+        # Check if MQTT is enabled first
+        mqtt_enabled = get_setting(db, 'mqtt_enabled', False)
+        if not mqtt_enabled:
+            print("[state_manager] MQTT is disabled, skipping publish.")
+            return
         
-        # Check the result
-        if result.rc == 0:
-            print(f"[state_manager] Published to {base_topic}: {json_payload}")
+        # Check if MQTT client is set
+        if not mqtt_client:
+            print("[state_manager] MQTT client not available, skipping publish.")
+            print("[state_manager] This usually means MQTT is disabled or failed to initialize in main.py")
+            return
+        
+        # Check if MQTT client is connected
+        try:
+            if not mqtt_client.is_connected():
+                print("[state_manager] MQTT client is not connected. This may cause publish failures.")
+                # Note: We don't attempt to reconnect here since the main MQTT client should handle reconnection
+        except Exception as e:
+            error_msg = f"MQTT connection check failed: {str(e)}"
+            print(f"[state_manager] {error_msg}")
+            return
+        
+        # Get topics configuration
+        topics_json = get_setting(db, 'mqtt_topics')
+        if not topics_json:
+            print("[state_manager] No MQTT topics configuration found.")
+            return
+        
+        try:
+            topics = json.loads(topics_json) if isinstance(topics_json, str) else topics_json
+        except (json.JSONDecodeError, TypeError) as e:
+            error_msg = f"Error parsing MQTT topics configuration: {str(e)}"
+            print(f"[state_manager] {error_msg}")
+            return
+
+        # Get MQTT client ID for origin tracking
+        mqtt_client_id = get_setting(db, 'mqtt_client_id', 'sensor_monitor')
+        
+        timestamp = datetime.now().strftime("%y-%b-%d %H:%M:%S")
+        published_count = 0
+        
+        # Publish pulse ox data (SpO2, BPM, Perfusion)
+        if topics.get('spo2', {}).get('enabled', False):
+            try:
+                # Only publish if we have actual pulse ox data
+                if (sensor_state.get("spo2") is not None or 
+                    sensor_state.get("bpm") is not None or 
+                    sensor_state.get("perfusion") is not None):
+                    
+                    # Status to motion conversion
+                    motion = "OFF"
+                    if sensor_state["status"] is not None:
+                        motion = "ON" if "MO" in str(sensor_state["status"]) else "OFF"
+
+                    # Alarm Logic
+                    spo2_alarm = "OFF"
+                    if sensor_state["spo2"] is not None:
+                        try:
+                            spo2_alarm = "ON" if not (MIN_SPO2 <= int(sensor_state["spo2"]) <= MAX_SPO2) else "OFF"
+                        except (ValueError, TypeError):
+                            spo2_alarm = "OFF"
+
+                    hr_alarm = "OFF"
+                    if sensor_state["bpm"] is not None:
+                        try:
+                            hr_alarm = "ON" if not (MIN_BPM <= int(sensor_state["bpm"]) <= MAX_BPM) else "OFF"
+                        except (ValueError, TypeError):
+                            hr_alarm = "OFF"
+
+                    payload = {
+                        "timestamp": timestamp,
+                        "spo2": sensor_state["spo2"],
+                        "bpm": sensor_state["bpm"],
+                        "pa": sensor_state["perfusion"],
+                        "status": sensor_state["status"],
+                        "motion": motion,
+                        "spo2_alarm": spo2_alarm,
+                        "hr_alarm": hr_alarm,
+                        "origin": mqtt_client_id
+                    }
+
+                    broadcast_topic = topics['spo2'].get('broadcast_topic', 'shh/spo2/state')
+                    json_payload = json.dumps(payload)
+                    result = mqtt_client.publish(broadcast_topic, json_payload, retain=True)
+                    
+                    if result.rc == 0:
+                        print(f"[state_manager] Published SpO2 data to {broadcast_topic}: {json_payload}")
+                        published_count += 1
+                    else:
+                        print(f"[state_manager] Failed to publish SpO2 data to {broadcast_topic}, result code: {result.rc}")
+                else:
+                    print("[state_manager] Skipping SpO2 MQTT publish - no pulse ox data available")
+                    
+            except Exception as e:
+                error_msg = f"Error publishing SpO2 data to MQTT: {str(e)}"
+                print(f"[state_manager] {error_msg}")
+        
+        # Publish temperature data
+        if topics.get('temperature', {}).get('enabled', False):
+            try:
+                # Get the latest temperature reading
+                from crud import get_last_n_temperature
+                temp_data = get_last_n_temperature(db, 1)
+                
+                if temp_data and len(temp_data) > 0:
+                    latest_temp = temp_data[0]
+                    # Only publish if we have actual temperature data
+                    if (latest_temp.get('skin_temp') is not None or 
+                        latest_temp.get('body_temp') is not None):
+                        
+                        temp_payload = {
+                            "timestamp": timestamp,
+                            "skin_temp": latest_temp.get('skin_temp'),
+                            "body_temp": latest_temp.get('body_temp'),
+                            "datetime": latest_temp.get('datetime').isoformat() if latest_temp.get('datetime') else None,
+                            "origin": mqtt_client_id
+                        }
+
+                        broadcast_topic = topics['temperature'].get('broadcast_topic', 'shh/temp/state')
+                        json_payload = json.dumps(temp_payload, default=str)
+                        result = mqtt_client.publish(broadcast_topic, json_payload, retain=True)
+                        
+                        if result.rc == 0:
+                            print(f"[state_manager] Published temperature data to {broadcast_topic}: {json_payload}")
+                            published_count += 1
+                        else:
+                            print(f"[state_manager] Failed to publish temperature data to {broadcast_topic}, result code: {result.rc}")
+                    else:
+                        print("[state_manager] Skipping temperature MQTT publish - no temperature data available")
+                else:
+                    print("[state_manager] Skipping temperature MQTT publish - no temperature readings found")
+                        
+            except Exception as e:
+                error_msg = f"Error publishing temperature data to MQTT: {str(e)}"
+                print(f"[state_manager] {error_msg}")
+        
+        # Publish blood pressure data
+        if topics.get('blood_pressure', {}).get('enabled', False):
+            try:
+                # Get the latest blood pressure reading
+                from crud import get_last_n_blood_pressure
+                bp_data = get_last_n_blood_pressure(db, 1)
+                
+                if bp_data and len(bp_data) > 0:
+                    latest_bp = bp_data[0]
+                    # Only publish if we have actual blood pressure data
+                    if (latest_bp.get('systolic_bp') is not None or 
+                        latest_bp.get('diastolic_bp') is not None or 
+                        latest_bp.get('map_bp') is not None):
+                        
+                        bp_payload = {
+                            "timestamp": timestamp,
+                            "systolic": latest_bp.get('systolic_bp'),
+                            "diastolic": latest_bp.get('diastolic_bp'),
+                            "map": latest_bp.get('map_bp'),
+                            "datetime": latest_bp.get('datetime').isoformat() if latest_bp.get('datetime') else None,
+                            "origin": mqtt_client_id
+                        }
+
+                        broadcast_topic = topics['blood_pressure'].get('broadcast_topic', 'shh/bp/state')
+                        json_payload = json.dumps(bp_payload, default=str)
+                        result = mqtt_client.publish(broadcast_topic, json_payload, retain=True)
+                        
+                        if result.rc == 0:
+                            print(f"[state_manager] Published blood pressure data to {broadcast_topic}: {json_payload}")
+                            published_count += 1
+                        else:
+                            print(f"[state_manager] Failed to publish blood pressure data to {broadcast_topic}, result code: {result.rc}")
+                    else:
+                        print("[state_manager] Skipping blood pressure MQTT publish - no blood pressure data available")
+                else:
+                    print("[state_manager] Skipping blood pressure MQTT publish - no blood pressure readings found")
+                        
+            except Exception as e:
+                error_msg = f"Error publishing blood pressure data to MQTT: {str(e)}"
+                print(f"[state_manager] {error_msg}")
+
+        if published_count > 0:
+            print(f"[state_manager] Successfully published {published_count} MQTT messages")
         else:
-            print(f"[state_manager] Failed to publish to {base_topic}, result code: {result.rc}")
+            print("[state_manager] No MQTT messages were published (no enabled topics or no data)")
+        
+    finally:
+        db.close()
+
+
+def publish_specific_vital_to_mqtt(vital_type, vital_data):
+    """
+    Publish a specific vital type to MQTT based on database settings.
+    
+    Args:
+        vital_type: The type of vital (e.g., 'bathroom', 'temperature', 'blood_pressure')
+        vital_data: The data to publish (dict)
+    """
+    print(f"[state_manager] publish_specific_vital_to_mqtt called for {vital_type} with data: {vital_data}")
+    global mqtt_client
+    
+    # Get MQTT settings from database first to check if enabled
+    from crud import get_setting
+    from db import SessionLocal
+    
+    # Create a database session for getting settings
+    db = SessionLocal()
+    try:
+        # Check if MQTT is enabled first
+        mqtt_enabled = get_setting(db, 'mqtt_enabled', False)
+        if not mqtt_enabled:
+            print(f"[state_manager] MQTT is disabled, skipping {vital_type} publish.")
+            return
+        
+        # Check if MQTT client is set, if not, skip publishing since main.py should have set it
+        if not mqtt_client:
+            print(f"[state_manager] MQTT client not available for {vital_type}, skipping publish.")
+            print(f"[state_manager] This usually means MQTT is disabled or failed to initialize in main.py")
+            return
+        
+        # Check if MQTT client is connected
+        if not mqtt_client.is_connected():
+            print(f"[state_manager] MQTT client is not connected for {vital_type}. This may cause publish failures.")
+            # Note: We don't attempt to reconnect here since the main MQTT client should handle reconnection
+        
+        # Get topics configuration
+        topics_json = get_setting(db, 'mqtt_topics')
+        if not topics_json:
+            print(f"[state_manager] No MQTT topics configuration found for {vital_type}.")
+            return
+        
+        try:
+            topics = json.loads(topics_json) if isinstance(topics_json, str) else topics_json
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"[state_manager] Error parsing MQTT topics configuration: {str(e)}")
+            return
+
+        # Check if this specific vital type is enabled for MQTT
+        if not topics.get(vital_type, {}).get('enabled', False):
+            print(f"[state_manager] MQTT publishing for {vital_type} is disabled.")
+            return
+
+        # Get MQTT client ID for origin tracking
+        mqtt_client_id = get_setting(db, 'mqtt_client_id', 'sensor_monitor')
+        
+        timestamp = datetime.now().strftime("%y-%b-%d %H:%M:%S")
+        
+        # Create payload based on vital type
+        if vital_type == 'bathroom':
+            # Handle datetime formatting safely
+            datetime_val = vital_data.get('datetime')
+            formatted_datetime = None
+            if datetime_val:
+                if hasattr(datetime_val, 'isoformat'):
+                    formatted_datetime = datetime_val.isoformat()
+                else:
+                    formatted_datetime = str(datetime_val)
             
-        # Also publish availability
-        mqtt_client.publish("medical-test/spo2/availability", "online", retain=True)
+            payload = {
+                "timestamp": timestamp,
+                "type": vital_data.get('bathroom_type'),
+                "size": vital_data.get('bathroom_size'),
+                "value": vital_data.get('value'),
+                "datetime": formatted_datetime,
+                "notes": vital_data.get('notes'),
+                "origin": mqtt_client_id
+            }
+        elif vital_type == 'temperature':
+            # Handle datetime formatting safely
+            datetime_val = vital_data.get('datetime')
+            formatted_datetime = None
+            if datetime_val:
+                if hasattr(datetime_val, 'isoformat'):
+                    formatted_datetime = datetime_val.isoformat()
+                else:
+                    formatted_datetime = str(datetime_val)
+            
+            payload = {
+                "timestamp": timestamp,
+                "skin_temp": vital_data.get('skin_temp'),
+                "body_temp": vital_data.get('body_temp'),
+                "datetime": formatted_datetime,
+                "origin": mqtt_client_id
+            }
+        elif vital_type == 'blood_pressure':
+            # Handle datetime formatting safely
+            datetime_val = vital_data.get('datetime')
+            formatted_datetime = None
+            if datetime_val:
+                if hasattr(datetime_val, 'isoformat'):
+                    formatted_datetime = datetime_val.isoformat()
+                else:
+                    formatted_datetime = str(datetime_val)
+            
+            payload = {
+                "timestamp": timestamp,
+                "systolic": vital_data.get('systolic_bp'),
+                "diastolic": vital_data.get('diastolic_bp'),
+                "map": vital_data.get('map_bp'),
+                "datetime": formatted_datetime,
+                "origin": mqtt_client_id
+            }
+        elif vital_type in ['nutrition', 'water', 'calories']:
+            # Handle nutrition vitals
+            # Handle datetime formatting safely
+            datetime_val = vital_data.get('datetime')
+            formatted_datetime = None
+            if datetime_val:
+                if hasattr(datetime_val, 'isoformat'):
+                    formatted_datetime = datetime_val.isoformat()
+                else:
+                    formatted_datetime = str(datetime_val)
+            
+            if vital_type == 'nutrition':
+                # For nutrition, we might have both water and calories
+                payload = {
+                    "timestamp": timestamp,
+                    "water": vital_data.get('water'),
+                    "calories": vital_data.get('calories'),
+                    "datetime": formatted_datetime,
+                    "origin": mqtt_client_id
+                }
+            else:
+                payload = {
+                    "timestamp": timestamp,
+                    "value": vital_data.get('value'),
+                    "datetime": formatted_datetime,
+                    "notes": vital_data.get('notes'),
+                    "origin": mqtt_client_id
+                }
+        else:
+            # Generic vital payload
+            # Handle datetime formatting safely
+            datetime_val = vital_data.get('datetime')
+            formatted_datetime = None
+            if datetime_val:
+                if hasattr(datetime_val, 'isoformat'):
+                    formatted_datetime = datetime_val.isoformat()
+                else:
+                    formatted_datetime = str(datetime_val)
+            
+            payload = {
+                "timestamp": timestamp,
+                "value": vital_data.get('value'),
+                "vital_type": vital_type,
+                "datetime": formatted_datetime,
+                "notes": vital_data.get('notes'),
+                "origin": mqtt_client_id
+            }
+
+        # Get the broadcast topic
+        broadcast_topic = topics[vital_type].get('broadcast_topic', f'shh/{vital_type}/state')
+        json_payload = json.dumps(payload, default=str)
+        
+        print(f"[state_manager] About to publish to MQTT: topic={broadcast_topic}, payload={json_payload}")
+        
+        # Publish to MQTT (removed retain=True temporarily to test duplication)
+        result = mqtt_client.publish(broadcast_topic, json_payload, retain=False)
+        
+        print(f"[state_manager] MQTT publish result: rc={result.rc}, mid={result.mid}")
+        
+        if result.rc == 0:
+            print(f"[state_manager] Published {vital_type} data to {broadcast_topic}: {json_payload}")
+        else:
+            print(f"[state_manager] Failed to publish {vital_type} data to {broadcast_topic}, result code: {result.rc}")
+            
     except Exception as e:
-        print(f"[state_manager] Error publishing to MQTT: {e}")
-
-
+        error_msg = f"Error publishing {vital_type} data to MQTT: {str(e)}"
+        print(f"[state_manager] {error_msg}")
+    finally:
+        db.close()
 def check_thresholds(spo2, bpm):
     """Check if SpO2 or BPM are outside acceptable ranges.
     
@@ -664,8 +975,9 @@ def update_sensor(*updates, from_mqtt=False):
     # Broadcast updated state
     broadcast_state()
     
-    # Publish to MQTT if needed
-    publish_to_mqtt()
+    # Only publish to MQTT if this update did NOT originate from MQTT
+    if not from_mqtt:
+        publish_to_mqtt()
 
 
 # Add this function to expose the websocket clients to other modules

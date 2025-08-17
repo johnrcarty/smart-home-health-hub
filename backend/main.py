@@ -299,6 +299,8 @@ async def add_manual_vitals(vital_data: dict, db: Session = Depends(get_db)):
     try:
         datetime_val = vital_data.get("datetime")
         notes = vital_data.get("notes")
+        vitals_saved = []  # Track what vitals were actually saved
+        
         # Handle blood pressure
         bp = vital_data.get("bp", {})
         if bp and (bp.get("systolic_bp") or bp.get("diastolic_bp")):
@@ -313,6 +315,16 @@ async def add_manual_vitals(vital_data: dict, db: Session = Depends(get_db)):
                     map_value=map_bp or 0,
                     raw_data=json.dumps(bp)
                 )
+                vitals_saved.append({
+                    'type': 'blood_pressure',
+                    'data': {
+                        'systolic_bp': systolic,
+                        'diastolic_bp': diastolic,
+                        'map_bp': map_bp,
+                        'datetime': datetime_val
+                    }
+                })
+                
         # Handle temperature
         temp = vital_data.get("temp", {})
         if temp and temp.get("body_temp"):
@@ -323,6 +335,15 @@ async def add_manual_vitals(vital_data: dict, db: Session = Depends(get_db)):
                 body_temp=body_temp,
                 raw_data=json.dumps(temp)
             )
+            vitals_saved.append({
+                'type': 'temperature',
+                'data': {
+                    'body_temp': body_temp,
+                    'skin_temp': None,
+                    'datetime': datetime_val
+                }
+            })
+            
         # Handle bathroom
         bathroom_type = vital_data.get("bathroom_type")
         bathroom_size = vital_data.get("bathroom_size")
@@ -333,14 +354,85 @@ async def add_manual_vitals(vital_data: dict, db: Session = Depends(get_db)):
             except ValueError:
                 value = None
             save_vital(db, "bathroom", value, datetime_val, notes, vital_group=bathroom_type)
-        # Dynamically handle all other vitals
+            vitals_saved.append({
+                'type': 'bathroom',
+                'data': {
+                    'bathroom_type': bathroom_type,
+                    'bathroom_size': bathroom_size,
+                    'value': value,
+                    'datetime': datetime_val,
+                    'notes': notes
+                }
+            })
+            
+        # Handle nutrition data (from frontend format)
+        nutrition = vital_data.get("nutrition", {})
+        if nutrition:
+            # Handle calories
+            calories = nutrition.get("calories")
+            if calories is not None and calories != "":
+                save_vital(db, "calories", calories, datetime_val, notes)
+                vitals_saved.append({
+                    'type': 'calories',
+                    'data': {
+                        'value': calories,
+                        'datetime': datetime_val,
+                        'notes': notes
+                    }
+                })
+            
+            # Handle water (check both water and water_ml keys)
+            water = nutrition.get("water") or nutrition.get("water_ml")
+            if water is not None and water != "":
+                save_vital(db, "water", water, datetime_val, notes)
+                vitals_saved.append({
+                    'type': 'water',
+                    'data': {
+                        'value': water,
+                        'datetime': datetime_val,
+                        'notes': notes
+                    }
+                })
+        
+        # Handle weight
+        weight = vital_data.get("weight")
+        if weight is not None and weight != "":
+            save_vital(db, "weight", weight, datetime_val, notes)
+            vitals_saved.append({
+                'type': 'weight',
+                'data': {
+                    'value': weight,
+                    'datetime': datetime_val,
+                    'notes': notes
+                }
+            })
+            
+        # Dynamically handle any remaining vitals (excluding already processed ones)
+        processed_keys = ["datetime", "bp", "temp", "nutrition", "weight", "notes", "bathroom_type", "bathroom_size"]
         for key, value in vital_data.items():
-            if key in ["datetime", "bp", "temp", "notes", "bathroom_type", "bathroom_size"]:
+            if key in processed_keys:
                 continue
             if value is None or value == "":
                 continue
             save_vital(db, key, value, datetime_val, notes)
+            vitals_saved.append({
+                'type': key,
+                'data': {
+                    'value': value,
+                    'datetime': datetime_val,
+                    'notes': notes
+                }
+            })
+            
         broadcast_state()
+        
+        # Publish each saved vital to MQTT if enabled
+        from state_manager import publish_specific_vital_to_mqtt
+        print(f"[main.py] About to publish {len(vitals_saved)} vitals to MQTT: {[v['type'] for v in vitals_saved]}")
+        for vital in vitals_saved:
+            print(f"[main.py] Publishing {vital['type']} to MQTT")
+            publish_specific_vital_to_mqtt(vital['type'], vital['data'])
+            
         return {"status": "success", "message": "Vitals saved successfully"}
     except Exception as e:
         print(f"Error saving manual vitals: {str(e)}")
