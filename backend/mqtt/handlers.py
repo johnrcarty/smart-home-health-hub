@@ -3,7 +3,7 @@ MQTT Message Handlers - Process incoming MQTT messages
 """
 import logging
 from typing import Dict, Any
-from crud import save_blood_pressure, save_temperature
+from crud.vitals import save_blood_pressure, save_temperature
 from db import get_db
 
 logger = logging.getLogger('mqtt.handlers')

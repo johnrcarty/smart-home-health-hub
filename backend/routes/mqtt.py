@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Body
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from db import get_db
-from crud import get_setting, save_setting
+from crud.settings import get_setting, save_setting
 from mqtt import send_mqtt_discovery
 
 logger = logging.getLogger("app")

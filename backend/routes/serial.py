@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from db import get_db
-from crud import get_setting
+from crud.settings import get_setting
 from state_manager import get_serial_log, is_serial_mode
 
 logger = logging.getLogger("app")

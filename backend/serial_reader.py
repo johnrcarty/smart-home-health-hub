@@ -13,7 +13,7 @@ BAUD_RATE = int(os.getenv("BAUD_RATE", 19200))
 
 try:
     # Try to get baud_rate from DB settings if available without importing DB here
-    from crud import get_setting
+    from crud.settings import get_setting
     from db import get_db
     def get_baud_rate():
         try:

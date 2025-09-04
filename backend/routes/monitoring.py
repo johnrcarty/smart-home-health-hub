@@ -7,9 +7,9 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 from db import get_db
-from crud import (get_monitoring_alerts, get_unacknowledged_alerts_count, update_monitoring_alert, 
-                  acknowledge_alert, get_pulse_ox_data_for_alert, get_available_pulse_ox_dates,
-                  analyze_pulse_ox_day, get_pulse_ox_data_by_date)
+from crud.monitoring import (get_monitoring_alerts, get_unacknowledged_alerts_count, update_monitoring_alert, 
+                             acknowledge_alert, get_pulse_ox_data_for_alert, get_available_pulse_ox_dates,
+                             analyze_pulse_ox_day, get_pulse_ox_data_by_date)
 
 logger = logging.getLogger("app")
 
@@ -20,28 +20,21 @@ router = APIRouter(prefix="/api/monitoring", tags=["monitoring"])
 async def get_monitoring_alerts_endpoint(
         limit: int = 50,
         include_acknowledged: bool = False,
-        detailed: bool = False
+        detailed: bool = False,
+        db: Session = Depends(get_db)
 ):
     """Get monitoring alerts"""
-    db = next(get_db())
-    try:
-        return get_monitoring_alerts(db, limit, include_acknowledged, detailed)
-    finally:
-        db.close()
+    return get_monitoring_alerts(db, limit, include_acknowledged, detailed)
 
 
 @router.get("/alerts/count")
-async def get_unacknowledged_alerts_count_endpoint():
+async def get_unacknowledged_alerts_count_endpoint(db: Session = Depends(get_db)):
     """Get count of unacknowledged alerts"""
-    db = next(get_db())
-    try:
-        return {"count": get_unacknowledged_alerts_count(db)}
-    finally:
-        db.close()
+    return {"count": get_unacknowledged_alerts_count(db)}
 
 
 @router.post("/alerts/{alert_id}/acknowledge")
-async def acknowledge_alert_endpoint(alert_id: int, data: dict = Body(...)):
+async def acknowledge_alert_endpoint(alert_id: int, data: dict = Body(...), db: Session = Depends(get_db)):
     """
     Acknowledge an alert and save oxygen usage data
     """
@@ -61,6 +54,7 @@ async def acknowledge_alert_endpoint(alert_id: int, data: dict = Body(...)):
 
         # Update the alert with oxygen information
         success = update_monitoring_alert(
+            db,
             alert_id,
             oxygen_used=oxygen_used,
             oxygen_highest=oxygen_highest,
@@ -69,7 +63,7 @@ async def acknowledge_alert_endpoint(alert_id: int, data: dict = Body(...)):
 
         # Then acknowledge the alert
         if success:
-            ack_success = acknowledge_alert(alert_id)
+            ack_success = acknowledge_alert(db, alert_id)
             if ack_success:
                 return {"status": "success", "message": "Alert acknowledged successfully"}
             else:
@@ -98,10 +92,10 @@ async def get_pulse_ox_data_endpoint(
 
 
 @router.get("/alerts/{alert_id}/data")
-async def get_alert_data(alert_id: int):
+async def get_alert_data(alert_id: int, db: Session = Depends(get_db)):
     """Get detailed data for a specific alert event"""
     try:
-        data = get_pulse_ox_data_for_alert(alert_id)
+        data = get_pulse_ox_data_for_alert(db, alert_id)
         return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving alert data: {str(e)}")
@@ -155,10 +149,10 @@ async def get_raw_pulse_ox_data(date: str, db: Session = Depends(get_db)):
         for reading in data:
             result.append({
                 'id': reading.id,
-                'timestamp': reading.timestamp.isoformat(),
+                'timestamp': reading.timestamp,
                 'spo2': reading.spo2,
                 'bpm': reading.bpm,
-                'perfusion': reading.perfusion
+                'perfusion': reading.pa  # Use pa field as perfusion
             })
         
         return {

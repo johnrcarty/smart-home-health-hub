@@ -1,13 +1,20 @@
 """
-Equipment management routes
+Equipment routes
 """
 import logging
-from fastapi import APIRouter, Depends, Body
+from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException, Body
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
+
 from db import get_db
-from crud import (add_equipment, get_equipment_list, log_equipment_change, get_equipment_change_history,
-                  receive_equipment, open_equipment)
+from crud.equipment import (
+    get_equipment_list, log_equipment_change, receive_equipment, 
+    open_equipment, get_equipment_change_history, get_equipment,
+    get_equipment_categories, add_equipment, add_equipment_simple, add_equipment_category,
+    update_equipment, update_equipment_category, delete_equipment,
+    delete_equipment_category, search_equipment, get_equipment_due_count
+)
 
 logger = logging.getLogger("app")
 
@@ -29,7 +36,7 @@ async def api_add_equipment(data: dict = Body(...), db: Session = Depends(get_db
     if scheduled_replacement and (not last_changed or not useful_days):
         return JSONResponse(status_code=400, content={"detail": "Last changed and useful days are required for scheduled replacements"})
     
-    eid = add_equipment(db, name, quantity, scheduled_replacement, last_changed, useful_days)
+    eid = add_equipment_simple(db, name, quantity, scheduled_replacement, last_changed, useful_days)
     return {"id": eid, "status": "success"}
 
 
@@ -79,3 +86,9 @@ async def api_open_equipment(equipment_id: int, data: dict = Body(...), db: Sess
     amount = data.get('amount', 1)
     success = open_equipment(db, equipment_id, amount)
     return {"success": success}
+
+
+@router.get("/due/count")
+async def api_get_equipment_due_count(db: Session = Depends(get_db)):
+    """Get count of equipment items that are due for replacement."""
+    return {"count": get_equipment_due_count(db)}

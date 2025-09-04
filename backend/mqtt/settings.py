@@ -3,7 +3,7 @@ MQTT Settings and Configuration
 """
 import json
 from typing import Dict, Any, Optional
-from crud import get_setting
+from crud.settings import get_setting
 from db import get_db
 import logging
 

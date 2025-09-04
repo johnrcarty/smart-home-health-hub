@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 from db import get_db
-from crud import (add_medication, get_active_medications, get_inactive_medications, update_medication, 
+from crud.medications import (add_medication, get_active_medications, get_inactive_medications, update_medication, 
                   delete_medication, add_medication_schedule, get_medication_schedules, 
                   get_all_medication_schedules, update_medication_schedule, delete_medication_schedule, 
                   toggle_medication_schedule_active, get_daily_medication_schedule, administer_medication,

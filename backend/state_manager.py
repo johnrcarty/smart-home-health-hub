@@ -1,15 +1,31 @@
 # state_manager.py
 
+# Standard library imports
 import asyncio
 import json
-from sensor_manager import SENSOR_DEFINITIONS
 import os
-from crud import get_last_n_blood_pressure, get_last_n_temperature
-from datetime import datetime
 import time
 from collections import deque
 from contextlib import contextmanager
+from datetime import datetime
+
+# Local imports
 from db import get_db
+from models import PulseOxData
+from sensor_manager import SENSOR_DEFINITIONS
+
+# CRUD imports
+from crud.equipment import get_equipment_due_count
+from crud.medications import get_due_and_upcoming_medications_count
+from crud.monitoring import get_unacknowledged_alerts_count, start_monitoring_alert, update_monitoring_alert, get_active_ventilator_alerts_count
+from crud.settings import get_setting, get_all_settings
+from crud.vitals import (
+    get_last_n_blood_pressure, 
+    get_last_n_temperature, 
+    get_vitals_by_type, 
+    save_pulse_ox_data, 
+    save_pulse_ox_batch
+)
 
 # Database session wrapper for state_manager
 @contextmanager
@@ -44,9 +60,6 @@ serial_active = False
 event_loop = None
 
 _serial_mode_callbacks = []
-
-from crud import get_unacknowledged_alerts_count, save_pulse_ox_data, start_monitoring_alert, update_monitoring_alert, save_pulse_ox_batch
-from models import PulseOxData
 
 # Add these global variables to track the current alert state
 current_alert_id = None
@@ -184,8 +197,6 @@ def check_thresholds(spo2, bpm):
     Returns:
         tuple: (spo2_alarm, hr_alarm) boolean flags
     """
-    from crud import get_setting
-    
     # Get threshold settings, ensuring they're integers
     min_spo2 = int(get_setting('min_spo2', 90))
     max_spo2 = int(get_setting('max_spo2', 100))
@@ -232,7 +243,6 @@ def broadcast_state():
     with get_db_session() as db:
         bp_history = get_last_n_blood_pressure(db, 5)
         temp_history = get_last_n_temperature(db, 5)
-        from crud import get_all_settings, get_unacknowledged_alerts_count, get_equipment_due_count, get_due_and_upcoming_medications_count
         settings = get_all_settings(db)
         alerts_count = get_unacknowledged_alerts_count(db)
         equipment_due_count = get_equipment_due_count(db)
@@ -318,7 +328,6 @@ def broadcast_state():
             # Get from vitals table - need to fetch this dynamically
             try:
                 with get_db_session() as db:
-                    from crud import get_vitals_by_type
                     chart_1_data = get_vitals_by_type(db, chart_1_vital, 5)
             except Exception as e:
                 print(f"[state_manager] Error fetching chart 1 data for {chart_1_vital}: {e}")
@@ -342,7 +351,6 @@ def broadcast_state():
             # Get from vitals table - need to fetch this dynamically
             try:
                 with get_db_session() as db:
-                    from crud import get_vitals_by_type
                     chart_2_data = get_vitals_by_type(db, chart_2_vital, 5)
             except Exception as e:
                 print(f"[state_manager] Error fetching chart 2 data for {chart_2_vital}: {e}")
@@ -664,8 +672,6 @@ def store_event_data_for_alert(alert_id, data_points):
         alert_id: ID of the alert
         data_points: List of data points to store
     """
-    from crud import save_pulse_ox_data
-
     print(f"[state_manager] Storing {len(data_points)} data points for alert {alert_id}")
 
     for point in data_points:
@@ -722,12 +728,11 @@ def broadcast_alert_updates():
         return
 
     # Get counts of active alarms
-    from crud import get_unacknowledged_alerts_count
-    from crud import get_active_ventilator_alerts_count
     
     # Get the counts
-    pulse_ox_alerts = get_unacknowledged_alerts_count()
-    vent_alerts = get_active_ventilator_alerts_count()
+    with get_db_session() as db:
+        pulse_ox_alerts = get_unacknowledged_alerts_count(db)
+        vent_alerts = get_active_ventilator_alerts_count(db)
     
     # Create the message to broadcast
     message = {

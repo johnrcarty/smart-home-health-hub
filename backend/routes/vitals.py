@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from db import get_db
-from crud import (get_vitals_by_type, get_distinct_vital_types, get_vitals_by_type_paginated, 
+from crud.vitals import (get_vitals_by_type, get_distinct_vital_types, get_vitals_by_type_paginated, 
                   save_blood_pressure, save_temperature, save_vital)
 from state_manager import broadcast_state, publish_specific_vital_to_mqtt
 
@@ -122,11 +122,11 @@ def get_vital_types(db: Session = Depends(get_db)):
 
 
 @router.get("/nutrition")
-def get_nutrition_history(limit: int = 100):
+def get_nutrition_history(limit: int = 100, db: Session = Depends(get_db)):
     """Get combined nutrition history (calories and water)"""
     return {
-        "calories": get_vitals_by_type("calories", limit),
-        "water": get_vitals_by_type("water", limit)
+        "calories": get_vitals_by_type(db, "calories", limit),
+        "water": get_vitals_by_type(db, "water", limit)
     }
 
 

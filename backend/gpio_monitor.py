@@ -23,15 +23,21 @@ alarm_states = {"alarm1": False, "alarm2": False}
 
 def get_device_settings():
     try:
-        from crud import get_setting
-        alarm1_device = get_setting("alarm1_device", "vent")
-        alarm2_device = get_setting("alarm2_device", "pulseox")
-        alarm1_recovery = int(get_setting("alarm1_recovery_time", DEFAULT_RECOVERY_TIME))
-        alarm2_recovery = int(get_setting("alarm2_recovery_time", DEFAULT_RECOVERY_TIME))
-        return {
-            "alarm1": {"device_type": alarm1_device, "recovery_time": alarm1_recovery},
-            "alarm2": {"device_type": alarm2_device, "recovery_time": alarm2_recovery}
-        }
+        from crud.settings import get_setting
+        from db import get_db
+        
+        db = next(get_db())
+        try:
+            alarm1_device = get_setting(db, "alarm1_device", "vent")
+            alarm2_device = get_setting(db, "alarm2_device", "pulseox")
+            alarm1_recovery = int(get_setting(db, "alarm1_recovery_time", DEFAULT_RECOVERY_TIME))
+            alarm2_recovery = int(get_setting(db, "alarm2_recovery_time", DEFAULT_RECOVERY_TIME))
+            return {
+                "alarm1": {"device_type": alarm1_device, "recovery_time": alarm1_recovery},
+                "alarm2": {"device_type": alarm2_device, "recovery_time": alarm2_recovery}
+            }
+        finally:
+            db.close()
     except Exception as e:
         logger.error(f"Error getting device settings: {e}")
         return {
@@ -66,17 +72,29 @@ def gpio_callback(gpio, level, tick):
 
 def handle_vent_alarm(device, gpio):
     try:
-        from crud import record_ventilator_alarm
-        record_ventilator_alarm(device, gpio)
-        logger.info(f"Ventilator alarm recorded for {device} on pin {gpio}")
+        from crud.monitoring import record_ventilator_alarm
+        from db import get_db
+        
+        db = next(get_db())
+        try:
+            record_ventilator_alarm(db, device, gpio)
+            logger.info(f"Ventilator alarm recorded for {device} on pin {gpio}")
+        finally:
+            db.close()
     except Exception as e:
         logger.error(f"Error handling ventilator alarm: {e}")
 
 def handle_pulseox_alarm(device, gpio):
     try:
-        from crud import record_external_pulse_ox_alarm
-        record_external_pulse_ox_alarm(device, gpio)
-        logger.info(f"Pulse oximeter alarm recorded for {device} on pin {gpio}")
+        from crud.monitoring import record_external_pulse_ox_alarm
+        from db import get_db
+        
+        db = next(get_db())
+        try:
+            record_external_pulse_ox_alarm(db, device, gpio)
+            logger.info(f"Pulse oximeter alarm recorded for {device} on pin {gpio}")
+        finally:
+            db.close()
     except Exception as e:
         logger.error(f"Error handling pulse ox alarm: {e}")
 

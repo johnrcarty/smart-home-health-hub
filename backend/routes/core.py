@@ -6,7 +6,7 @@ import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 from sqlalchemy.orm import Session
 from db import get_db
-from crud import get_latest_blood_pressure, get_blood_pressure_history, get_last_n_temperature
+from crud.vitals import get_latest_blood_pressure, get_blood_pressure_history, get_last_n_temperature
 from state_manager import register_websocket_client, unregister_websocket_client, broadcast_state
 
 logger = logging.getLogger("app")

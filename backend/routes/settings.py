@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from db import get_db
-from crud import get_all_settings, get_setting, save_setting, delete_setting
+from crud.settings import get_all_settings, get_setting, save_setting, delete_setting
 from state_manager import broadcast_state
 
 logger = logging.getLogger("app")

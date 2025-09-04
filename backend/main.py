@@ -13,13 +13,13 @@ from dotenv import load_dotenv
 from routes import core, settings, vitals, medications, care_tasks, equipment, monitoring, mqtt, serial
 
 # Import core components
-from mqtt import MQTTManager, MQTTPublisher, create_message_handlers, send_mqtt_discovery
+from mqtt import initialize_mqtt_service, shutdown_mqtt_service
 from state_manager import (
     set_event_loop, set_mqtt_publisher, reset_sensor_state, update_sensor,
     register_websocket_client, unregister_websocket_client
 )
 from db import get_db
-from crud import get_setting, save_setting
+from crud.settings import get_setting, save_setting
 
 load_dotenv()
 
@@ -72,11 +72,6 @@ def fallback_stop_gpio_monitoring():
 # FastAPI app setup
 app = FastAPI()
 
-# Store references to MQTT components for shutdown
-mqtt_client_ref = None
-mqtt_manager = None
-mqtt_publisher = None
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -101,8 +96,6 @@ loop = asyncio.get_event_loop()
 
 @app.on_event("startup")
 async def startup_event():
-    global mqtt_client_ref, mqtt_manager, mqtt_publisher
-
     # Set the event loop
     set_event_loop(asyncio.get_event_loop())
     print("[main] Event loop registered with state manager")
@@ -155,49 +148,14 @@ async def startup_event():
         save_setting(db, "alarm2_recovery_time", 30, "int", "Recovery time in seconds for Alarm 2")
 
     # 1) Initialize MQTT system
-    mqtt_manager = MQTTManager(loop)
-    mqtt_publisher = MQTTPublisher()
+    mqtt_manager, mqtt_publisher = initialize_mqtt_service(loop, update_sensor)
     
-    # Create message handlers for incoming MQTT messages
-    message_handlers = create_message_handlers(update_sensor)
-    for vital_type, handler in message_handlers.items():
-        mqtt_manager.set_message_handler(vital_type, handler)
-    
-    # Create and connect MQTT client if enabled
-    mqtt_client = mqtt_manager.create_client()
-    mqtt_client_ref = mqtt_client  # Store reference for shutdown
-
-    if mqtt_client:  # Only proceed if MQTT is enabled and configured
-        try:
-            # Connect to MQTT broker
-            if mqtt_manager.connect():
-                logger.info("[main] Connected to MQTT broker")
-                
-                # Set up the publisher with the client
-                mqtt_publisher.set_client(mqtt_client)
-                
-                # Send MQTT discovery if enabled
-                discovery_enabled = get_setting(db, 'mqtt_discovery_enabled', True)
-                test_mode = get_setting(db, 'mqtt_test_mode', True)
-                
-                if discovery_enabled:
-                    send_mqtt_discovery(mqtt_client, test_mode=test_mode)
-
-                # Set availability to online using base topic from settings
-                from mqtt.settings import get_mqtt_settings
-                mqtt_settings = get_mqtt_settings()
-                base_topic = mqtt_settings.get('base_topic', 'shh')
-                mqtt_client.publish(f"{base_topic}/availability", "online", retain=True)
-                logger.info(f"[main] Published online status to {base_topic}/availability")
-
-                # Set the MQTT publisher in the state manager
-                set_mqtt_publisher(mqtt_publisher)
-            else:
-                logger.error("[main] Failed to connect to MQTT broker")
-        except Exception as e:
-            logger.error(f"[main] Failed to initialize MQTT: {e}")
+    if mqtt_manager and mqtt_publisher:
+        logger.info("[main] MQTT system initialized successfully")
+        # Set the MQTT publisher in the state manager
+        set_mqtt_publisher(mqtt_publisher)
     else:
-        logger.info("[main] MQTT is disabled or not configured")
+        logger.info("[main] MQTT system not initialized (disabled or failed)")
 
     # 2) Wire in serial (hot-plug)
     set_event_loop(loop)
@@ -233,27 +191,5 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    # Use the global references
-    global mqtt_client_ref, mqtt_manager
-
-    if mqtt_client_ref:
-        try:
-            # Get base topic from settings for proper offline message
-            db = next(get_db())
-            from mqtt.settings import get_mqtt_settings
-            mqtt_settings = get_mqtt_settings()
-            base_topic = mqtt_settings.get('base_topic', 'shh')
-            db.close()
-            
-            mqtt_client_ref.publish(f"{base_topic}/availability", "offline", retain=True)
-            logger.info(f"[main] Published offline status to {base_topic}/availability")
-
-            # Properly disconnect using the manager
-            if mqtt_manager:
-                mqtt_manager.disconnect()
-            else:
-                mqtt_client_ref.disconnect()
-        except Exception as e:
-            logger.error(f"[main] Failed to publish offline status: {e}")
-    else:
-        logger.info("[main] No MQTT client to disconnect")
+    # Shutdown MQTT service
+    shutdown_mqtt_service()
