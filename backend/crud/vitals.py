@@ -33,7 +33,7 @@ def save_blood_pressure(db: Session, systolic, diastolic, map_value=None, timest
         systolic=systolic,
         diastolic=diastolic,
         map=map_value,
-        raw_data=notes,
+        raw_data=notes or "Manual entry",
         created_at=now
     )
     db.add(bp)
@@ -120,7 +120,7 @@ def save_temperature(db: Session, body_temp, skin_temp=None, timestamp=None, not
         timestamp=ts,
         skin_temp=skin_temp,
         body_temp=body_temp,
-        raw_data=notes,
+        raw_data=notes or "Manual entry",
         created_at=now
     )
     db.add(temp)

@@ -6,16 +6,11 @@ Most functionality has been moved to the event-driven architecture in modules/.
 
 import logging
 from contextlib import contextmanager
-from collections import deque
 
 # Local imports
 from db import get_db
 
 logger = logging.getLogger("state_manager")
-
-# Legacy serial log for routes that still need it
-serial_log = deque(maxlen=30)
-serial_active = False
 
 # Database session wrapper for legacy compatibility
 @contextmanager
@@ -26,18 +21,6 @@ def get_db_session():
         yield db
     finally:
         db.close()
-
-
-def get_serial_log():
-    """Return the current serial log as a list - legacy compatibility"""
-    logger.warning("Legacy get_serial_log() called - consider using event system")
-    return list(serial_log)
-
-
-def is_serial_mode() -> bool:
-    """Return serial mode status - legacy compatibility"""
-    logger.warning("Legacy is_serial_mode() called - consider using event system")
-    return serial_active
 
 
 def broadcast_state():
@@ -68,40 +51,6 @@ def update_sensor(*updates, from_mqtt=False):
     logger.warning("Legacy update_sensor() called - this should use the event system")
     # Event-driven system handles this now
     pass
-
-
-def get_serial_log():
-    """
-    Legacy serial log function - should get from serial module.
-    Returns empty list for backward compatibility.
-    """
-    logger.warning("Legacy get_serial_log() called - this should query the serial module")
-    try:
-        from main import get_modules
-        modules = get_modules()
-        serial_module = modules.get("serial")
-        if serial_module and hasattr(serial_module, 'get_serial_log'):
-            return serial_module.get_serial_log()
-    except:
-        pass
-    return []
-
-
-def is_serial_mode():
-    """
-    Legacy serial mode check - should get from serial module.
-    Returns False for backward compatibility.
-    """
-    logger.warning("Legacy is_serial_mode() called - this should query the serial module")
-    try:
-        from main import get_modules
-        modules = get_modules()
-        serial_module = modules.get("serial")
-        if serial_module and hasattr(serial_module, 'is_active'):
-            return serial_module.is_active()
-    except:
-        pass
-    return False
 
 
 # Legacy WebSocket management (for routes that haven't been updated yet)

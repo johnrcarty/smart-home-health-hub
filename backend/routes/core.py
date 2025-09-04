@@ -7,7 +7,6 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 from sqlalchemy.orm import Session
 from db import get_db
 from crud.vitals import get_latest_blood_pressure, get_blood_pressure_history, get_last_n_temperature
-from state_manager import register_websocket_client, unregister_websocket_client, broadcast_state
 
 logger = logging.getLogger("app")
 
@@ -22,21 +21,27 @@ MAX_BPM = os.getenv("MAX_BPM")
 
 @router.websocket("/ws/sensors")
 async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    print(f"[core] WebSocket client connected: {websocket}")
-    register_websocket_client(websocket)
-
+    """WebSocket endpoint for real-time sensor data using event-driven system."""
     try:
-        while True:
-            # Just keep the connection alive
-            data = await websocket.receive_text()
-            # You can handle commands here if needed
-    except WebSocketDisconnect:
-        print(f"[core] WebSocket client disconnected: {websocket}")
-        unregister_websocket_client(websocket)
+        # Get the WebSocket module from the main application
+        from main import get_modules
+        modules = get_modules()
+        websocket_module = modules.get("websocket")
+        
+        if websocket_module:
+            # Use the event-driven WebSocket module to handle the connection
+            await websocket_module.handle_websocket_connection(websocket)
+        else:
+            # If module not available, close connection with error
+            logger.error("WebSocket module not available - event-driven system required")
+            await websocket.close(code=1011, reason="WebSocket module not available")
+                
     except Exception as e:
-        print(f"[core] WebSocket error: {e}")
-        unregister_websocket_client(websocket)
+        logger.error(f"Error in WebSocket endpoint: {e}")
+        try:
+            await websocket.close()
+        except:
+            pass
 
 
 @router.get("/limits")
@@ -81,8 +86,18 @@ async def test_endpoint():
 async def trigger_broadcast():
     """Trigger a websocket broadcast for development/testing purposes"""
     try:
-        broadcast_state()
-        return {"status": "success", "message": "Websocket broadcast triggered"}
+        # Get the WebSocket module from the main application
+        from main import get_modules
+        modules = get_modules()
+        websocket_module = modules.get("websocket")
+        
+        if websocket_module:
+            # Use the event-driven system to broadcast
+            await websocket_module.broadcast_full_state()
+            return {"status": "success", "message": "Event-driven websocket broadcast triggered"}
+        else:
+            logger.warning("WebSocket module not available for broadcast")
+            return {"status": "warning", "message": "WebSocket module not available - event-driven system required"}
     except Exception as e:
         logger.error(f"Error triggering broadcast: {e}")
         from fastapi.responses import JSONResponse

@@ -1,23 +1,31 @@
 import threading
-from serial_reader import serial_loop
 import asyncio
 import json  # Add this import
 import platform
 import logging
 import os
+from typing import Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from datetime import datetime
+
+# Import event bus and events
+from bus import EventBus
+from events import SensorUpdate, EventSource
+
+# Import modules
+from modules.serial_module import SerialModule
+from modules.gpio_module import GPIOModule
+from modules.websocket_module import WebSocketModule
+from modules.mqtt_module import MQTTModule
+from modules.state_module import StateModule
 
 # Import route modules
-from routes import core, settings, vitals, medications, care_tasks, equipment, monitoring, mqtt, serial
+from routes import core, settings, vitals, medications, care_tasks, equipment, monitoring, mqtt, serial, status
 
-# Import core components
+# Import legacy components
 from mqtt import initialize_mqtt_service, shutdown_mqtt_service
-from state_manager import (
-    set_event_loop, set_mqtt_publisher, reset_sensor_state, update_sensor,
-    register_websocket_client, unregister_websocket_client
-)
 from db import get_db
 from crud.settings import get_setting, save_setting
 
@@ -55,20 +63,6 @@ if GPIO_AVAILABLE:
 else:
     print("[main] GPIO functionality not available - running on non-Raspberry Pi system")
 
-# GPIO fallback functions for non-Raspberry Pi systems
-def fallback_set_alarm_states(states):
-    """Fallback function when GPIO is not available"""
-    print(f"[main] GPIO fallback: Would set alarm states to {states}")
-
-def fallback_start_gpio_monitoring():
-    """Fallback function when GPIO is not available"""
-    print("[main] GPIO fallback: Would start GPIO monitoring")
-    return True
-
-def fallback_stop_gpio_monitoring():
-    """Fallback function when GPIO is not available"""
-    print("[main] GPIO fallback: Would stop GPIO monitoring")
-
 # FastAPI app setup
 app = FastAPI()
 
@@ -90,19 +84,70 @@ app.include_router(equipment.router)
 app.include_router(monitoring.router)
 app.include_router(mqtt.router)
 app.include_router(serial.router)
+app.include_router(status.router)
 
-loop = asyncio.get_event_loop()
+# Global event bus and modules
+event_bus = EventBus(maxsize=1000)
+serial_module: Optional[SerialModule] = None
+gpio_module: Optional[GPIOModule] = None
+websocket_module: Optional[WebSocketModule] = None
+mqtt_module: Optional[MQTTModule] = None
+state_module: Optional[StateModule] = None
+
+# Legacy MQTT bridge for backward compatibility
+def mqtt_update_bridge(*args, **kwargs):
+    """
+    Bridge legacy MQTT handler calls to the new event bus system.
+    """
+    # Pull out 'from_mqtt' if provided
+    kwargs.pop("from_mqtt", None)
+
+    values = {}
+    raw = None
+
+    if len(args) == 1 and isinstance(args[0], (list, tuple)) and all(isinstance(x, tuple) for x in args[0]):
+        # List of pairs
+        for k, v in args[0]:
+            if k == "raw_data":
+                raw = v
+            else:
+                values[k] = v
+    else:
+        # name, value, name, value ...
+        it = iter(args)
+        for k in it:
+            try:
+                v = next(it)
+            except StopIteration:
+                break
+            if k == "raw_data":
+                raw = v
+            else:
+                values[k] = v
+
+    # Publish to the event bus thread-safely from MQTT thread/callbacks
+    loop = asyncio.get_event_loop()
+    fut = asyncio.run_coroutine_threadsafe(
+        event_bus.publish(SensorUpdate(ts=datetime.now(), values=values, raw=raw, source=EventSource.MQTT)),
+        loop
+    )
+    try:
+        fut.result(timeout=1.0)
+    except Exception as e:
+        logger.exception("Failed to enqueue MQTT update on bus: %s", e)
 
 
 @app.on_event("startup")
 async def startup_event():
-    # Set the event loop
-    set_event_loop(asyncio.get_event_loop())
-    print("[main] Event loop registered with state manager")
-
+    global serial_module, gpio_module, websocket_module, mqtt_module, state_module
+    
+    logger.info("[main] Starting event-driven backend system")
+    
+    # Get current event loop
+    loop = asyncio.get_event_loop()
+    
     # Initialize default settings if they don't exist
     db = next(get_db())
-    reset_sensor_state()
 
     # Device settings
     if get_setting(db, "device_name") is None:
@@ -147,49 +192,77 @@ async def startup_event():
     if get_setting(db, "alarm2_recovery_time") is None:
         save_setting(db, "alarm2_recovery_time", 30, "int", "Recovery time in seconds for Alarm 2")
 
-    # 1) Initialize MQTT system
-    mqtt_manager, mqtt_publisher = initialize_mqtt_service(loop, update_sensor)
+    # Initialize modules
     
+    # 1. State module (manages centralized state)
+    state_module = StateModule(event_bus)
+    await state_module.start_event_subscribers()
+    logger.info("[main] State module initialized")
+    
+    # 2. WebSocket module (manages client connections)
+    websocket_module = WebSocketModule(event_bus)
+    await websocket_module.start_event_subscribers()
+    logger.info("[main] WebSocket module initialized")
+    
+    # 3. MQTT module (handles MQTT integration)
+    mqtt_module = MQTTModule(event_bus)
+    
+    # Initialize MQTT system with legacy bridge
+    mqtt_manager, mqtt_publisher = initialize_mqtt_service(loop, mqtt_update_bridge)
     if mqtt_manager and mqtt_publisher:
+        mqtt_module.set_mqtt_components(mqtt_manager, mqtt_publisher)
         logger.info("[main] MQTT system initialized successfully")
-        # Set the MQTT publisher in the state manager
-        set_mqtt_publisher(mqtt_publisher)
     else:
         logger.info("[main] MQTT system not initialized (disabled or failed)")
-
-    # 2) Wire in serial (hot-plug)
-    set_event_loop(loop)
-    threading.Thread(target=serial_loop, daemon=True).start()
-
-    # Start GPIO monitoring only if enabled and available
+    
+    # 4. Serial module (handles serial port communication)
+    serial_module = SerialModule(event_bus, loop)
+    serial_module.start()
+    logger.info("[main] Serial module initialized")
+    
+    # 5. GPIO module (handles GPIO monitoring)
+    gpio_module = GPIOModule(event_bus, loop)
     gpio_enabled = get_setting(db, "gpio_enabled", default=False)
+    
     if gpio_enabled in [True, "true", "True", 1, "1"]:
-        if GPIO_AVAILABLE:
-            try:
-                from gpio_monitor import start_gpio_monitoring
-                start_gpio_monitoring()
-                print("[main] GPIO monitoring started")
-            except Exception as e:
-                print(f"[main] Failed to start GPIO monitoring: {e}")
-                fallback_start_gpio_monitoring()
+        if gpio_module.start():
+            logger.info("[main] GPIO module initialized and started")
         else:
-            print("[main] GPIO monitoring requested but not available on this platform")
-            fallback_start_gpio_monitoring()
+            logger.warning("[main] GPIO module initialization failed")
     else:
-        # Set alarm states to false if not enabled
-        if GPIO_AVAILABLE:
-            try:
-                from gpio_monitor import set_alarm_states
-                set_alarm_states({"alarm1": False, "alarm2": False})
-                print("[main] GPIO disabled - alarm states set to false")
-            except Exception as e:
-                print(f"[main] Failed to set alarm states: {e}")
-                fallback_set_alarm_states({"alarm1": False, "alarm2": False})
-        else:
-            fallback_set_alarm_states({"alarm1": False, "alarm2": False})
+        logger.info("[main] GPIO module disabled in settings")
+    
+    logger.info("[main] Event-driven system startup complete")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
+    logger.info("[main] Shutting down event-driven system")
+    
+    # Shutdown modules
+    if serial_module:
+        serial_module.stop()
+        
+    if gpio_module:
+        gpio_module.stop()
+    
     # Shutdown MQTT service
     shutdown_mqtt_service()
+    
+    # Shutdown event bus
+    event_bus.shutdown()
+    
+    logger.info("[main] Shutdown complete")
+
+
+# Expose modules for other parts of the application
+def get_modules():
+    """Get references to all initialized modules."""
+    return {
+        "event_bus": event_bus,
+        "serial": serial_module,
+        "gpio": gpio_module,
+        "websocket": websocket_module,
+        "mqtt": mqtt_module,
+        "state": state_module
+    }

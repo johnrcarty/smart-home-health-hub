@@ -157,67 +157,25 @@ async def restart_mqtt_if_enabled(db: Session):
     """Restart MQTT connection if enabled in settings"""
     # Import at function level to avoid circular imports
     import asyncio
-    from main import mqtt_client_ref, mqtt_manager, mqtt_publisher, set_mqtt_publisher
-    from mqtt import MQTTManager, MQTTPublisher, create_message_handlers
-    from state_manager import update_sensor
+    from main import get_modules
+    from bus import publish_event
     
     try:
         # Check if MQTT is enabled
         from mqtt.settings import is_mqtt_enabled
         
         if not is_mqtt_enabled():
-            # Disconnect existing client if any
-            if mqtt_client_ref and hasattr(mqtt_manager, 'disconnect'):
-                mqtt_manager.disconnect()
-            return "MQTT disabled - disconnected"
+            # Send event to stop MQTT
+            publish_event("mqtt_control", {"action": "stop"})
+            return "MQTT disabled - stop requested"
         
-        # Disconnect existing client
-        if mqtt_client_ref and hasattr(mqtt_manager, 'disconnect'):
-            try:
-                mqtt_manager.disconnect()
-            except:
-                pass
-            mqtt_client_ref = None
+        # Send event to restart MQTT with new settings
+        publish_event("mqtt_control", {"action": "restart"})
+        return "MQTT restart requested through event system"
         
-        # Create new MQTT manager and client with updated settings
-        mqtt_manager = MQTTManager(asyncio.get_event_loop())
-        mqtt_publisher = MQTTPublisher()
-        
-        # Create message handlers for incoming MQTT messages
-        message_handlers = create_message_handlers(update_sensor)
-        for vital_type, handler in message_handlers.items():
-            mqtt_manager.set_message_handler(vital_type, handler)
-        
-        # Create and connect client
-        mqtt_client = mqtt_manager.create_client()
-        
-        if mqtt_client and mqtt_manager.connect():
-            logger.info("[restart_mqtt] Connected to MQTT broker")
-            
-            # Set up the publisher with the client
-            mqtt_publisher.set_client(mqtt_client)
-            
-            # Send MQTT discovery if enabled
-            discovery_enabled = get_setting(db, 'mqtt_discovery_enabled', True)
-            test_mode = get_setting(db, 'mqtt_test_mode', True)
-            
-            if discovery_enabled:
-                send_mqtt_discovery(mqtt_client, test_mode=test_mode)
-
-            # Set availability to online using base topic from settings
-            from mqtt.settings import get_mqtt_settings
-            mqtt_settings = get_mqtt_settings()
-            base_topic = mqtt_settings.get('base_topic', 'shh')
-            mqtt_client.publish(f"{base_topic}/availability", "online", retain=True)
-            logger.info(f"[restart_mqtt] Published online status to {base_topic}/availability")
-
-            # Set the MQTT publisher in the state manager
-            set_mqtt_publisher(mqtt_publisher)
-            mqtt_client_ref = mqtt_client
-            
-            return "MQTT connection restarted successfully"
-        else:
-            return "MQTT connection failed - invalid settings"
+    except Exception as e:
+        logger.error(f"Error requesting MQTT restart: {e}")
+        return f"Error: {str(e)}"
             
     except Exception as e:
         logger.error(f"[restart_mqtt] Error restarting MQTT: {e}")
