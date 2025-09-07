@@ -4,19 +4,17 @@ const TemperatureCard = ({ tempHistory = [] }) => {
   // Format data for the chart
   const validTempData = [...(tempHistory || [])]
     .filter(temp => 
-      (temp.skin !== null && temp.skin !== 0) || 
       (temp.body !== null && temp.body !== 0)
     )
     .slice(-5) // Only take last 5 entries
     .map((temp, index) => ({
       index,
       body: temp.body,
-      skin: temp.skin
+      skin: temp.skin // Include skin data for tooltip
     }));
 
   const sortedTempHistory = [...(tempHistory || [])]
     .filter(temp =>
-      (temp.skin !== null && temp.skin !== 0) ||
       (temp.body !== null && temp.body !== 0)
     )
     .sort((a, b) => {
@@ -48,7 +46,6 @@ const TemperatureCard = ({ tempHistory = [] }) => {
     const allTemps = [];
     validTempData.forEach(d => {
       if (d.body !== null && d.body !== undefined) allTemps.push(d.body);
-      if (d.skin !== null && d.skin !== undefined) allTemps.push(d.skin);
     });
     
     if (allTemps.length === 0) return [90, 105];
@@ -87,10 +84,24 @@ const TemperatureCard = ({ tempHistory = [] }) => {
                 <Tooltip 
                   contentStyle={{ backgroundColor: '#161e2e', border: '1px solid #333', borderRadius: '4px' }}
                   itemStyle={{ color: '#fff' }}
-                  formatter={(value, name) => [
-                    `${value.toFixed(1)}°F`, 
-                    name === 'body' ? 'Body Temp' : 'Skin Temp'
-                  ]}
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div style={{ backgroundColor: '#161e2e', border: '1px solid #333', borderRadius: '4px', padding: '8px' }}>
+                          <p style={{ color: '#9c56b8', margin: '0 0 4px 0' }}>
+                            Body Temp: {data.body?.toFixed(1)}°F
+                          </p>
+                          {data.skin !== null && data.skin !== undefined && (
+                            <p style={{ color: '#ffd54f', margin: '0' }}>
+                              Skin Temp: {data.skin?.toFixed(1)}°F
+                            </p>
+                          )}
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
                 />
                 <Line 
                   type="monotone" 
@@ -102,33 +113,11 @@ const TemperatureCard = ({ tempHistory = [] }) => {
                   isAnimationActive={false}
                   name="Body" // Set proper name for tooltip
                 />
-                <Line 
-                  type="monotone" 
-                  dataKey="skin" 
-                  stroke="#ffd54f" // Yellow for skin temp
-                  dot={{ fill: '#ffd54f', r: 4 }}
-                  strokeWidth={2}
-                  activeDot={{ fill: '#ffd54f', stroke: '#fff', strokeWidth: 2, r: 6 }}
-                  isAnimationActive={false}
-                  name="Skin" // Set proper name for tooltip
-                />
               </LineChart>
             </ResponsiveContainer>
           ) : (
             <div className="no-data">No temperature data available</div>
           )}
-          
-          {/* Updated legend styling for better positioning */}
-          <div className="temp-legend">
-            <div className="legend-item">
-              <div className="legend-color" style={{ backgroundColor: "#9c56b8" }}></div>
-              <div className="legend-label">Body</div>
-            </div>
-            <div className="legend-item">
-              <div className="legend-color" style={{ backgroundColor: "#ffd54f" }}></div>
-              <div className="legend-label">Skin</div>
-            </div>
-          </div>
         </div>
 
         {/* Table section - 60% height */}

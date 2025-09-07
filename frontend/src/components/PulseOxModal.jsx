@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import AlertsList from './AlertsList';
+import ModalBase from './ModalBase';
 
 const PulseOxModal = ({ 
   onClose,
@@ -24,12 +25,11 @@ const PulseOxModal = ({
   };
 
   return (
-    <div className="pulse-ox-modal">
-
+    <ModalBase isOpen={true} onClose={onClose} title="Alerts">
       <div className="alerts-container">
         <AlertsList onClose={onClose} onAlertAcknowledge={handleAlertAcknowledge} />
       </div>
-    </div>
+    </ModalBase>
   );
 };
 

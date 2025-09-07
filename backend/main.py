@@ -1,39 +1,70 @@
 import threading
-from serial_reader import serial_loop
 import asyncio
 import json  # Add this import
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Body, HTTPException
-from mqtt_handler import get_mqtt_client
+import platform
+import logging
+import os
+from typing import Optional
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-import os
-from state_manager import (
-    set_event_loop, set_mqtt_client, set_serial_mode,
-    update_sensor, register_websocket_client, unregister_websocket_client,
-    broadcast_state  # Make sure to import this too
-)
-from db import init_db, get_latest_blood_pressure, get_blood_pressure_history, get_last_n_temperature, save_blood_pressure, save_temperature, save_vital, get_all_settings, get_setting, save_setting, delete_setting
-from mqtt_discovery import send_mqtt_discovery
-from pydantic import BaseModel
-from typing import Optional, Dict, Any, List
-# Reset sensor state to clear any bad data
-from state_manager import reset_sensor_state
-import logging
-from fastapi.responses import JSONResponse
+from datetime import datetime
+
+# Import event bus and events
+from bus import EventBus
+from events import SensorUpdate, EventSource
+
+# Import modules
+from modules.serial_module import SerialModule
+from modules.gpio_module import GPIOModule
+from modules.websocket_module import WebSocketModule
+from modules.mqtt_module import MQTTModule
+from modules.state_module import StateModule
+
+# Import route modules
+from routes import core, settings, vitals, medications, care_tasks, equipment, monitoring, mqtt, serial, status
+
+# Import legacy components
+from mqtt import initialize_mqtt_service, shutdown_mqtt_service
+from db import get_db
+from crud.settings import get_setting, save_setting
 
 load_dotenv()
-
-MIN_SPO2=os.getenv("MIN_SPO2")
-MAX_SPO2=os.getenv("MAX_SPO2")
-MIN_BPM=os.getenv("MIN_BPM")
-MAX_BPM=os.getenv("MAX_BPM")
-app = FastAPI()
 
 # Initialize a logger for your application
 logger = logging.getLogger("app")
 
-# Store a reference to the MQTT client for shutdown
-mqtt_client_ref = None
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+
+# Platform detection for GPIO functionality
+def is_raspberry_pi():
+    """Check if running on Raspberry Pi"""
+    try:
+        with open('/proc/cpuinfo', 'r') as f:
+            return any('BCM' in line for line in f)
+    except (FileNotFoundError, PermissionError):
+        return False
+
+def is_gpio_available():
+    """Check if GPIO functionality is available"""
+    if not is_raspberry_pi():
+        return False
+    try:
+        import lgpio
+        return True
+    except ImportError:
+        return False
+
+# Determine GPIO availability
+GPIO_AVAILABLE = is_gpio_available()
+if GPIO_AVAILABLE:
+    print("[main] GPIO functionality available - running on Raspberry Pi")
+else:
+    print("[main] GPIO functionality not available - running on non-Raspberry Pi system")
+
+# FastAPI app setup
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
@@ -43,396 +74,196 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-loop = asyncio.get_event_loop()
+# Register route modules
+app.include_router(core.router)
+app.include_router(settings.router)
+app.include_router(vitals.router)
+app.include_router(medications.router)
+app.include_router(care_tasks.router)
+app.include_router(equipment.router)
+app.include_router(monitoring.router)
+app.include_router(mqtt.router)
+app.include_router(serial.router)
+app.include_router(status.router)
+
+# Global event bus and modules
+event_bus = EventBus(maxsize=1000)
+serial_module: Optional[SerialModule] = None
+gpio_module: Optional[GPIOModule] = None
+websocket_module: Optional[WebSocketModule] = None
+mqtt_module: Optional[MQTTModule] = None
+state_module: Optional[StateModule] = None
+
+# Legacy MQTT bridge for backward compatibility
+def mqtt_update_bridge(*args, **kwargs):
+    """
+    Bridge legacy MQTT handler calls to the new event bus system.
+    """
+    # Pull out 'from_mqtt' if provided
+    kwargs.pop("from_mqtt", None)
+
+    values = {}
+    raw = None
+
+    if len(args) == 1 and isinstance(args[0], (list, tuple)) and all(isinstance(x, tuple) for x in args[0]):
+        # List of pairs
+        for k, v in args[0]:
+            if k == "raw_data":
+                raw = v
+            else:
+                values[k] = v
+    else:
+        # name, value, name, value ...
+        it = iter(args)
+        for k in it:
+            try:
+                v = next(it)
+            except StopIteration:
+                break
+            if k == "raw_data":
+                raw = v
+            else:
+                values[k] = v
+
+    # Publish to the event bus thread-safely from MQTT thread/callbacks
+    loop = asyncio.get_event_loop()
+    fut = asyncio.run_coroutine_threadsafe(
+        event_bus.publish(SensorUpdate(ts=datetime.now(), values=values, raw=raw, source=EventSource.MQTT)),
+        loop
+    )
+    try:
+        fut.result(timeout=1.0)
+    except Exception as e:
+        logger.exception("Failed to enqueue MQTT update on bus: %s", e)
+
 
 @app.on_event("startup")
 async def startup_event():
-    global mqtt_client_ref
+    global serial_module, gpio_module, websocket_module, mqtt_module, state_module
     
-    # Set the event loop
-    set_event_loop(asyncio.get_event_loop())
-    print("[main] Event loop registered with state manager")
+    logger.info("[main] Starting event-driven backend system")
     
-    # Initialize database
-    init_db()
+    # Get current event loop
+    loop = asyncio.get_event_loop()
     
     # Initialize default settings if they don't exist
-    from db import save_setting, get_setting
+    db = next(get_db())
 
-    reset_sensor_state()
-    
     # Device settings
-    if get_setting("device_name") is None:
-        save_setting("device_name", "Smart Home Health Monitor", "string", "Device name")
-    
-    if get_setting("device_location") is None:
-        save_setting("device_location", "Bedroom", "string", "Device location")
-    
+    if get_setting(db, "device_name") is None:
+        save_setting(db, "device_name", "Smart Home Health Monitor", "string", "Device name")
+
+    if get_setting(db, "device_location") is None:
+        save_setting(db, "device_location", "Bedroom", "string", "Device location")
+
     # Alert thresholds - use environment variables as defaults if available
-    if get_setting("min_spo2") is None:
-        save_setting("min_spo2", os.getenv("MIN_SPO2", 90), "int", "Minimum SpO2 threshold")
-    
-    if get_setting("max_spo2") is None:
-        save_setting("max_spo2", os.getenv("MAX_SPO2", 100), "int", "Maximum SpO2 threshold")
-    
-    if get_setting("min_bpm") is None:
-        save_setting("min_bpm", os.getenv("MIN_BPM", 55), "int", "Minimum heart rate threshold")
-    
-    if get_setting("max_bpm") is None:
-        save_setting("max_bpm", os.getenv("MAX_BPM", 155), "int", "Maximum heart rate threshold")
-    
+    if get_setting(db, "min_spo2") is None:
+        save_setting(db, "min_spo2", os.getenv("MIN_SPO2", 90), "int", "Minimum SpO2 threshold")
+
+    if get_setting(db, "max_spo2") is None:
+        save_setting(db, "max_spo2", os.getenv("MAX_SPO2", 100), "int", "Maximum SpO2 threshold")
+
+    if get_setting(db, "min_bpm") is None:
+        save_setting(db, "min_bpm", os.getenv("MIN_BPM", 55), "int", "Minimum heart rate threshold")
+
+    if get_setting(db, "max_bpm") is None:
+        save_setting(db, "max_bpm", os.getenv("MAX_BPM", 155), "int", "Maximum heart rate threshold")
+
     # Display settings
-    if get_setting("temp_unit") is None:
-        save_setting("temp_unit", "F", "string", "Temperature unit (F or C)")
+    if get_setting(db, "temp_unit") is None:
+        save_setting(db, "temp_unit", "F", "string", "Temperature unit (F or C)")
+
+    if get_setting(db, "weight_unit") is None:
+        save_setting(db, "weight_unit", "lbs", "string", "Weight unit (lbs or kg)")
+
+    if get_setting(db, "dark_mode") is None:
+        save_setting(db, "dark_mode", True, "bool", "Dark mode enabled")
+
+    # Initialize default GPIO alarm settings if they don't exist
+    if get_setting(db, "alarm1_device") is None:
+        save_setting(db, "alarm1_device", "vent", "string", "Device type for Alarm 1 RJ9 port")
+
+    if get_setting(db, "alarm2_device") is None:
+        save_setting(db, "alarm2_device", "pulseox", "string", "Device type for Alarm 2 RJ9 port")
+
+    if get_setting(db, "alarm1_recovery_time") is None:
+        save_setting(db, "alarm1_recovery_time", 30, "int", "Recovery time in seconds for Alarm 1")
+
+    if get_setting(db, "alarm2_recovery_time") is None:
+        save_setting(db, "alarm2_recovery_time", 30, "int", "Recovery time in seconds for Alarm 2")
+
+    # Initialize modules
     
-    if get_setting("weight_unit") is None:
-        save_setting("weight_unit", "lbs", "string", "Weight unit (lbs or kg)")
+    # 1. State module (manages centralized state)
+    state_module = StateModule(event_bus)
+    await state_module.start_event_subscribers()
+    logger.info("[main] State module initialized")
     
-    if get_setting("dark_mode") is None:
-        save_setting("dark_mode", True, "bool", "Dark mode enabled")
+    # 2. WebSocket module (manages client connections)
+    websocket_module = WebSocketModule(event_bus)
+    await websocket_module.start_event_subscribers()
+    logger.info("[main] WebSocket module initialized")
     
-    # 1) Wire in MQTT - only create one client
-    mqtt = get_mqtt_client(loop)
-    mqtt_client_ref = mqtt  # Store reference for shutdown
+    # 3. MQTT module (handles MQTT integration)
+    mqtt_module = MQTTModule(event_bus)
     
-    try:
-        # Connect before setting in state manager
-        mqtt.connect(os.getenv("MQTT_BROKER"), int(os.getenv("MQTT_PORT")), 60)
-        print(f"[main] Connected to MQTT broker at {os.getenv('MQTT_BROKER')}:{os.getenv('MQTT_PORT')}")
-        
-        # Send MQTT discovery
-        send_mqtt_discovery(mqtt, test_mode=False)
-        
-        # Set availability to online
-        mqtt.publish("medical/spo2/availability", "online", retain=True)
-        print(f"[main] Published online status to medical-test/spo2/availability")
-        
-        # Set the MQTT client in the state manager
-        set_mqtt_client(mqtt)
-        
-        # Start the MQTT loop in a separate thread
-        # BUT don't create a new client, use the existing one
-        threading.Thread(target=mqtt.loop_forever, daemon=True).start()
-    except Exception as e:
-        print(f"[main] Failed to connect to MQTT broker: {e}")
+    # Initialize MQTT system with legacy bridge
+    mqtt_manager, mqtt_publisher = initialize_mqtt_service(loop, mqtt_update_bridge)
+    if mqtt_manager and mqtt_publisher:
+        mqtt_module.set_mqtt_components(mqtt_manager, mqtt_publisher)
+        await mqtt_module.start_event_subscribers()
+        logger.info("[main] MQTT system initialized successfully")
+    else:
+        logger.info("[main] MQTT system not initialized (disabled or failed)")
     
-    # 2) Wire in serial (hot-plug)
-    set_event_loop(loop)
-    threading.Thread(target=serial_loop, daemon=True).start()
+    # 4. Serial module (handles serial port communication)
+    serial_module = SerialModule(event_bus, loop)
+    serial_module.start()
+    logger.info("[main] Serial module initialized")
+    
+    # 5. GPIO module (handles GPIO monitoring)
+    gpio_module = GPIOModule(event_bus, loop)
+    gpio_enabled = get_setting(db, "gpio_enabled", default=False)
+    
+    if gpio_enabled in [True, "true", "True", 1, "1"]:
+        if gpio_module.start():
+            logger.info("[main] GPIO module initialized and started")
+        else:
+            logger.warning("[main] GPIO module initialization failed")
+    else:
+        logger.info("[main] GPIO module disabled in settings")
+    
+    logger.info("[main] Event-driven system startup complete")
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    # Use the global reference
-    global mqtt_client_ref
+    logger.info("[main] Shutting down event-driven system")
     
-    if mqtt_client_ref:
-        try:
-            mqtt_client_ref.publish("medical/spo2/availability", "offline", retain=True)
-            print("[main] Published offline status to medical/spo2/availability")
-            
-            # Properly disconnect
-            mqtt_client_ref.disconnect()
-        except Exception as e:
-            print(f"[main] Failed to publish offline status: {e}")
-
-@app.websocket("/ws/sensors")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    print(f"[main] WebSocket client connected: {websocket}")
-    register_websocket_client(websocket)
+    # Shutdown modules
+    if serial_module:
+        serial_module.stop()
+        
+    if gpio_module:
+        gpio_module.stop()
     
-    try:
-        while True:
-            # Just keep the connection alive
-            data = await websocket.receive_text()
-            # You can handle commands here if needed
-    except WebSocketDisconnect:
-        print(f"[main] WebSocket client disconnected: {websocket}")
-        unregister_websocket_client(websocket)
-    except Exception as e:
-        print(f"[main] WebSocket error: {e}")
-        unregister_websocket_client(websocket)
+    # Shutdown MQTT service
+    shutdown_mqtt_service()
+    
+    # Shutdown event bus
+    event_bus.shutdown()
+    
+    logger.info("[main] Shutdown complete")
 
-@app.get("/limits")
-def get_limits():
+
+# Expose modules for other parts of the application
+def get_modules():
+    """Get references to all initialized modules."""
     return {
-        "spo2": {"min": MIN_SPO2, "max": MAX_SPO2},
-        "bpm": {"min": MIN_BPM, "max": MAX_BPM}
+        "event_bus": event_bus,
+        "serial": serial_module,
+        "gpio": gpio_module,
+        "websocket": websocket_module,
+        "mqtt": mqtt_module,
+        "state": state_module
     }
-
-# Add new endpoints to access blood pressure data
-@app.get("/blood-pressure/latest")
-def latest_blood_pressure():
-    return get_latest_blood_pressure() or {"message": "No data available"}
-
-@app.get("/blood-pressure/history")
-def blood_pressure_history(limit: int = 100):
-    return get_blood_pressure_history(limit)
-
-# Add new endpoints to access temperature data
-@app.get("/temperature/latest")
-def latest_temperature():
-    temps = get_last_n_temperature(1)
-    return temps[0] if temps else {"message": "No data available"}
-
-@app.get("/temperature/history")
-def temperature_history(limit: int = 100):
-    return get_last_n_temperature(limit)
-
-# Add this new route to handle manual vitals
-@app.post("/api/vitals/manual")
-async def add_manual_vitals(vital_data: dict):
-    try:
-        # Extract data from the request
-        datetime = vital_data.get("datetime")
-        bp = vital_data.get("bp", {})
-        temp = vital_data.get("temp", {})
-        nutrition = vital_data.get("nutrition", {})
-        weight = vital_data.get("weight")
-        notes = vital_data.get("notes")
-        
-        # Handle BP data - use existing table
-        if bp and (bp.get("systolic_bp") or bp.get("diastolic_bp")):
-            systolic = bp.get("systolic_bp")
-            diastolic = bp.get("diastolic_bp")
-            map_bp = bp.get("map_bp")
-            if systolic and diastolic:
-                save_blood_pressure(
-                    systolic=systolic,
-                    diastolic=diastolic,
-                    map_value=map_bp or 0,
-                    raw_data=json.dumps(bp)
-                )
-        
-        # Handle temperature data - use existing table
-        if temp and temp.get("body_temp"):
-            body_temp = temp.get("body_temp")
-            save_temperature(
-                skin_temp=None,  # Only capturing body temp manually
-                body_temp=body_temp,
-                raw_data=json.dumps(temp)
-            )
-        
-        # Handle other vitals using the new generic vitals table
-        if nutrition and nutrition.get("calories"):
-            save_vital("calories", nutrition.get("calories"), datetime, notes)
-            
-        if nutrition and nutrition.get("water_ml"):
-            save_vital("water", nutrition.get("water_ml"), datetime, notes)
-            
-        if weight:
-            save_vital("weight", weight, datetime, notes)
-        
-        # Force state update to include new readings
-        broadcast_state()
-        
-        return {"status": "success", "message": "Vitals saved successfully"}
-    except Exception as e:
-        print(f"Error saving manual vitals: {str(e)}")
-        return {"status": "error", "message": str(e)}
-
-# Add these endpoints after your existing endpoints
-
-@app.get("/api/vitals/{vital_type}")
-def get_vital_history(vital_type: str, limit: int = 100):
-    """
-    Get history for a specific vital type
-    
-    Args:
-        vital_type: Type of vital (weight, calories, water, etc.)
-        limit: Maximum number of records to return
-    """
-    from db import get_vitals_by_type
-    return get_vitals_by_type(vital_type, limit)
-
-@app.get("/api/vitals/nutrition")
-def get_nutrition_history(limit: int = 100):
-    """Get combined nutrition history (calories and water)"""
-    from db import get_vitals_by_type
-    return {
-        "calories": get_vitals_by_type("calories", limit),
-        "water": get_vitals_by_type("water", limit)
-    }
-
-# Add these imports
-from fastapi import Body, HTTPException
-from pydantic import BaseModel
-from typing import Optional, Dict, Any, List
-
-# Add these models for request validation
-class SettingIn(BaseModel):
-    value: Any
-    data_type: str = "string"
-    description: Optional[str] = None
-
-class SettingUpdate(BaseModel):
-    settings: Dict[str, Any]
-
-# Add these endpoints
-@app.get("/api/settings")
-async def get_all_settings():
-    """Get all settings"""
-    from db import get_all_settings
-    return get_all_settings()
-
-@app.get("/api/settings/{key}")
-async def get_setting(key: str, default: Optional[str] = None):
-    """Get a specific setting by key"""
-    from db import get_setting
-    value = get_setting(key, default)
-    if value is None and default is None:
-        raise HTTPException(status_code=404, detail=f"Setting {key} not found")
-    return {"key": key, "value": value}
-
-@app.post("/api/settings/{key}")
-async def set_setting(key: str, setting: SettingIn):
-    """Set a specific setting"""
-    from db import save_setting
-    success = save_setting(
-        key=key,
-        value=setting.value,
-        data_type=setting.data_type,
-        description=setting.description
-    )
-    if not success:
-        raise HTTPException(status_code=500, detail="Failed to save setting")
-    
-    # Use broadcast_state instead of broadcast_settings
-    broadcast_state()
-    
-    return {"key": key, "value": setting.value, "status": "success"}
-
-@app.post("/api/settings")
-async def update_multiple_settings(settings: SettingUpdate):
-    """Update multiple settings at once"""
-    from db import save_setting
-    results = {}
-    
-    for key, value in settings.settings.items():
-        # Handle both simple values and complete setting objects
-        if isinstance(value, dict) and "value" in value:
-            data_type = value.get("data_type", "string")
-            description = value.get("description")
-            actual_value = value["value"]
-            success = save_setting(key, actual_value, data_type, description)
-        else:
-            success = save_setting(key, value)
-        
-        results[key] = "success" if success else "failed"
-    
-    # Use broadcast_state instead of broadcast_settings
-    broadcast_state()
-    
-    return results
-
-@app.delete("/api/settings/{key}")
-async def delete_setting_endpoint(key: str):
-    """Delete a setting"""
-    from db import delete_setting
-    success = delete_setting(key)
-    if not success:
-        raise HTTPException(status_code=404, detail=f"Setting {key} not found")
-    
-    # Use broadcast_state instead of broadcast_settings
-    broadcast_state()
-    
-    return {"status": "success", "message": f"Setting {key} deleted"}
-
-# Add these endpoints
-
-@app.get("/api/monitoring/alerts")
-async def get_monitoring_alerts_endpoint(
-    limit: int = 50, 
-    include_acknowledged: bool = False,
-    detailed: bool = False
-):
-    """Get monitoring alerts"""
-    from db import get_monitoring_alerts
-    return get_monitoring_alerts(limit, include_acknowledged, detailed)
-
-@app.get("/api/monitoring/alerts/count")
-async def get_unacknowledged_alerts_count_endpoint():
-    """Get count of unacknowledged alerts"""
-    from db import get_unacknowledged_alerts_count
-    return {"count": get_unacknowledged_alerts_count()}
-
-@app.post("/api/monitoring/alerts/{alert_id}/acknowledge")
-async def acknowledge_alert(alert_id: int, data: dict = Body(...)):
-    """
-    Acknowledge an alert and save oxygen usage data
-    """
-    try:
-        # Now logger is defined
-        logger.info(f"Acknowledging alert {alert_id} with data: {data}")
-        
-        # Extract oxygen data from the request
-        oxygen_used = data.get('oxygen_used', 0)
-        oxygen_highest = data.get('oxygen_highest')
-        oxygen_unit = data.get('oxygen_unit')
-        
-        logger.info(f"Processed data: used={oxygen_used}, highest={oxygen_highest}, unit={oxygen_unit}")
-        
-        # Make sure we handle null values properly
-        if oxygen_highest == "":
-            oxygen_highest = None
-        
-        # Update the alert with oxygen information
-        from db import update_monitoring_alert, acknowledge_alert
-        success = update_monitoring_alert(
-            alert_id,
-            oxygen_used=oxygen_used,
-            oxygen_highest=oxygen_highest,
-            oxygen_unit=oxygen_unit
-        )
-        
-        # Then acknowledge the alert
-        if success:
-            result = acknowledge_alert(alert_id)
-        
-            
-            if result:
-                return {"success": True, "message": "Alert acknowledged"}
-            else:
-                from fastapi.responses import JSONResponse
-                return JSONResponse(
-                    status_code=404, 
-                    content={"detail": f"Alert {alert_id} not found"}
-                )
-        else:
-            from fastapi.responses import JSONResponse
-            return JSONResponse(
-                status_code=500,
-                content={"detail": f"Failed to update alert {alert_id}"}
-            )
-    except Exception as e:
-        # Now logger is defined
-        logger.error(f"Error acknowledging alert: {e}", exc_info=True)
-        from fastapi.responses import JSONResponse
-        return JSONResponse(
-            status_code=500,
-            content={"detail": f"Error acknowledging alert: {str(e)}"}
-        )
-
-@app.get("/api/monitoring/data")
-async def get_pulse_ox_data_endpoint(
-    start_time: Optional[str] = None,
-    end_time: Optional[str] = None,
-    limit: int = 1000
-):
-    """Get pulse ox data within a time range"""
-    # This would require implementing a new function in db.py
-    # We'll just return a placeholder for now
-    return {"message": "Feature coming soon"}
-
-# Add this endpoint to fetch alert data
-
-@app.get("/api/monitoring/alerts/{alert_id}/data")
-async def get_alert_data(alert_id: int):
-    """Get detailed data for a specific alert event"""
-    from db import get_pulse_ox_data_for_alert
-    
-    try:
-        data = get_pulse_ox_data_for_alert(alert_id)
-        return data
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error retrieving alert data: {str(e)}")

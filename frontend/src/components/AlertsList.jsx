@@ -10,6 +10,7 @@ const AlertsList = ({ onClose }) => {
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showAcknowledgeForm, setShowAcknowledgeForm] = useState(false);
+  const [acknowledgeAllLoading, setAcknowledgeAllLoading] = useState(false);
 
   useEffect(() => {
     fetchAlerts();
@@ -43,6 +44,30 @@ const AlertsList = ({ onClose }) => {
     }
   };
 
+  const acknowledgeAllAlerts = async () => {
+    setAcknowledgeAllLoading(true);
+    try {
+      // Get all unacknowledged alerts
+      const response = await fetch(`${config.apiUrl}/api/monitoring/alerts?include_acknowledged=false`);
+      if (!response.ok) throw new Error('Failed to fetch alerts');
+      const alerts = await response.json();
+      await Promise.all(alerts.map(alert =>
+        fetch(`${config.apiUrl}/api/monitoring/alerts/${alert.id}/acknowledge`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}) // Always send a JSON body
+        })
+      ));
+      fetchAlerts(); // Refresh the alerts list
+      alert('All open alerts acknowledged!');
+    } catch (err) {
+      console.error('Error acknowledging all alerts:', err);
+      alert('Failed to acknowledge all alerts.');
+    } finally {
+      setAcknowledgeAllLoading(false);
+    }
+  };
+
   const handleViewDetails = (alert) => {
     setSelectedAlert(alert);
     setShowDetailModal(true);
@@ -73,11 +98,19 @@ const AlertsList = ({ onClose }) => {
 
   return (
     <div className="alerts-list">
-      <div className="alerts-controls">
-        <button onClick={fetchAlerts} className="refresh-button" disabled={loading}>
-          {loading ? 'Loading...' : 'Refresh'}
-        </button>
-        <label className="toggle-switch">
+      <div className="alerts-controls" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <button onClick={fetchAlerts} className="refresh-button" disabled={loading}>
+            {loading ? 'Loading...' : 'Refresh'}
+          </button>
+          <button className="primary-button" onClick={acknowledgeAllAlerts} disabled={acknowledgeAllLoading || loading} style={{ marginLeft: 12 }}>
+            {acknowledgeAllLoading ? 'Acknowledging...' : 'Acknowledge All'}
+          </button>
+          {acknowledgeAllLoading && (
+            <span className="spinner" style={{ marginLeft: 8 }}></span>
+          )}
+        </div>
+        <label className="toggle-switch" style={{ marginLeft: 'auto' }}>
           <input
             type="checkbox"
             checked={showAcknowledged}
@@ -128,10 +161,11 @@ const AlertsList = ({ onClose }) => {
                 </div>
                 <div>
                   <strong>Alarms:</strong>{' '}
+                  {alert.alarm1_triggered ? 'Alarm1 ' : ''}
+                  {alert.alarm2_triggered ? 'Alarm2 ' : ''}
                   {alert.spo2_alarm_triggered ? 'SpO₂ ' : ''}
-                  {alert.hr_alarm_triggered ? 'Heart Rate ' : ''}
-                  {alert.external_alarm_triggered ? 'External ' : ''}
-                  {!alert.spo2_alarm_triggered && !alert.hr_alarm_triggered && !alert.external_alarm_triggered ? 'None' : ''}
+                  {alert.hr_alarm_triggered ? 'BPM ' : ''}
+                  {!alert.alarm1_triggered && !alert.alarm2_triggered && !alert.spo2_alarm_triggered && !alert.hr_alarm_triggered ? 'None' : ''}
                 </div>
               </div>
 
