@@ -45,19 +45,19 @@ const DashboardSettings = () => {
         setAvailableVitals(allVitals);
         
         const dashboardFormData = {};
-        for (const [key, setting] of Object.entries(settingsResponse)) {
+        for (const [key, value] of Object.entries(settingsResponse)) {
           // Only include dashboard-related settings
           if (key.startsWith('show_') || key.includes('chart_') || key.includes('dashboard_') || key.includes('perfusion_')) {
-            let value = setting.value;
+            let processedValue = value;
             
             // Convert string boolean values to actual booleans
-            if (value === "True" || value === "true") {
-              value = true;
-            } else if (value === "False" || value === "false") {
-              value = false;
+            if (processedValue === "True" || processedValue === "true") {
+              processedValue = true;
+            } else if (processedValue === "False" || processedValue === "false") {
+              processedValue = false;
             }
             
-            dashboardFormData[key] = value;
+            dashboardFormData[key] = processedValue;
           }
         }
         

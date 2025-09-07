@@ -23,6 +23,10 @@ import CareTaskModal from "../components/CareTaskModal";
 import { Link } from 'react-router-dom';
 
 export default function Dashboard() {
+  // Add mobile detection state
+  const [isMobile, setIsMobile] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   // Add state for modal
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   
@@ -61,6 +65,20 @@ export default function Dashboard() {
   const initialDataReceived = useRef(false);
   const prevAlarmActive = useRef(false);
 
+  // Mobile detection effect
+  useEffect(() => {
+    const checkMobile = () => {
+      const isMobileDevice = window.innerWidth <= 768;
+      setIsMobile(isMobileDevice);
+      console.log('Mobile check:', window.innerWidth, 'isMobile:', isMobileDevice);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   // State for modals
   const [isVentModalOpen, setIsVentModalOpen] = useState(false);
   const [isPulseOxModalOpen, setIsPulseOxModalOpen] = useState(false);
@@ -82,17 +100,17 @@ export default function Dashboard() {
           const settings = await response.json();
           console.log('All settings loaded:', settings);
           if (settings.chart_time_range) {
-            console.log('Found chart_time_range setting:', settings.chart_time_range.value);
-            setChartTimeRange(settings.chart_time_range.value);
+            console.log('Found chart_time_range setting:', settings.chart_time_range);
+            setChartTimeRange(settings.chart_time_range);
           }
           if (settings.perfusion_as_percent !== undefined) {
-            let perfusionValue = settings.perfusion_as_percent.value;
+            let perfusionValue = settings.perfusion_as_percent;
             if (perfusionValue === "True" || perfusionValue === "true") perfusionValue = true;
             if (perfusionValue === "False" || perfusionValue === "false") perfusionValue = false;
             setPerfusionAsPercent(perfusionValue);
           }
           if (settings.show_statistics !== undefined) {
-            let statisticsValue = settings.show_statistics.value;
+            let statisticsValue = settings.show_statistics;
             if (statisticsValue === "True" || statisticsValue === "true") statisticsValue = true;
             if (statisticsValue === "False" || statisticsValue === "false") statisticsValue = false;
             setShowStatistics(statisticsValue);
@@ -114,16 +132,16 @@ export default function Dashboard() {
           if (response.ok) {
             const settings = await response.json();
             if (settings.chart_time_range) {
-              setChartTimeRange(settings.chart_time_range.value);
+              setChartTimeRange(settings.chart_time_range);
             }
             if (settings.perfusion_as_percent !== undefined) {
-              let perfusionValue = settings.perfusion_as_percent.value;
+              let perfusionValue = settings.perfusion_as_percent;
               if (perfusionValue === "True" || perfusionValue === "true") perfusionValue = true;
               if (perfusionValue === "False" || perfusionValue === "false") perfusionValue = false;
               setPerfusionAsPercent(perfusionValue);
             }
             if (settings.show_statistics !== undefined) {
-              let statisticsValue = settings.show_statistics.value;
+              let statisticsValue = settings.show_statistics;
               if (statisticsValue === "True" || statisticsValue === "true") statisticsValue = true;
               if (statisticsValue === "False" || statisticsValue === "false") statisticsValue = false;
               setShowStatistics(statisticsValue);
@@ -325,6 +343,7 @@ export default function Dashboard() {
     setIsMedicationModalOpen(false);
     setIsCareTaskModalOpen(false);
     setIsMessagesModalOpen(false);
+    setIsMobileMenuOpen(false);
   };
 
   // Add handler functions
@@ -418,262 +437,410 @@ export default function Dashboard() {
   return (
     <div className="dashboard-wrapper">
       <div className={`header-section${isAlarmBlinking ? ' alarm-blink' : ''}${isAlarmActive ? ' alarm-active' : ''}`}>
-        <div className="logo-container">
-          <img src={logoImage} alt="Logo" className="header-logo" />
-          <div className="logo-text">Smart Home Health</div>
-        </div>
-        
-        <div className="menu-container">
-          <div className="icon-wrapper">
+        {isMobile ? (
+          // Mobile Header
+          <>
+            <div className="mobile-logo-container">
+              <img src={logoImage} alt="Logo" className="header-logo" />
+              <div className="logo-text">Smart Home Health</div>
+            </div>
+            
             <button 
-              className={`menu-button ${isPulseOxModalOpen ? 'active' : ''}`}
-              onClick={handlePulseOxClick}
-              aria-label="Alerts"
+              className="mobile-menu-button"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              aria-label="Menu"
             >
+              <div className={`hamburger ${isMobileMenuOpen ? 'open' : ''}`}>
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </button>
+          </>
+        ) : (
+          // Desktop Header
+          <>
+            <div className="logo-container">
+              <img src={logoImage} alt="Logo" className="header-logo" />
+              <div className="logo-text">Smart Home Health</div>
+            </div>
+            
+            <div className="menu-container">
+              <div className="icon-wrapper">
+                <button 
+                  className={`menu-button ${isPulseOxModalOpen ? 'active' : ''}`}
+                  onClick={handlePulseOxClick}
+                  aria-label="Alerts"
+                >
+                  <MinimalistPulseOxIcon />
+                  {pulseOxAlerts > 0 && <div className="badge">{pulseOxAlerts}</div>}
+                </button>
+              </div>
+              
+              <div className="icon-wrapper">
+                <button 
+                  className={`menu-button ${isMedicationModalOpen ? 'active' : ''}`}
+                  onClick={handleMedicationClick}
+                  aria-label="Medication Tracker"
+                >
+                  <MedicationIcon />
+                  {medicationDueCount > 0 && <div className="badge">{medicationDueCount}</div>}
+                </button>
+              </div>
+              
+              <div className="icon-wrapper">
+                <button 
+                  className={`menu-button ${isCareTaskModalOpen ? 'active' : ''}`}
+                  onClick={handleCareTaskClick}
+                  aria-label="Care Tasks"
+                >
+                  <CareTasksIcon />
+                  {careTaskDueCount > 0 && <div className="badge">{careTaskDueCount}</div>}
+                </button>
+              </div>
+              
+              <div className="icon-wrapper">
+                <button 
+                  className={`menu-button ${isVentModalOpen ? 'active' : ''}`}
+                  onClick={handleVentClick}
+                  aria-label="Ventilator"
+                >
+                  <MinimalistVentIcon />
+                  {equipmentDueCount > 0 && <div className="badge">{equipmentDueCount}</div>}
+                </button>
+              </div>
+              
+              <div className="icon-wrapper">
+                <button 
+                  className={`menu-button ${isHistoryModalOpen ? 'active' : ''}`}
+                  onClick={handleHistoryClick}
+                  aria-label="History"
+                >
+                  <HistoryIcon />
+                </button>
+              </div>
+
+              <div className="icon-wrapper">
+                <button 
+                  className={`menu-button ${isMessagesModalOpen ? 'active' : ''}`}
+                  onClick={handleMessagesClick}
+                  aria-label="Messages"
+                >
+                  <MessagesIcon />
+                </button>
+              </div>
+
+              <div className="icon-wrapper">
+                <button 
+                  className={`menu-button ${isSettingsModalOpen ? 'active' : ''}`}
+                  onClick={handleSettingsClick}
+                  aria-label="Settings"
+                >
+                  <SettingsIcon />
+                </button>
+              </div>
+            </div>
+            
+            <div className="datetime-container">
+              <ClockCard />
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Mobile Menu Overlay */}
+      {isMobile && isMobileMenuOpen && (
+        <div className="mobile-menu-overlay" onClick={() => setIsMobileMenuOpen(false)}>
+          <div className="mobile-menu" onClick={(e) => e.stopPropagation()}>
+            <div className="mobile-menu-item" onClick={() => { handlePulseOxClick(); setIsMobileMenuOpen(false); }}>
               <MinimalistPulseOxIcon />
-              {pulseOxAlerts > 0 && <div className="badge">{pulseOxAlerts}</div>}
-            </button>
-          </div>
-          
-          <div className="icon-wrapper">
-            <button 
-              className={`menu-button ${isMedicationModalOpen ? 'active' : ''}`}
-              onClick={handleMedicationClick}
-              aria-label="Medication Tracker"
-            >
+              <span>Alerts</span>
+              {pulseOxAlerts > 0 && <div className="mobile-badge">{pulseOxAlerts}</div>}
+            </div>
+            
+            <div className="mobile-menu-item" onClick={() => { handleMedicationClick(); setIsMobileMenuOpen(false); }}>
               <MedicationIcon />
-              {medicationDueCount > 0 && <div className="badge">{medicationDueCount}</div>}
-            </button>
-          </div>
-          
-          <div className="icon-wrapper">
-            <button 
-              className={`menu-button ${isCareTaskModalOpen ? 'active' : ''}`}
-              onClick={handleCareTaskClick}
-              aria-label="Care Tasks"
-            >
+              <span>Medications</span>
+              {medicationDueCount > 0 && <div className="mobile-badge">{medicationDueCount}</div>}
+            </div>
+            
+            <div className="mobile-menu-item" onClick={() => { handleCareTaskClick(); setIsMobileMenuOpen(false); }}>
               <CareTasksIcon />
-              {careTaskDueCount > 0 && <div className="badge">{careTaskDueCount}</div>}
-            </button>
-          </div>
-          
-          <div className="icon-wrapper">
-            <button 
-              className={`menu-button ${isVentModalOpen ? 'active' : ''}`}
-              onClick={handleVentClick}
-              aria-label="Ventilator"
-            >
+              <span>Care Tasks</span>
+              {careTaskDueCount > 0 && <div className="mobile-badge">{careTaskDueCount}</div>}
+            </div>
+            
+            <div className="mobile-menu-item" onClick={() => { handleVentClick(); setIsMobileMenuOpen(false); }}>
               <MinimalistVentIcon />
-              {equipmentDueCount > 0 && <div className="badge">{equipmentDueCount}</div>}
-            </button>
-          </div>
-          
-          <div className="icon-wrapper">
-            <button 
-              className={`menu-button ${isHistoryModalOpen ? 'active' : ''}`}
-              onClick={handleHistoryClick}
-              aria-label="History"
-            >
+              <span>Equipment</span>
+              {equipmentDueCount > 0 && <div className="mobile-badge">{equipmentDueCount}</div>}
+            </div>
+            
+            <div className="mobile-menu-item" onClick={() => { handleHistoryClick(); setIsMobileMenuOpen(false); }}>
               <HistoryIcon />
-            </button>
-          </div>
-
-          <div className="icon-wrapper">
-            <button 
-              className={`menu-button ${isMessagesModalOpen ? 'active' : ''}`}
-              onClick={handleMessagesClick}
-              aria-label="Messages"
-            >
+              <span>History</span>
+            </div>
+            
+            <div className="mobile-menu-item" onClick={() => { handleMessagesClick(); setIsMobileMenuOpen(false); }}>
               <MessagesIcon />
-            </button>
-          </div>
-
-          <div className="icon-wrapper">
-            <button 
-              className={`menu-button ${isSettingsModalOpen ? 'active' : ''}`}
-              onClick={handleSettingsClick}
-              aria-label="Settings"
-            >
+              <span>Messages</span>
+            </div>
+            
+            <div className="mobile-menu-item" onClick={() => { handleSettingsClick(); setIsMobileMenuOpen(false); }}>
               <SettingsIcon />
-            </button>
-          </div>
-          
-          {/* Add Admin Link */}
-          <div className="icon-wrapper">
+              <span>Settings</span>
+            </div>
+            
             <Link 
               to="/admin"
-              className="menu-button admin-link"
-              aria-label="Admin Panel"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                textDecoration: 'none',
-                color: 'inherit',
-                border: 'none',
-                background: 'none',
-                cursor: 'pointer',
-                fontSize: '20px'
-              }}
+              className="mobile-menu-item admin-link"
+              onClick={() => setIsMobileMenuOpen(false)}
+              style={{ textDecoration: 'none', color: 'inherit' }}
             >
-              ⚙️
+              <span style={{ fontSize: '20px' }}>⚙️</span>
+              <span>Admin</span>
             </Link>
           </div>
         </div>
-        
-        <div className="datetime-container">
-          <ClockCard />
-        </div>
-      </div>
+      )}
       
-      <div className="dashboard-container">
-        <div className="values-column">
-          <div className="value-display spo2">
-            <h3 className="value-title">SpO₂</h3>
-            <div className="value-content">
-              <div className="value">{sensorValues.spo2 ?? "--"}</div>
-              <div className="unit">%</div>
+      <div className={`dashboard-container ${isMobile ? 'mobile' : ''}`}>
+        {isMobile ? (
+          // Mobile Layout - Only show the three value cards
+          <div className="mobile-values-container">
+            <div className="value-display spo2">
+              <h3 className="value-title">SpO₂</h3>
+              <div className="value-content">
+                <div className="value">{sensorValues.spo2 ?? "--"}</div>
+                <div className="unit">%</div>
+              </div>
+              {showStatistics && (
+                <div className="value-stats">
+                  {datasets.spo2.length > 0 ? (
+                    <>
+                      <span>
+                        Avg: {calculateAvg(datasets.spo2.filter(item => item.y !== 0)).toFixed(1)}%
+                      </span>
+                      <span>
+                        Min: {calculateMin(datasets.spo2.filter(item => item.y !== 0)).toFixed(0)}%
+                      </span>
+                      <span>
+                        Max: {calculateMax(datasets.spo2.filter(item => item.y !== 0)).toFixed(0)}%
+                      </span>
+                    </>
+                  ) : (
+                    <span>No data available</span>
+                  )}
+                </div>
+              )}
             </div>
-            {showStatistics && (
-              <div className="value-stats">
-                {datasets.spo2.length > 0 ? (
-                  <>
-                    <span>
-                      Avg: {calculateAvg(datasets.spo2.filter(item => item.y !== 0)).toFixed(1)}%
-                    </span>
-                    <span>
-                      Min: {calculateMin(datasets.spo2.filter(item => item.y !== 0)).toFixed(0)}%
-                    </span>
-                    <span>
-                      Max: {calculateMax(datasets.spo2.filter(item => item.y !== 0)).toFixed(0)}%
-                    </span>
-                  </>
-                ) : (
-                  <span>No data available</span>
+            
+            <div className="value-display bpm">
+              <h3 className="value-title">Heart Rate</h3>
+              <div className="value-content">
+                <div className="value">{sensorValues.bpm ?? "--"}</div>
+                <div className="unit">BPM</div>
+              </div>
+              {showStatistics && (
+                <div className="value-stats">
+                  {datasets.bpm.length > 0 ? (
+                    <>
+                      <span>
+                        Avg: {calculateAvg(datasets.bpm.filter(item => item.y !== 0)).toFixed(0)}
+                      </span>
+                      <span>
+                        Min: {calculateMin(datasets.bpm.filter(item => item.y !== 0)).toFixed(0)}
+                      </span>
+                      <span>
+                        Max: {calculateMax(datasets.bpm.filter(item => item.y !== 0)).toFixed(0)}
+                      </span>
+                    </>
+                  ) : (
+                    <span>No data available</span>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            <div className="value-display perfusion">
+              <h3 className="value-title">Perfusion</h3>
+              <div className="value-content">
+                <div className="value">{sensorValues.perfusion ?? "--"}</div>
+                <div className="unit">{perfusionAsPercent ? "%" : "PI"}</div>
+              </div>
+              {showStatistics && (
+                <div className="value-stats">
+                  {datasets.perfusion.length > 0 ? (
+                    <>
+                      <span>
+                        Avg: {calculateAvg(datasets.perfusion.filter(item => item.y !== 0)).toFixed(1)}
+                      </span>
+                      <span>
+                        Min: {calculateMin(datasets.perfusion.filter(item => item.y !== 0)).toFixed(1)}
+                      </span>
+                      <span>
+                        Max: {calculateMax(datasets.perfusion.filter(item => item.y !== 0)).toFixed(1)}
+                      </span>
+                    </>
+                  ) : (
+                    <span>No data available</span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          // Desktop Layout - Full layout with charts
+          <>
+            <div className="values-column">
+              <div className="value-display spo2">
+                <h3 className="value-title">SpO₂</h3>
+                <div className="value-content">
+                  <div className="value">{sensorValues.spo2 ?? "--"}</div>
+                  <div className="unit">%</div>
+                </div>
+                {showStatistics && (
+                  <div className="value-stats">
+                    {datasets.spo2.length > 0 ? (
+                      <>
+                        <span>
+                          Avg: {calculateAvg(datasets.spo2.filter(item => item.y !== 0)).toFixed(1)}%
+                        </span>
+                        <span>
+                          Min: {calculateMin(datasets.spo2.filter(item => item.y !== 0)).toFixed(0)}%
+                        </span>
+                        <span>
+                          Max: {calculateMax(datasets.spo2.filter(item => item.y !== 0)).toFixed(0)}%
+                        </span>
+                      </>
+                    ) : (
+                      <span>No data available</span>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
-          
-          <div className="value-display bpm">
-            <h3 className="value-title">Heart Rate</h3>
-            <div className="value-content">
-              <div className="value">{sensorValues.bpm ?? "--"}</div>
-              <div className="unit">BPM</div>
-            </div>
-            {showStatistics && (
-              <div className="value-stats">
-                {datasets.bpm.length > 0 ? (
-                  <>
-                    <span>
-                      Avg: {calculateAvg(datasets.bpm.filter(item => item.y !== 0)).toFixed(0)}
-                    </span>
-                    <span>
-                      Min: {calculateMin(datasets.bpm.filter(item => item.y !== 0)).toFixed(0)}
-                    </span>
-                    <span>
-                      Max: {calculateMax(datasets.bpm.filter(item => item.y !== 0)).toFixed(0)}
-                    </span>
-                  </>
-                ) : (
-                  <span>No data available</span>
+              
+              <div className="value-display bpm">
+                <h3 className="value-title">Heart Rate</h3>
+                <div className="value-content">
+                  <div className="value">{sensorValues.bpm ?? "--"}</div>
+                  <div className="unit">BPM</div>
+                </div>
+                {showStatistics && (
+                  <div className="value-stats">
+                    {datasets.bpm.length > 0 ? (
+                      <>
+                        <span>
+                          Avg: {calculateAvg(datasets.bpm.filter(item => item.y !== 0)).toFixed(0)}
+                        </span>
+                        <span>
+                          Min: {calculateMin(datasets.bpm.filter(item => item.y !== 0)).toFixed(0)}
+                        </span>
+                        <span>
+                          Max: {calculateMax(datasets.bpm.filter(item => item.y !== 0)).toFixed(0)}
+                        </span>
+                      </>
+                    ) : (
+                      <span>No data available</span>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
-          
-          <div className="value-display perfusion">
-            <h3 className="value-title">Perfusion</h3>
-            <div className="value-content">
-              <div className="value">{sensorValues.perfusion ?? "--"}</div>
-              <div className="unit">{perfusionAsPercent ? "%" : "PI"}</div>
-            </div>
-            {showStatistics && (
-              <div className="value-stats">
-                {datasets.perfusion.length > 0 ? (
-                  <>
-                    <span>
-                      Avg: {calculateAvg(datasets.perfusion.filter(item => item.y !== 0)).toFixed(1)}
-                    </span>
-                    <span>
-                      Min: {calculateMin(datasets.perfusion.filter(item => item.y !== 0)).toFixed(1)}
-                    </span>
-                    <span>
-                      Max: {calculateMax(datasets.perfusion.filter(item => item.y !== 0)).toFixed(1)}
-                    </span>
-                  </>
-                ) : (
-                  <span>No data available</span>
+              
+              <div className="value-display perfusion">
+                <h3 className="value-title">Perfusion</h3>
+                <div className="value-content">
+                  <div className="value">{sensorValues.perfusion ?? "--"}</div>
+                  <div className="unit">{perfusionAsPercent ? "%" : "PI"}</div>
+                </div>
+                {showStatistics && (
+                  <div className="value-stats">
+                    {datasets.perfusion.length > 0 ? (
+                      <>
+                        <span>
+                          Avg: {calculateAvg(datasets.perfusion.filter(item => item.y !== 0)).toFixed(1)}
+                        </span>
+                        <span>
+                          Min: {calculateMin(datasets.perfusion.filter(item => item.y !== 0)).toFixed(1)}
+                        </span>
+                        <span>
+                          Max: {calculateMax(datasets.perfusion.filter(item => item.y !== 0)).toFixed(1)}
+                        </span>
+                      </>
+                    ) : (
+                      <span>No data available</span>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
-        </div>
-
-        <div className="charts-column">
-          <div className="chart-block">
-            <div className="chart-inner">
-              <ChartBlock
-                title="SpO₂ Monitor"
-                yLabel="SpO2"
-                yMin={40}
-                yMax={100}
-                color="blue"
-                dataset={datasets.spo2}
-                showXaxis={false}
-                showYaxis={true}
-              />
             </div>
-          </div>
 
-          <div className="chart-block">
-            <div className="chart-inner">
-              <ChartBlock
-                title="BPM"
-                yLabel="BPM"
-                yMin={40}
-                yMax={160}
-                color="green"
-                dataset={datasets.bpm}
-                showXaxis={false}
-                showYaxis={true}
-              />
+            <div className="charts-column">
+              <div className="chart-block">
+                <div className="chart-inner">
+                  <ChartBlock
+                    title="SpO₂ Monitor"
+                    yLabel="SpO2"
+                    yMin={40}
+                    yMax={100}
+                    color="blue"
+                    dataset={datasets.spo2}
+                    showXaxis={false}
+                    showYaxis={true}
+                  />
+                </div>
+              </div>
+
+              <div className="chart-block">
+                <div className="chart-inner">
+                  <ChartBlock
+                    title="BPM"
+                    yLabel="BPM"
+                    yMin={40}
+                    yMax={160}
+                    color="green"
+                    dataset={datasets.bpm}
+                    showXaxis={false}
+                    showYaxis={true}
+                  />
+                </div>
+              </div>
+
+              <div className="chart-block">
+                <div className="chart-inner">
+                  <ChartBlock
+                    title="Perfusion Monitor"
+                    yLabel={perfusionAsPercent ? "PAI (%)" : "PAI (PI)"}
+                    yMin={40}
+                    yMax={160}
+                    color="orange"
+                    dataset={datasets.perfusion}
+                    showXaxis={true}
+                    showYaxis={true}
+                  />
+                </div>
+              </div>
             </div>
-          </div>
 
-          <div className="chart-block">
-            <div className="chart-inner">
-              <ChartBlock
-                title="Perfusion Monitor"
-                yLabel={perfusionAsPercent ? "PAI (%)" : "PAI (PI)"}
-                yMin={40}
-                yMax={160}
-                color="orange"
-                dataset={datasets.perfusion}
-                showXaxis={true}
-                showYaxis={true}
-              />
+            <div className="right-column">
+              <div className="dynamic-chart-container">
+                <DynamicVitalsCard 
+                  vitalType={dashboardChart1.vital_type}
+                  data={dashboardChart1.data}
+                  title={`Chart 1: ${dashboardChart1.vital_type}`}
+                />
+              </div>
+
+              <div className="dynamic-chart-container">
+                <DynamicVitalsCard 
+                  vitalType={dashboardChart2.vital_type}
+                  data={dashboardChart2.data}
+                  title={`Chart 2: ${dashboardChart2.vital_type}`}
+                />
+              </div>
             </div>
-          </div>
-        </div>
-
-        <div className="right-column">
-          <div className="dynamic-chart-container">
-            <DynamicVitalsCard 
-              vitalType={dashboardChart1.vital_type}
-              data={dashboardChart1.data}
-              title={`Chart 1: ${dashboardChart1.vital_type}`}
-            />
-          </div>
-
-          <div className="dynamic-chart-container">
-            <DynamicVitalsCard 
-              vitalType={dashboardChart2.vital_type}
-              data={dashboardChart2.data}
-              title={`Chart 2: ${dashboardChart2.vital_type}`}
-            />
-          </div>
-        </div>
+          </>
+        )}
       </div>
 
       {/* Settings Modal */}

@@ -241,6 +241,21 @@ const SettingsForm = ({ onClose }) => {
             >
               Dev
             </button>
+            <button
+              onClick={() => setActiveTab('admin')}
+              style={{
+                padding: '8px 16px',
+                border: 'none',
+                borderRadius: '6px',
+                backgroundColor: activeTab === 'admin' ? '#9f7aea' : '#f8f9fa',
+                color: activeTab === 'admin' ? '#fff' : '#333',
+                cursor: 'pointer',
+                fontWeight: '500',
+                fontSize: '14px'
+              }}
+            >
+              Admin
+            </button>
           </div>
         </div>
       </div>
@@ -629,6 +644,84 @@ const SettingsForm = ({ onClose }) => {
               </div>
             </>
           )}
+          {activeTab === 'admin' && (
+            <>
+              <div>
+                <h3 style={{ 
+                  color: '#ffffff', 
+                  fontSize: '1.25rem', 
+                  marginBottom: '16px',
+                  fontWeight: '600'
+                }}>Admin Panel Access</h3>
+                <div style={{
+                  backgroundColor: 'rgba(20,24,32,0.8)',
+                  borderRadius: '8px',
+                  padding: '20px',
+                  border: '1px solid #4a5568',
+                  textAlign: 'center'
+                }}>
+                  <h4 style={{ color: '#ffffff', marginBottom: '12px', fontSize: '1.1rem', fontWeight: '500' }}>
+                    System Administration
+                  </h4>
+                  <p style={{ color: '#cbd5e0', marginBottom: '20px', lineHeight: '1.5', fontSize: '14px' }}>
+                    Access the admin panel for advanced system configuration, user management, and system monitoring.
+                  </p>
+                  
+                  <a
+                    href="/admin"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      backgroundColor: '#9f7aea',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '12px 24px',
+                      fontSize: '16px',
+                      fontWeight: '600',
+                      textDecoration: 'none',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 2px 4px rgba(159, 122, 234, 0.3)'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.backgroundColor = '#8b5cf6';
+                      e.target.style.boxShadow = '0 4px 8px rgba(159, 122, 234, 0.4)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.backgroundColor = '#9f7aea';
+                      e.target.style.boxShadow = '0 2px 4px rgba(159, 122, 234, 0.3)';
+                    }}
+                  >
+                    <span style={{ fontSize: '18px' }}>⚙️</span>
+                    Open Admin Panel
+                  </a>
+                  
+                  <div style={{ 
+                    backgroundColor: '#1a202c', 
+                    borderRadius: '6px', 
+                    padding: '12px',
+                    border: '1px solid #4a5568',
+                    marginTop: '20px'
+                  }}>
+                    <h5 style={{ color: '#ffffff', marginBottom: '8px', fontSize: '0.95rem', fontWeight: '500' }}>
+                      Admin Panel Features:
+                    </h5>
+                    <ul style={{ color: '#cbd5e0', fontSize: '13px', lineHeight: '1.5', margin: 0, paddingLeft: '16px', textAlign: 'left' }}>
+                      <li>System configuration and settings management</li>
+                      <li>User account administration</li>
+                      <li>Database management and backups</li>
+                      <li>System logs and monitoring</li>
+                      <li>Security and access control</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
           {error && (
             <div style={{ 
               backgroundColor: '#fed7d7', 
@@ -650,7 +743,7 @@ const SettingsForm = ({ onClose }) => {
             }}>Settings saved successfully!</div>
           )}
           {/* Only show main Save Settings button for tabs that don't have their own save functionality */}
-          {activeTab !== 'dashboard' && activeTab !== 'gpio' && activeTab !== 'serial' && activeTab !== 'mqtt' && (
+          {activeTab !== 'dashboard' && activeTab !== 'gpio' && activeTab !== 'serial' && activeTab !== 'mqtt' && activeTab !== 'admin' && (
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
               <button 
                 type="submit" 

@@ -27,6 +27,50 @@ class MQTTModule:
         self.mqtt_manager = mqtt_manager
         self.mqtt_publisher = mqtt_publisher
         
+    async def start_event_subscribers(self):
+        """Start subscribing to relevant events."""
+        # Subscribe to vital_saved events to publish manually entered vitals to MQTT
+        asyncio.create_task(self._subscribe_to_vital_saved())
+        logger.info("MQTT module event subscribers started")
+        
+    async def _subscribe_to_vital_saved(self):
+        """Subscribe to vital_saved events and publish them to MQTT."""
+        logger.info("Starting subscription to vital_saved events")
+        async for event in self.event_bus.subscribe_to_topic("vital_saved"):
+            try:
+                logger.info(f"Received vital_saved event: {event}")
+                await self._handle_vital_saved(event)
+            except Exception as e:
+                logger.error(f"Error handling vital_saved event: {e}")
+                
+    async def _handle_vital_saved(self, event: dict):
+        """Handle vital_saved events by publishing to MQTT."""
+        try:
+            logger.info(f"Processing vital_saved event: {event}")
+            vital_type = event.get("data", {}).get("vital_type")
+            vital_data = event.get("data", {}).get("vital_data", {})
+            from_manual = event.get("data", {}).get("from_manual", False)
+            
+            logger.info(f"Extracted: vital_type={vital_type}, vital_data={vital_data}, from_manual={from_manual}")
+            
+            if vital_type and vital_data and from_manual:
+                logger.info(f"Publishing manually saved {vital_type} to MQTT: {vital_data}")
+                
+                # Use the publisher to send to MQTT
+                if self.mqtt_publisher and self.mqtt_publisher.is_available():
+                    success = self.mqtt_publisher.publish_vital_data(vital_type, vital_data)
+                    if success:
+                        logger.info(f"Successfully published {vital_type} to MQTT")
+                    else:
+                        logger.warning(f"Failed to publish {vital_type} to MQTT")
+                else:
+                    logger.info(f"MQTT publisher not available for {vital_type} (MQTT disabled)")
+            else:
+                logger.info(f"Skipping MQTT publish - vital_type={vital_type}, has_data={bool(vital_data)}, from_manual={from_manual}")
+                    
+        except Exception as e:
+            logger.error(f"Error handling vital_saved event: {e}")
+        
     async def handle_mqtt_message(self, topic: str, payload: dict, raw_data: str):
         """
         Handle incoming MQTT messages and convert them to events.

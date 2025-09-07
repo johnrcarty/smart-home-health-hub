@@ -211,6 +211,7 @@ async def startup_event():
     mqtt_manager, mqtt_publisher = initialize_mqtt_service(loop, mqtt_update_bridge)
     if mqtt_manager and mqtt_publisher:
         mqtt_module.set_mqtt_components(mqtt_manager, mqtt_publisher)
+        await mqtt_module.start_event_subscribers()
         logger.info("[main] MQTT system initialized successfully")
     else:
         logger.info("[main] MQTT system not initialized (disabled or failed)")
