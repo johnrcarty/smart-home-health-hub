@@ -28,7 +28,7 @@ class Vital(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
     vital_type = Column(String, nullable=False)
-    vital_group = Column(String, nullable=True)  # New column for group/type
+    vital_group = Column(String, nullable=True)  # Sub-type or grouping (e.g., 'systolic', 'diastolic', 'map' for BP)
     value = Column(Float, nullable=False)
     notes = Column(Text)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False)

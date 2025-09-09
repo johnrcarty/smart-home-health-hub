@@ -80,72 +80,83 @@ class SerialModule:
 
     def publish_connection_event(self, connected: bool, port: Optional[str] = None, error: Optional[str] = None):
         """Publish a serial connection event."""
-        event = SerialConnectionEvent(
-            ts=datetime.now(),
-            connected=connected,
-            port=port,
-            error=error,
-            source=EventSource.SERIAL
-        )
-        
-        # Use thread-safe call to publish from the serial thread
-        future = asyncio.run_coroutine_threadsafe(
-            self.event_bus.publish(event, topic="serial.connection"),
-            self.loop
-        )
         try:
-            future.result(timeout=1.0)
+            event = SerialConnectionEvent(
+                ts=datetime.now(),
+                connected=connected,
+                port=port,
+                error=error,
+                source=EventSource.SERIAL
+            )
+            
+            # Use thread-safe call to publish from the serial thread
+            future = asyncio.run_coroutine_threadsafe(
+                self.event_bus.publish(event, topic="serial.connection"),
+                self.loop
+            )
+            future.result(timeout=2.0)  # Increased timeout
+            logger.debug(f"Published connection event: connected={connected}, port={port}")
+        except asyncio.TimeoutError:
+            logger.warning("Timeout publishing connection event - event bus may be overloaded")
         except Exception as e:
             logger.error(f"Failed to publish connection event: {e}")
+            # Continue execution - don't let publishing failures stop the module
 
     def publish_sensor_data(self, sensor_data: dict, raw_line: str):
         """Publish sensor data event."""
-        event = SensorUpdate(
-            ts=datetime.now(),
-            values=sensor_data,
-            raw=raw_line,
-            source=EventSource.SERIAL
-        )
-        
-        # Update last data time when we have real data
-        self.last_data_time = time.time()
-        
-        # Use thread-safe call to publish from the serial thread
-        future = asyncio.run_coroutine_threadsafe(
-            self.event_bus.publish(event, topic="sensors.update"),
-            self.loop
-        )
         try:
-            future.result(timeout=1.0)
+            event = SensorUpdate(
+                ts=datetime.now(),
+                values=sensor_data,
+                raw=raw_line,
+                source=EventSource.SERIAL
+            )
+            
+            # Update last data time when we have real data
+            self.last_data_time = time.time()
+            
+            # Use thread-safe call to publish from the serial thread
+            future = asyncio.run_coroutine_threadsafe(
+                self.event_bus.publish(event, topic="sensors.update"),
+                self.loop
+            )
+            future.result(timeout=2.0)  # Increased timeout
+            logger.debug(f"Published sensor data: {sensor_data}")
+        except asyncio.TimeoutError:
+            logger.warning("Timeout publishing sensor data - event bus may be overloaded")
         except Exception as e:
             logger.error(f"Failed to publish sensor data: {e}")
+            # Continue execution - don't let publishing failures stop the module
 
     def publish_timeout_data(self):
         """Publish -1 values when no data received for timeout period."""
-        timeout_data = {
-            "spo2": -1,
-            "bpm": -1,
-            "perfusion": -1,
-            "status": "timeout"
-        }
-        
-        event = SensorUpdate(
-            ts=datetime.now(),
-            values=timeout_data,
-            raw="TIMEOUT - No data received",
-            source=EventSource.SERIAL
-        )
-        
-        # Use thread-safe call to publish from the serial thread
-        future = asyncio.run_coroutine_threadsafe(
-            self.event_bus.publish(event, topic="sensors.update"),
-            self.loop
-        )
         try:
-            future.result(timeout=1.0)
+            timeout_data = {
+                "spo2": -1,
+                "bpm": -1,
+                "perfusion": -1,
+                "status": "timeout"
+            }
+            
+            event = SensorUpdate(
+                ts=datetime.now(),
+                values=timeout_data,
+                raw="TIMEOUT - No data received",
+                source=EventSource.SERIAL
+            )
+            
+            # Use thread-safe call to publish from the serial thread
+            future = asyncio.run_coroutine_threadsafe(
+                self.event_bus.publish(event, topic="sensors.update"),
+                self.loop
+            )
+            future.result(timeout=2.0)  # Increased timeout
             logger.info("Published timeout values (-1) due to no serial data")
+        except asyncio.TimeoutError:
+            logger.warning("Timeout publishing timeout data - event bus may be overloaded")
         except Exception as e:
             logger.error(f"Failed to publish timeout data: {e}")
+            # Continue execution - don't let publishing failures stop the timeout mechanism
 
     def check_data_timeout(self):
         """Check if we should send timeout values."""

@@ -236,7 +236,7 @@ class WebSocketModule:
             from crud.medications import get_due_and_upcoming_medications_count
             from crud.monitoring import get_unacknowledged_alerts_count, get_active_ventilator_alerts_count
             from crud.settings import get_all_settings
-            from crud.vitals import get_last_n_blood_pressure, get_last_n_temperature, get_vitals_by_type
+            from crud.vitals import get_last_n_blood_pressure, get_last_n_temperature, get_vitals_by_type, _group_multi_value_vitals
             
             state = self.current_state.copy()
             
@@ -262,12 +262,33 @@ class WebSocketModule:
                     logger.warning(f"Unexpected settings result format: {type(settings_result)}")
                     settings_dict = {}
                 
-                # Get recent vitals
-                bp_history = get_last_n_blood_pressure(db, 5)
-                temp_history = get_last_n_temperature(db, 10)
+                # Get recent vitals - try unified approach first, fallback to legacy
+                try:
+                    # Try to get blood pressure from unified vitals
+                    bp_vitals = get_vitals_by_type(db, 'blood_pressure', limit=5)
+                    bp_history = _group_multi_value_vitals(bp_vitals)
+                    
+                    # If no unified data, fallback to legacy table
+                    if not bp_history:
+                        bp_history = get_last_n_blood_pressure(db, 5)
+                except Exception as e:
+                    logger.warning(f"Error getting unified BP data, falling back to legacy: {e}")
+                    bp_history = get_last_n_blood_pressure(db, 5)
+                
+                try:
+                    # Try to get temperature from unified vitals
+                    temp_vitals = get_vitals_by_type(db, 'temperature', limit=10)
+                    temp_history = _group_multi_value_vitals(temp_vitals)
+                    
+                    # If no unified data, fallback to legacy table
+                    if not temp_history:
+                        temp_history = get_last_n_temperature(db, 10)
+                except Exception as e:
+                    logger.warning(f"Error getting unified temp data, falling back to legacy: {e}")
+                    temp_history = get_last_n_temperature(db, 10)
                 
                 # Get dashboard chart data with safe defaults
-                chart_1_vital = settings_dict.get('dashboard_chart_1_vital', {}).get('value', 'bp')
+                chart_1_vital = settings_dict.get('dashboard_chart_1_vital', {}).get('value', 'blood_pressure')
                 chart_2_vital = settings_dict.get('dashboard_chart_2_vital', {}).get('value', 'temperature')
                 
                 chart_1_data = []
@@ -358,7 +379,7 @@ class WebSocketModule:
                 'spo2_alarm': False,
                 'bpm_alarm': False,
                 'alarm': False,
-                'dashboard_chart_1': {'vital_type': 'bp', 'data': []},
+                'dashboard_chart_1': {'vital_type': 'blood_pressure', 'data': []},
                 'dashboard_chart_2': {'vital_type': 'temperature', 'data': []}
             })
             

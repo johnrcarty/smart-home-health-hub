@@ -21,10 +21,12 @@ const DynamicVitalsCard = ({ vitalType, data = [], title }) => {
       let value = item.value;
       
       // Handle different data structures
-      if (vitalType === 'bp') {
-        value = item.map; // Use MAP for blood pressure
+      if (vitalType === 'blood_pressure') {
+        // For blood pressure, use MAP for charting, but show systolic/diastolic in table
+        value = item.map || item.value; // Use MAP if available, fallback to value
       } else if (vitalType === 'temperature') {
-        value = item.body; // Use body temperature
+        // For temperature, use body temp for charting
+        value = item.body || item.value; // Use body temp if available, fallback to value
       }
       
       return {
@@ -104,10 +106,17 @@ const DynamicVitalsCard = ({ vitalType, data = [], title }) => {
     if (!item) return '--';
     
     switch (vitalType) {
-      case 'bp':
-        return item.map ? `${item.map}` : '--';
+      case 'blood_pressure':
+        if (item.systolic && item.diastolic) {
+          // Show "systolic/diastolic (MAP)" format
+          return `${item.systolic}/${item.diastolic}${item.map ? ` (${item.map})` : ''}`;
+        }
+        return item.map ? `MAP: ${item.map}` : '--';
       case 'temperature':
-        return item.body ? `${item.body}°F` : '--';
+        if (item.body) {
+          return `${item.body}°F${item.skin ? ` (Skin: ${item.skin}°F)` : ''}`;
+        }
+        return item.value ? `${item.value}°F` : '--';
       case 'weight':
         return item.value ? `${item.value} lbs` : '--';
       case 'calories':
@@ -226,7 +235,7 @@ const DynamicVitalsCard = ({ vitalType, data = [], title }) => {
     }
     
     const colors = {
-      'bp': '#ff5252',
+      'blood_pressure': '#ff5252',
       'temperature': '#9c56b8',
       'weight': '#4caf50',
       'calories': '#ff9800',

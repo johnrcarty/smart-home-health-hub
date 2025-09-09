@@ -7,7 +7,8 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from db import get_db
 from crud.vitals import (get_vitals_by_type, get_distinct_vital_types, get_vitals_by_type_paginated, 
-                  save_blood_pressure, save_temperature, save_vital)
+                  save_blood_pressure, save_temperature, save_vital, 
+                  save_blood_pressure_as_vitals, save_temperature_as_vitals)
 
 logger = logging.getLogger("app")
 
@@ -42,8 +43,9 @@ async def add_manual_vitals(vital_data: dict, db: Session = Depends(get_db)):
             
             # Handle specific vital types with special logic
             if vital_type == "temperature":
-                temp_id = save_temperature(db, value, timestamp=datetime_val, notes=notes)
-                if temp_id:
+                # For unified storage, save to vitals table
+                temp_ids = save_temperature_as_vitals(db, body_temp=value, timestamp=datetime_val, notes=notes)
+                if temp_ids:
                     vitals_saved.append({
                         'type': 'temperature',
                         'data': {'temperature': value}
@@ -55,8 +57,9 @@ async def add_manual_vitals(vital_data: dict, db: Session = Depends(get_db)):
                     diastolic = value.get("diastolic")
                     map_bp = value.get("map")
                     if systolic and diastolic:
-                        bp_id = save_blood_pressure(db, systolic, diastolic, map_bp, datetime_val, notes)
-                        if bp_id:
+                        # Save to unified vitals table
+                        bp_ids = save_blood_pressure_as_vitals(db, systolic, diastolic, map_bp, datetime_val, notes)
+                        if bp_ids:
                             vitals_saved.append({
                                 'type': 'blood_pressure',
                                 'data': {'systolic': systolic, 'diastolic': diastolic, 'map': map_bp}
@@ -78,8 +81,9 @@ async def add_manual_vitals(vital_data: dict, db: Session = Depends(get_db)):
                 diastolic = bp.get("diastolic_bp")
                 map_bp = bp.get("map_bp")
                 if systolic and diastolic:
-                    bp_id = save_blood_pressure(db, systolic, diastolic, map_bp, datetime_val, notes)
-                    if bp_id:
+                    # Save to unified vitals table
+                    bp_ids = save_blood_pressure_as_vitals(db, systolic, diastolic, map_bp, datetime_val, notes)
+                    if bp_ids:
                         vitals_saved.append({
                             'type': 'blood_pressure',
                             'data': {'systolic': systolic, 'diastolic': diastolic, 'map': map_bp}
@@ -89,8 +93,10 @@ async def add_manual_vitals(vital_data: dict, db: Session = Depends(get_db)):
             temp = vital_data.get("temp", {})
             if temp and temp.get("body_temp"):
                 body_temp = temp.get("body_temp")
-                temp_id = save_temperature(db, body_temp, timestamp=datetime_val, notes=notes)
-                if temp_id:
+                skin_temp = temp.get("skin_temp")  # Include skin temp if provided
+                # Save to unified vitals table
+                temp_ids = save_temperature_as_vitals(db, body_temp=body_temp, skin_temp=skin_temp, timestamp=datetime_val, notes=notes)
+                if temp_ids:
                     vitals_saved.append({
                         'type': 'temperature',
                         'data': {'temperature': body_temp}

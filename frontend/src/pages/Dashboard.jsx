@@ -52,14 +52,12 @@ export default function Dashboard() {
     perfusion: []
   });
 
-  const [bpHistory, setBpHistory] = useState([]);
-  const [tempHistory, setTempHistory] = useState([]);
   const [chartTimeRange, setChartTimeRange] = useState('5m');
   const [perfusionAsPercent, setPerfusionAsPercent] = useState(false);
   const [showStatistics, setShowStatistics] = useState(true);
   
-  // Dynamic chart data from settings
-  const [dashboardChart1, setDashboardChart1] = useState({ vital_type: 'bp', data: [] });
+  // Dynamic chart data from settings - these will contain the unified vitals data
+  const [dashboardChart1, setDashboardChart1] = useState({ vital_type: 'blood_pressure', data: [] });
   const [dashboardChart2, setDashboardChart2] = useState({ vital_type: 'temperature', data: [] });
 
   const initialDataReceived = useRef(false);
@@ -90,6 +88,48 @@ export default function Dashboard() {
   const [isAlarmBlinking, setIsAlarmBlinking] = useState(false);
   const alarmBlinkInterval = useRef(null);
 
+  // Function to fetch chart data for a specific vital type
+  const fetchChartData = async (vitalType, chartNumber) => {
+    try {
+      console.log(`Fetching chart data for ${vitalType} (Chart ${chartNumber})`);
+      const response = await fetch(`${config.apiUrl}/api/vitals/${vitalType}?limit=20`);
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`Received ${data.length} records for ${vitalType}`);
+        
+        if (chartNumber === 1) {
+          setDashboardChart1(prev => ({
+            ...prev,
+            data: data
+          }));
+        } else {
+          setDashboardChart2(prev => ({
+            ...prev,
+            data: data
+          }));
+        }
+      } else {
+        console.error(`Failed to fetch chart data for ${vitalType}:`, response.statusText);
+      }
+    } catch (error) {
+      console.error(`Error fetching chart data for ${vitalType}:`, error);
+    }
+  };
+
+  // Helper function to format vital display names
+  const formatVitalDisplayName = (vital) => {
+    const displayNames = {
+      'blood_pressure': 'Blood Pressure',
+      'temperature': 'Temperature',
+      'bathroom': 'Bathroom',
+      'weight': 'Weight',
+      'calories': 'Calories',
+      'water': 'Water Intake'
+    };
+    
+    return displayNames[vital] || vital.charAt(0).toUpperCase() + vital.slice(1);
+  };
+
   // Load chart time range and perfusion display settings
   useEffect(() => {
     const loadSettings = async () => {
@@ -114,6 +154,33 @@ export default function Dashboard() {
             if (statisticsValue === "True" || statisticsValue === "true") statisticsValue = true;
             if (statisticsValue === "False" || statisticsValue === "false") statisticsValue = false;
             setShowStatistics(statisticsValue);
+          }
+          
+          // Update dashboard chart vital types from settings
+          if (settings.dashboard_chart_1_vital) {
+            setDashboardChart1(prev => ({
+              ...prev,
+              vital_type: settings.dashboard_chart_1_vital,
+              data: [] // Clear existing data when vital type changes
+            }));
+            // Fetch new data for chart 1
+            fetchChartData(settings.dashboard_chart_1_vital, 1);
+          } else {
+            // Load default chart 1 data if no setting exists
+            fetchChartData('blood_pressure', 1);
+          }
+          
+          if (settings.dashboard_chart_2_vital) {
+            setDashboardChart2(prev => ({
+              ...prev,
+              vital_type: settings.dashboard_chart_2_vital,
+              data: [] // Clear existing data when vital type changes
+            }));
+            // Fetch new data for chart 2
+            fetchChartData(settings.dashboard_chart_2_vital, 2);
+          } else {
+            // Load default chart 2 data if no setting exists
+            fetchChartData('temperature', 2);
           }
         }
       } catch (err) {
@@ -145,6 +212,27 @@ export default function Dashboard() {
               if (statisticsValue === "True" || statisticsValue === "true") statisticsValue = true;
               if (statisticsValue === "False" || statisticsValue === "false") statisticsValue = false;
               setShowStatistics(statisticsValue);
+            }
+            
+            // Update dashboard chart vital types from settings
+            if (settings.dashboard_chart_1_vital) {
+              setDashboardChart1(prev => ({
+                ...prev,
+                vital_type: settings.dashboard_chart_1_vital,
+                data: [] // Clear existing data when vital type changes
+              }));
+              // Fetch new data for chart 1
+              fetchChartData(settings.dashboard_chart_1_vital, 1);
+            }
+            
+            if (settings.dashboard_chart_2_vital) {
+              setDashboardChart2(prev => ({
+                ...prev,
+                vital_type: settings.dashboard_chart_2_vital,
+                data: [] // Clear existing data when vital type changes
+              }));
+              // Fetch new data for chart 2
+              fetchChartData(settings.dashboard_chart_2_vital, 2);
             }
           }
         } catch (err) {
@@ -196,38 +284,6 @@ export default function Dashboard() {
 
         const now = Date.now();
 
-        if (msg.state.bp) {
-          const bpData = msg.state.bp
-            .filter(reading => 
-              (reading.systolic_bp !== null && reading.systolic_bp !== 0) || 
-              (reading.diastolic_bp !== null && reading.diastolic_bp !== 0) || 
-              (reading.map_bp !== null && reading.map_bp !== 0)
-            )
-            .map(reading => ({
-              datetime: reading.datetime || Date.now().toString(),
-              systolic: reading.systolic_bp,
-              diastolic: reading.diastolic_bp,
-              map: reading.map_bp
-            }));
-          
-          setBpHistory(bpData);
-        }
-
-        if (msg.state.temp) {
-          const tempData = msg.state.temp
-            .filter(reading => 
-              (reading.skin_temp !== null && reading.skin_temp !== 0) || 
-              (reading.body_temp !== null && reading.body_temp !== 0)
-            )
-            .map(reading => ({
-              datetime: reading.datetime || Date.now().toString(),
-              skin: reading.skin_temp,
-              body: reading.body_temp
-            }));
-          
-          setTempHistory(tempData);
-        }
-
         setDatasets(prev => {
           const newState = { ...prev };
           let hasValidUpdate = false;
@@ -246,12 +302,6 @@ export default function Dashboard() {
           if (msg.state.perfusion !== null && msg.state.perfusion !== undefined) {
             newState.perfusion = [...prev.perfusion, { x: now, y: msg.state.perfusion }].slice(-maxDataPoints);
             hasValidUpdate = true;
-          }
-
-          if (hasValidUpdate && !initialDataReceived.current) {
-            initialDataReceived.current = true;
-            setBpHistory(prev => [...prev]);
-            setTempHistory(prev => [...prev]);
           }
 
           return newState;
@@ -827,7 +877,7 @@ export default function Dashboard() {
                 <DynamicVitalsCard 
                   vitalType={dashboardChart1.vital_type}
                   data={dashboardChart1.data}
-                  title={`Chart 1: ${dashboardChart1.vital_type}`}
+                  title={`Chart 1: ${formatVitalDisplayName(dashboardChart1.vital_type)} History`}
                 />
               </div>
 
@@ -835,7 +885,7 @@ export default function Dashboard() {
                 <DynamicVitalsCard 
                   vitalType={dashboardChart2.vital_type}
                   data={dashboardChart2.data}
-                  title={`Chart 2: ${dashboardChart2.vital_type}`}
+                  title={`Chart 2: ${formatVitalDisplayName(dashboardChart2.vital_type)} History`}
                 />
               </div>
             </div>

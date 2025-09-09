@@ -114,7 +114,7 @@ class MQTTModule:
         if (systolic is not None and diastolic is not None and map_value is not None and
             not (systolic == 0 and diastolic == 0 and map_value == 0)):
             
-            # Publish vital sign recorded event
+            # Publish vital sign recorded event using unified approach
             vital_event = VitalSignRecorded(
                 ts=datetime.now(),
                 vital_type="blood_pressure",
@@ -122,7 +122,8 @@ class MQTTModule:
                     "systolic": systolic,
                     "diastolic": diastolic,
                     "map": map_value,
-                    "raw_data": raw_data
+                    "raw_data": raw_data,
+                    "use_unified_storage": True  # Flag to use unified vitals table
                 },
                 source=EventSource.MQTT
             )
@@ -150,14 +151,15 @@ class MQTTModule:
         
         # Save to database if we have valid values
         if skin_temp is not None and body_temp is not None:
-            # Publish vital sign recorded event
+            # Publish vital sign recorded event using unified approach
             vital_event = VitalSignRecorded(
                 ts=datetime.now(),
                 vital_type="temperature",
                 data={
                     "skin_temp": skin_temp,
                     "body_temp": body_temp,
-                    "raw_data": raw_data
+                    "raw_data": raw_data,
+                    "use_unified_storage": True  # Flag to use unified vitals table
                 },
                 source=EventSource.MQTT
             )

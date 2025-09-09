@@ -17,6 +17,7 @@ const VitalsForm = ({ onSave, onClose }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
+  const [validationErrors, setValidationErrors] = useState({});
 
   const handleInputChange = (category, field, value) => {
     if (category) {
@@ -31,6 +32,14 @@ const VitalsForm = ({ onSave, onClose }) => {
       setFormData(prev => ({
         ...prev,
         [field]: value
+      }));
+    }
+    
+    // Clear validation errors when user starts typing
+    if (category === 'bloodPressure') {
+      setValidationErrors(prev => ({
+        ...prev,
+        bloodPressure: null
       }));
     }
   };
@@ -76,11 +85,35 @@ const VitalsForm = ({ onSave, onClose }) => {
     return payload;
   };
 
+  const validateForm = () => {
+    const errors = {};
+    
+    // Blood Pressure validation: both systolic and diastolic required if either has data
+    const systolic = formData.bloodPressure.systolic.trim();
+    const diastolic = formData.bloodPressure.diastolic.trim();
+    
+    if ((systolic && !diastolic) || (!systolic && diastolic)) {
+      errors.bloodPressure = "Both systolic and diastolic blood pressure values are required";
+    }
+    
+    setValidationErrors(errors);
+    return Object.keys(errors).length > 0 ? Object.values(errors)[0] : null;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
     setIsSubmitting(true);
+    
     try {
+      // Validate form before submission
+      const validationError = validateForm();
+      if (validationError) {
+        setError(validationError);
+        setIsSubmitting(false);
+        return;
+      }
+      
       const payload = buildPayload();
       console.log("Submitting vitals payload:", payload);
       const response = await fetch(`${config.apiUrl}/api/vitals/manual`, {
@@ -130,6 +163,19 @@ const VitalsForm = ({ onSave, onClose }) => {
       </div>
       <div className="form-section">
         <h3>Blood Pressure</h3>
+        {validationErrors.bloodPressure && (
+          <div className="validation-error" style={{ 
+            color: '#ff5252', 
+            fontSize: '14px', 
+            marginBottom: '10px',
+            padding: '8px',
+            backgroundColor: 'rgba(255, 82, 82, 0.1)',
+            border: '1px solid rgba(255, 82, 82, 0.3)',
+            borderRadius: '4px'
+          }}>
+            {validationErrors.bloodPressure}
+          </div>
+        )}
         <div className="form-row">
           <div className="form-group">
             <label htmlFor="systolic">Systolic (mmHg)</label>
@@ -141,6 +187,10 @@ const VitalsForm = ({ onSave, onClose }) => {
               placeholder="120"
               min="60"
               max="250"
+              style={{
+                borderColor: validationErrors.bloodPressure ? '#ff5252' : undefined,
+                backgroundColor: validationErrors.bloodPressure ? 'rgba(255, 82, 82, 0.05)' : undefined
+              }}
             />
           </div>
           <div className="form-group">
@@ -153,6 +203,10 @@ const VitalsForm = ({ onSave, onClose }) => {
               placeholder="80"
               min="30"
               max="150"
+              style={{
+                borderColor: validationErrors.bloodPressure ? '#ff5252' : undefined,
+                backgroundColor: validationErrors.bloodPressure ? 'rgba(255, 82, 82, 0.05)' : undefined
+              }}
             />
           </div>
         </div>

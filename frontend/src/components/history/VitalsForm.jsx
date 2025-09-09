@@ -18,6 +18,7 @@ const VitalsForm = ({ onSave, onClose }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
+  const [validationErrors, setValidationErrors] = useState({});
 
   const handleInputChange = (category, field, value) => {
     if (category) {
@@ -32,6 +33,14 @@ const VitalsForm = ({ onSave, onClose }) => {
       setFormData(prev => ({
         ...prev,
         [field]: value
+      }));
+    }
+    
+    // Clear validation errors when user starts typing
+    if (category === 'bloodPressure') {
+      setValidationErrors(prev => ({
+        ...prev,
+        bloodPressure: null
       }));
     }
   };
@@ -77,11 +86,35 @@ const VitalsForm = ({ onSave, onClose }) => {
     return payload;
   };
 
+  const validateForm = () => {
+    const errors = {};
+    
+    // Blood Pressure validation: both systolic and diastolic required if either has data
+    const systolic = formData.bloodPressure.systolic.trim();
+    const diastolic = formData.bloodPressure.diastolic.trim();
+    
+    if ((systolic && !diastolic) || (!systolic && diastolic)) {
+      errors.bloodPressure = "Both systolic and diastolic blood pressure values are required";
+    }
+    
+    setValidationErrors(errors);
+    return Object.keys(errors).length > 0 ? Object.values(errors)[0] : null;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
     setIsSubmitting(true);
+    
     try {
+      // Validate form before submission
+      const validationError = validateForm();
+      if (validationError) {
+        setError(validationError);
+        setIsSubmitting(false);
+        return;
+      }
+      
       const payload = buildPayload();
       console.log("Submitting vitals payload:", payload);
       const response = await fetch(`${config.apiUrl}/api/vitals/manual`, {
@@ -226,6 +259,19 @@ const VitalsForm = ({ onSave, onClose }) => {
           border: '1px solid #4a5568'
         }}>
           <h3 style={{ color: '#fff', marginBottom: '20px', fontSize: '18px' }}>Blood Pressure</h3>
+          {validationErrors.bloodPressure && (
+            <div style={{ 
+              color: '#ff5252', 
+              fontSize: '14px', 
+              marginBottom: '15px',
+              padding: '10px',
+              backgroundColor: 'rgba(255, 82, 82, 0.1)',
+              border: '1px solid rgba(255, 82, 82, 0.3)',
+              borderRadius: '6px'
+            }}>
+              {validationErrors.bloodPressure}
+            </div>
+          )}
           <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
             <div style={{ flex: '1', minWidth: '150px', maxWidth: '300px' }}>
               <label htmlFor="systolic" style={{ 
@@ -247,9 +293,9 @@ const VitalsForm = ({ onSave, onClose }) => {
                 style={{
                   width: 'calc(100% - 24px)',
                   padding: '12px',
-                  border: '1px solid #4a5568',
+                  border: `1px solid ${validationErrors.bloodPressure ? '#ff5252' : '#4a5568'}`,
                   borderRadius: '6px',
-                  backgroundColor: 'rgba(255,255,255,0.1)',
+                  backgroundColor: validationErrors.bloodPressure ? 'rgba(255, 82, 82, 0.05)' : 'rgba(255,255,255,0.1)',
                   color: '#fff',
                   fontSize: '16px',
                   boxSizing: 'border-box'
@@ -276,9 +322,9 @@ const VitalsForm = ({ onSave, onClose }) => {
                 style={{
                   width: 'calc(100% - 24px)',
                   padding: '12px',
-                  border: '1px solid #4a5568',
+                  border: `1px solid ${validationErrors.bloodPressure ? '#ff5252' : '#4a5568'}`,
                   borderRadius: '6px',
-                  backgroundColor: 'rgba(255,255,255,0.1)',
+                  backgroundColor: validationErrors.bloodPressure ? 'rgba(255, 82, 82, 0.05)' : 'rgba(255,255,255,0.1)',
                   color: '#fff',
                   fontSize: '16px',
                   boxSizing: 'border-box'

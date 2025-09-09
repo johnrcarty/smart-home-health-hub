@@ -196,6 +196,53 @@ def save_vital(db: Session, vital_type, value, timestamp=None, notes=None, vital
     return vital.id
 
 
+def save_blood_pressure_as_vitals(db: Session, systolic, diastolic, map_value=None, timestamp=None, notes=None):
+    """
+    Save blood pressure reading as individual vital entries
+    """
+    vital_ids = []
+    
+    # Calculate MAP if not provided
+    if map_value is None and systolic and diastolic:
+        map_value = round(diastolic + (systolic - diastolic) / 3)
+    
+    # Save systolic
+    if systolic is not None:
+        systolic_id = save_vital(db, 'blood_pressure', systolic, timestamp, notes, 'systolic')
+        vital_ids.append(systolic_id)
+    
+    # Save diastolic  
+    if diastolic is not None:
+        diastolic_id = save_vital(db, 'blood_pressure', diastolic, timestamp, notes, 'diastolic')
+        vital_ids.append(diastolic_id)
+    
+    # Save MAP
+    if map_value is not None:
+        map_id = save_vital(db, 'blood_pressure', map_value, timestamp, notes, 'map')
+        vital_ids.append(map_id)
+    
+    return vital_ids
+
+
+def save_temperature_as_vitals(db: Session, body_temp=None, skin_temp=None, timestamp=None, notes=None):
+    """
+    Save temperature readings as individual vital entries
+    """
+    vital_ids = []
+    
+    # Save body temperature
+    if body_temp is not None:
+        body_id = save_vital(db, 'temperature', body_temp, timestamp, notes, 'body')
+        vital_ids.append(body_id)
+    
+    # Save skin temperature
+    if skin_temp is not None:
+        skin_id = save_vital(db, 'temperature', skin_temp, timestamp, notes, 'skin')
+        vital_ids.append(skin_id)
+    
+    return vital_ids
+
+
 def get_distinct_vital_types(db: Session):
     logger.info(f"DB connection: {db.bind.url}")
     logger.info("Fetching distinct vital types...")
@@ -242,6 +289,11 @@ def get_vitals_by_type(db: Session, vital_type, limit=100):
     try:
         results = db.query(Vital).filter(Vital.vital_type == vital_type).order_by(Vital.timestamp.desc()).limit(limit).all()
 
+        # For multi-value vitals like blood_pressure and temperature, group by timestamp
+        if vital_type in ['blood_pressure', 'temperature']:
+            return _group_multi_value_vitals(results, vital_type)
+        
+        # For single-value vitals
         return [
             {
                 'datetime': row.timestamp,
@@ -254,6 +306,46 @@ def get_vitals_by_type(db: Session, vital_type, limit=100):
     except Exception as e:
         logger.error(f"Error fetching {vital_type} history: {e}")
         return []
+
+
+def _group_multi_value_vitals(results, vital_type):
+    """
+    Group multi-value vitals by timestamp to create combined entries
+    """
+    from collections import defaultdict
+    
+    grouped = defaultdict(dict)
+    
+    # Group by timestamp (rounded to nearest minute for grouping)
+    for vital in results:
+        # Use timestamp as key (could round for grouping if needed)
+        ts_key = vital.timestamp
+        
+        if ts_key not in grouped:
+            grouped[ts_key] = {
+                'datetime': vital.timestamp,
+                'notes': vital.notes
+            }
+        
+        # Add the specific value based on vital_group
+        if vital_type == 'blood_pressure':
+            if vital.vital_group == 'systolic':
+                grouped[ts_key]['systolic'] = int(vital.value)
+            elif vital.vital_group == 'diastolic':
+                grouped[ts_key]['diastolic'] = int(vital.value)
+            elif vital.vital_group == 'map':
+                grouped[ts_key]['map'] = int(vital.value)
+        elif vital_type == 'temperature':
+            if vital.vital_group == 'body':
+                grouped[ts_key]['body'] = vital.value
+            elif vital.vital_group == 'skin':
+                grouped[ts_key]['skin'] = vital.value
+    
+    # Convert to list and sort by datetime (newest first)
+    result = list(grouped.values())
+    result.sort(key=lambda x: x['datetime'], reverse=True)
+    
+    return result
 
 
 # --- Pulse Oximeter CRUD ---

@@ -40,7 +40,7 @@ const DashboardSettings = () => {
         }
         
         // Add default vital types that are always available
-        const defaultVitals = ['bp', 'temperature'];
+        const defaultVitals = ['blood_pressure', 'temperature'];
         const allVitals = [...new Set([...defaultVitals, ...vitalsData])];
         setAvailableVitals(allVitals);
         
@@ -98,7 +98,7 @@ const DashboardSettings = () => {
   // Helper function to format vital display names
   const formatVitalDisplayName = (vital) => {
     const displayNames = {
-      'bp': 'Blood Pressure',
+      'blood_pressure': 'Blood Pressure',
       'temperature': 'Temperature',
       'bathroom': 'Bathroom',
       'weight': 'Weight',
