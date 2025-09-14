@@ -473,7 +473,7 @@ def get_available_pulse_ox_dates(db: Session, limit=30):
         return []
 
 
-def start_monitoring_alert(db: Session, spo2=None, bpm=None, data_id=None, spo2_alarm_triggered=None, hr_alarm_triggered=None, external_alarm_triggered=None):
+def start_monitoring_alert(db: Session, spo2=None, bpm=None, data_id=None, spo2_alarm_triggered=None, hr_alarm_triggered=None, external_alarm_triggered=None, patient_id=None):
     """
     Start a new monitoring alert event
 
@@ -483,14 +483,22 @@ def start_monitoring_alert(db: Session, spo2=None, bpm=None, data_id=None, spo2_
         data_id (int): ID of the pulse_ox_data record
         spo2_alarm_triggered (int): Whether SpO2 alarm was triggered
         hr_alarm_triggered (int): Whether heart rate alarm was triggered
+        external_alarm_triggered (int): Whether external alarm was triggered
+        patient_id (int): Patient ID, creates default if not provided
 
     Returns:
         int: ID of the inserted alert or None on error
     """
     try:
         now = datetime.now().isoformat()
+        
+        # Get patient_id if not provided
+        if patient_id is None:
+            from state_manager import ensure_default_patient
+            patient_id = ensure_default_patient()
 
         alert = MonitoringAlert(
+            patient_id=patient_id,
             start_time=now,
             start_data_id=data_id,
             spo2_min=spo2,
@@ -506,7 +514,7 @@ def start_monitoring_alert(db: Session, spo2=None, bpm=None, data_id=None, spo2_
         db.add(alert)
         db.commit()
         db.refresh(alert)
-        logger.info(f"Started monitoring alert #{alert.id} - SpO2: {spo2}%, BPM: {bpm}")
+        logger.info(f"Started monitoring alert #{alert.id} for patient {patient_id} - SpO2: {spo2}%, BPM: {bpm}")
         return alert.id
     except Exception as e:
         logger.error(f"Error starting monitoring alert: {e}")

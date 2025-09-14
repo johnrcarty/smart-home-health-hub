@@ -1,7 +1,75 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import logoImage from '../../assets/logo2.png';
+import { AdminPatientProvider, useAdminPatient } from '../../contexts/AdminPatientContext';
+import PatientSelector from '../admin/PatientSelector';
 import './Layout.css';
+
+const AdminNav = () => {
+  const location = useLocation();
+  const { selectedPatientId, setPatientId } = useAdminPatient();
+
+  return (
+    <nav className="admin-nav">
+      <div className="admin-nav-header">
+        <Link to="/" className="logo-link">
+          <img src={logoImage} alt="SHH Logo" className="nav-logo" />
+          <span className="nav-title">Smart Home Health</span>
+        </Link>
+      </div>
+      
+      <PatientSelector 
+        selectedPatientId={selectedPatientId}
+        onPatientChange={setPatientId}
+      />
+      
+      <div className="admin-nav-links">
+        <Link 
+          to="/admin" 
+          className={`nav-link ${location.pathname === '/admin' ? 'active' : ''}`}
+        >
+          Dashboard
+        </Link>
+        <Link 
+          to="/admin/medications" 
+          className={`nav-link ${location.pathname === '/admin/medications' ? 'active' : ''}`}
+        >
+          Medications
+        </Link>
+        <Link 
+          to="/admin/care-tasks" 
+          className={`nav-link ${location.pathname === '/admin/care-tasks' ? 'active' : ''}`}
+        >
+          Care Tasks
+        </Link>
+        <Link 
+          to="/admin/equipment" 
+          className={`nav-link ${location.pathname === '/admin/equipment' ? 'active' : ''}`}
+        >
+          Equipment
+        </Link>
+        <Link 
+          to="/admin/monitoring" 
+          className={`nav-link ${location.pathname === '/admin/monitoring' ? 'active' : ''}`}
+        >
+          Monitoring
+        </Link>
+        <Link 
+          to="/admin/settings" 
+          className={`nav-link ${location.pathname === '/admin/settings' ? 'active' : ''}`}
+        >
+          Settings
+        </Link>
+      </div>
+      
+      <div className="admin-nav-footer">
+        <Link to="/" className="back-to-dashboard">
+          ← Back to Touch Dashboard
+        </Link>
+      </div>
+    </nav>
+  );
+};
 
 const Layout = ({ children }) => {
   const location = useLocation();
@@ -9,65 +77,18 @@ const Layout = ({ children }) => {
   
   return (
     <div className="layout">
-      {isAdminRoute && (
-        <nav className="admin-nav">
-          <div className="admin-nav-header">
-            <Link to="/" className="logo-link">
-              <img src={logoImage} alt="SHH Logo" className="nav-logo" />
-              <span className="nav-title">Smart Home Health</span>
-            </Link>
-          </div>
-          
-          <div className="admin-nav-links">
-            <Link 
-              to="/admin" 
-              className={`nav-link ${location.pathname === '/admin' ? 'active' : ''}`}
-            >
-              Dashboard
-            </Link>
-            <Link 
-              to="/admin/medications" 
-              className={`nav-link ${location.pathname === '/admin/medications' ? 'active' : ''}`}
-            >
-              Medications
-            </Link>
-            <Link 
-              to="/admin/care-tasks" 
-              className={`nav-link ${location.pathname === '/admin/care-tasks' ? 'active' : ''}`}
-            >
-              Care Tasks
-            </Link>
-            <Link 
-              to="/admin/equipment" 
-              className={`nav-link ${location.pathname === '/admin/equipment' ? 'active' : ''}`}
-            >
-              Equipment
-            </Link>
-            <Link 
-              to="/admin/monitoring" 
-              className={`nav-link ${location.pathname === '/admin/monitoring' ? 'active' : ''}`}
-            >
-              Monitoring
-            </Link>
-            <Link 
-              to="/admin/settings" 
-              className={`nav-link ${location.pathname === '/admin/settings' ? 'active' : ''}`}
-            >
-              Settings
-            </Link>
-          </div>
-          
-          <div className="admin-nav-footer">
-            <Link to="/" className="back-to-dashboard">
-              ← Back to Touch Dashboard
-            </Link>
-          </div>
-        </nav>
+      {isAdminRoute ? (
+        <AdminPatientProvider>
+          <AdminNav />
+          <main className="main-content with-nav">
+            {children}
+          </main>
+        </AdminPatientProvider>
+      ) : (
+        <main className="main-content">
+          {children}
+        </main>
       )}
-      
-      <main className={`main-content ${isAdminRoute ? 'with-nav' : ''}`}>
-        {children}
-      </main>
     </div>
   );
 };

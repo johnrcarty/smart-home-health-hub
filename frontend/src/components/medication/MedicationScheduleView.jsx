@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import config from '../../config';
 
 /**
@@ -36,6 +36,8 @@ import config from '../../config';
  * - setLoading: Function to set loading state
  * - scheduledMedications: Optional array of scheduled medications for filtering
  * - showStatusFilters: Boolean to show/hide status filtering UI
+ * - patients: Array of available patients for global medication scheduling
+ * - currentPatientId: Current dashboard patient ID (default selection for global meds)
  */
 
 const MedicationScheduleView = ({ 
@@ -45,13 +47,24 @@ const MedicationScheduleView = ({
   loading,
   setLoading,
   scheduledMedications = null, // Optional: for filtering daily scheduled medications
-  showStatusFilters = false // Flag to show status filters instead of schedule filters
+  showStatusFilters = false, // Flag to show status filters instead of schedule filters
+  patients = [], // List of available patients
+  currentPatientId = null // Current dashboard patient ID
 }) => {
   const [scheduleMode, setScheduleMode] = useState('weekly'); // 'weekly' or 'monthly'
   const [selectedDays, setSelectedDays] = useState([]); // for weekly
   const [selectedDayOfMonth, setSelectedDayOfMonth] = useState(1); // for monthly
   const [time, setTime] = useState('08:00');
   const [doseAmount, setDoseAmount] = useState('1.000');
+  const [selectedPatientId, setSelectedPatientId] = useState(currentPatientId ? String(currentPatientId) : ''); // For global meds
+
+  // Update selectedPatientId when currentPatientId changes (for default selection)
+  useEffect(() => {
+    console.log('MedicationScheduleView - patients:', patients, 'currentPatientId:', currentPatientId);
+    if (currentPatientId) {
+      setSelectedPatientId(String(currentPatientId));
+    }
+  }, [currentPatientId, patients]);
 
   // Status filter state - default to ready to take, upcoming, and missed
   const [statusFilters, setStatusFilters] = useState({
@@ -65,6 +78,28 @@ const MedicationScheduleView = ({
   });
 
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  // Helper function to get patient name by ID
+  const getPatientName = (patientId) => {
+    if (!patientId || !patients || patients.length === 0) return 'Unknown Patient';
+    const patient = patients.find(p => p.id === patientId);
+    return patient ? `${patient.first_name} ${patient.last_name}` : 'Unknown Patient';
+  };
+
+  // Helper function to filter schedules by current patient (for patient-specific medications)
+  const getRelevantSchedules = (schedules) => {
+    if (!schedules || schedules.length === 0) return [];
+    
+    // For patient-specific medications, only show schedules for the current patient
+    if (!med.is_global && currentPatientId) {
+      return schedules.filter(schedule => 
+        schedule.patient_id === parseInt(currentPatientId)
+      );
+    }
+    
+    // For global medications, show all schedules
+    return schedules;
+  };
 
   // Helper function to determine medication status based on timing
   const getMedicationStatus = (medication) => {
@@ -249,6 +284,12 @@ const MedicationScheduleView = ({
   };
 
   const handleAddSchedule = async (medId) => {
+    // For global medications, require patient selection
+    if (med.is_global && !selectedPatientId) {
+      alert('Please select a patient for this global medication schedule.');
+      return;
+    }
+    
     let cron = '';
     let description = '';
     let [hour, minute] = time.split(':').map(Number);
@@ -271,17 +312,24 @@ const MedicationScheduleView = ({
     
     try {
       setLoading(true);
+      const scheduleData = {
+        type: 'med',
+        cron_expression: cron,
+        description: description,
+        dose_amount: parseFloat(doseAmount) || 1.0,
+        active: true,
+        notes: ''
+      };
+      
+      // Add patient_id for global medications
+      if (med.is_global && selectedPatientId) {
+        scheduleData.patient_id = parseInt(selectedPatientId);
+      }
+      
       const response = await fetch(`${config.apiUrl}/api/add/schedule/${medId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'med',
-          cron_expression: cron,
-          description: description,
-          dose_amount: parseFloat(doseAmount) || 1.0,
-          active: true,
-          notes: ''
-        })
+        body: JSON.stringify(scheduleData)
       });
       
       if (!response.ok) {
@@ -593,6 +641,42 @@ const MedicationScheduleView = ({
           </div>
         )}
 
+        {/* Patient Selection for Global Medications */}
+        {med.is_global && (
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontWeight: 600, color: '#333', marginBottom: 8, display: 'block' }}>
+              Select Patient
+            </label>
+            <select
+              value={selectedPatientId || ''}
+              onChange={e => setSelectedPatientId(e.target.value)}
+              style={{ 
+                padding: '8px 16px', 
+                border: '2px solid #ddd', 
+                borderRadius: 6, 
+                fontSize: 14, 
+                background: '#fff', 
+                color: '#333',
+                minWidth: 200,
+                width: '100%',
+                maxWidth: 300
+              }}
+            >
+              <option value="">Select a patient...</option>
+              {patients.map(patient => (
+                <option key={patient.id} value={patient.id}>
+                  {patient.first_name} {patient.last_name}
+                </option>
+              ))}
+            </select>
+            {!selectedPatientId && (
+              <div style={{ marginTop: 4, fontSize: 12, color: '#dc3545' }}>
+                Patient selection required for global medication schedules
+              </div>
+            )}
+          </div>
+        )}
+
         <div style={{ display: 'grid', gridTemplateColumns: 'auto auto 1fr', gap: 16, alignItems: 'end', marginBottom: 16 }}>
           <div>
             <label style={{ fontWeight: 600, color: '#333', marginBottom: 8, display: 'block' }}>Time</label>
@@ -672,8 +756,8 @@ const MedicationScheduleView = ({
       <div style={{ marginBottom: 16 }}>
         <h4 style={{ margin: '0 0 16px 0', color: '#333', fontSize: 16, fontWeight: 600 }}>Current Schedules</h4>
         
-        {med.schedules && med.schedules.length > 0 ? (() => {
-          const { weekly, monthly } = separateSchedules(med.schedules);
+        {med.schedules && getRelevantSchedules(med.schedules).length > 0 ? (() => {
+          const { weekly, monthly } = separateSchedules(getRelevantSchedules(med.schedules));
           
           return (
             <>
@@ -693,6 +777,11 @@ const MedicationScheduleView = ({
                           <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#495057', borderBottom: '1px solid #dee2e6' }}>
                             Days
                           </th>
+                          {med.is_global && (
+                            <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#495057', borderBottom: '1px solid #dee2e6' }}>
+                              Patient
+                            </th>
+                          )}
                           <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#495057', borderBottom: '1px solid #dee2e6' }}>
                             Status
                           </th>
@@ -713,6 +802,11 @@ const MedicationScheduleView = ({
                             <td style={{ padding: '12px 16px', fontSize: 14, color: '#333' }}>
                               {schedule.parsed.days}
                             </td>
+                            {med.is_global && (
+                              <td style={{ padding: '12px 16px', fontSize: 14, color: '#333' }}>
+                                {getPatientName(schedule.patient_id)}
+                              </td>
+                            )}
                             <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                               <span style={{
                                 display: 'inline-block',
@@ -796,6 +890,11 @@ const MedicationScheduleView = ({
                           <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#495057', borderBottom: '1px solid #dee2e6' }}>
                             Day of Month
                           </th>
+                          {med.is_global && (
+                            <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#495057', borderBottom: '1px solid #dee2e6' }}>
+                              Patient
+                            </th>
+                          )}
                           <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#495057', borderBottom: '1px solid #dee2e6' }}>
                             Status
                           </th>
@@ -816,6 +915,11 @@ const MedicationScheduleView = ({
                             <td style={{ padding: '12px 16px', fontSize: 14, color: '#333' }}>
                               {schedule.parsed.dayOfMonth}
                             </td>
+                            {med.is_global && (
+                              <td style={{ padding: '12px 16px', fontSize: 14, color: '#333' }}>
+                                {getPatientName(schedule.patient_id)}
+                              </td>
+                            )}
                             <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                               <span style={{
                                 display: 'inline-block',
@@ -1087,7 +1191,37 @@ export const medicationStatusUtils = {
     missed: true,
     skipped: false,
     ready_to_take: true
-  })
+  }),
+
+  // NEW: Check if medication has relevant schedules for patient
+  hasRelevantSchedules: (medication, currentPatientId) => {
+    if (!medication.schedules || medication.schedules.length === 0) return false;
+    
+    // For patient-specific medications, only check schedules for current patient
+    if (!medication.is_global && currentPatientId) {
+      return medication.schedules.some(schedule => 
+        schedule.patient_id === parseInt(currentPatientId)
+      );
+    }
+    
+    // For global medications, any schedule counts
+    return medication.schedules.length > 0;
+  },
+
+  // NEW: Get schedule count for current patient
+  getRelevantScheduleCount: (medication, currentPatientId) => {
+    if (!medication.schedules || medication.schedules.length === 0) return 0;
+    
+    // For patient-specific medications, count schedules for current patient only
+    if (!medication.is_global && currentPatientId) {
+      return medication.schedules.filter(schedule => 
+        schedule.patient_id === parseInt(currentPatientId)
+      ).length;
+    }
+    
+    // For global medications, count all schedules
+    return medication.schedules.length;
+  }
 };
 
 export default MedicationScheduleView;

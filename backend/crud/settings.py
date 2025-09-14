@@ -44,7 +44,6 @@ def save_setting(db: Session, key, value, data_type="string", description=None):
                 value=str_value,
                 data_type=data_type,
                 description=description,
-                created_at=now,
                 updated_at=now
             )
             db.add(setting)
@@ -54,6 +53,7 @@ def save_setting(db: Session, key, value, data_type="string", description=None):
         return True
     except Exception as e:
         logger.error(f"Error saving setting: {e}")
+        db.rollback()
         return False
 
 

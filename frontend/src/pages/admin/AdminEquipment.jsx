@@ -179,7 +179,7 @@ const AdminEquipment = () => {
   }
 
   return (
-    <div className="admin-page">
+    <div className="admin-page" style={{ margin: '2rem' }}>
       <div className="admin-page-header">
         <h1 className="admin-page-title">Equipment Management</h1>
         <p className="admin-page-description">
@@ -187,7 +187,7 @@ const AdminEquipment = () => {
         </p>
       </div>
 
-      <div className="admin-section">
+      <div className="admin-section" style={{ maxWidth: '1400px', margin: '0 auto' }}>
         <div className="admin-section-header">
           <h2 className="admin-section-title">Equipment Inventory</h2>
           <button 
@@ -200,158 +200,487 @@ const AdminEquipment = () => {
 
         <div className="admin-section-content">
           {showAddForm && (
-            <div className="admin-card" style={{ marginBottom: '2rem', background: '#f8f9fa' }}>
-              <h3 className="admin-card-title">Add New Equipment</h3>
-              <form onSubmit={handleAddEquipment}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Equipment Name *</label>
-                    <input
-                      type="text"
-                      required
-                      value={newEquipment.name}
-                      onChange={(e) => setNewEquipment({ ...newEquipment, name: e.target.value })}
-                      style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
-                      placeholder="e.g., Pulse Oximeter Sensors"
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Initial Quantity *</label>
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      value={newEquipment.quantity}
-                      onChange={(e) => setNewEquipment({ ...newEquipment, quantity: parseInt(e.target.value) })}
-                      style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <input
-                      type="checkbox"
-                      id="scheduled_replacement"
-                      checked={newEquipment.scheduled_replacement}
-                      onChange={(e) => setNewEquipment({ ...newEquipment, scheduled_replacement: e.target.checked })}
-                    />
-                    <label htmlFor="scheduled_replacement" style={{ fontWeight: '600' }}>
-                      Scheduled Replacement
-                    </label>
-                  </div>
-                </div>
-
-                {newEquipment.scheduled_replacement && (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+            <div style={{ 
+              marginBottom: '3rem',
+              background: '#ffffff',
+              border: '1px solid #e9ecef',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+            }}>
+              <div style={{
+                background: '#f8f9fa',
+                padding: '1.5rem 2rem',
+                borderBottom: '1px solid #e9ecef'
+              }}>
+                <h3 style={{
+                  margin: 0,
+                  color: '#2c3e50',
+                  fontSize: '1.25rem',
+                  fontWeight: '600'
+                }}>
+                  Add New Equipment
+                </h3>
+              </div>
+              
+              <form onSubmit={handleAddEquipment} style={{ padding: '2rem' }}>
+                {/* Basic Information Section */}
+                <div style={{ marginBottom: '2.5rem' }}>
+                  <h4 style={{ 
+                    margin: '0 0 1.5rem 0',
+                    color: '#495057',
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    borderBottom: '2px solid #e9ecef',
+                    paddingBottom: '0.5rem'
+                  }}>
+                    Basic Information
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
                     <div>
-                      <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Last Changed Date *</label>
+                      <label style={{ 
+                        display: 'block', 
+                        marginBottom: '0.75rem', 
+                        fontWeight: '600',
+                        color: '#495057'
+                      }}>
+                        Equipment Name *
+                      </label>
                       <input
-                        type="date"
+                        type="text"
                         required
-                        value={newEquipment.last_changed}
-                        onChange={(e) => setNewEquipment({ ...newEquipment, last_changed: e.target.value })}
-                        style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                        value={newEquipment.name}
+                        onChange={(e) => setNewEquipment({ ...newEquipment, name: e.target.value })}
+                        style={{ 
+                          width: '100%', 
+                          padding: '0.75rem', 
+                          border: '1px solid #ced4da', 
+                          borderRadius: '6px',
+                          fontSize: '1rem',
+                          backgroundColor: '#ffffff',
+                          color: '#495057',
+                          boxSizing: 'border-box'
+                        }}
+                        placeholder="e.g., Pulse Oximeter Sensors"
                       />
                     </div>
                     <div>
-                      <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Useful Days *</label>
+                      <label style={{ 
+                        display: 'block', 
+                        marginBottom: '0.75rem', 
+                        fontWeight: '600',
+                        color: '#495057'
+                      }}>
+                        Initial Quantity *
+                      </label>
                       <input
                         type="number"
                         required
-                        min="1"
-                        value={newEquipment.useful_days}
-                        onChange={(e) => setNewEquipment({ ...newEquipment, useful_days: parseInt(e.target.value) })}
-                        style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
-                        placeholder="Days until replacement needed"
+                        min="0"
+                        value={newEquipment.quantity}
+                        onChange={(e) => setNewEquipment({ ...newEquipment, quantity: parseInt(e.target.value) })}
+                        style={{ 
+                          width: '100%', 
+                          padding: '0.75rem', 
+                          border: '1px solid #ced4da', 
+                          borderRadius: '6px',
+                          fontSize: '1rem',
+                          backgroundColor: '#ffffff',
+                          color: '#495057',
+                          boxSizing: 'border-box'
+                        }}
                       />
                     </div>
                   </div>
-                )}
+                </div>
 
-                <div className="admin-actions">
-                  <button type="submit" className="btn btn-success">
-                    Add Equipment
-                  </button>
+                {/* Replacement Schedule Section */}
+                <div style={{ marginBottom: '2rem' }}>
+                  <h4 style={{ 
+                    margin: '0 0 1.5rem 0',
+                    color: '#495057',
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    borderBottom: '2px solid #e9ecef',
+                    paddingBottom: '0.5rem'
+                  }}>
+                    Replacement Schedule
+                  </h4>
+                  <div style={{ marginBottom: '2rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <input
+                        type="checkbox"
+                        id="scheduled_replacement"
+                        checked={newEquipment.scheduled_replacement}
+                        onChange={(e) => setNewEquipment({ ...newEquipment, scheduled_replacement: e.target.checked })}
+                        style={{ transform: 'scale(1.2)' }}
+                      />
+                      <label htmlFor="scheduled_replacement" style={{ 
+                        fontWeight: '600',
+                        color: '#495057'
+                      }}>
+                        Enable Scheduled Replacement
+                      </label>
+                    </div>
+                  </div>
+
+                  {newEquipment.scheduled_replacement && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                      <div>
+                        <label style={{ 
+                          display: 'block', 
+                          marginBottom: '0.75rem', 
+                          fontWeight: '600',
+                          color: '#495057'
+                        }}>
+                          Last Changed Date *
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          value={newEquipment.last_changed}
+                          onChange={(e) => setNewEquipment({ ...newEquipment, last_changed: e.target.value })}
+                          style={{ 
+                            width: '100%', 
+                            padding: '0.75rem', 
+                            border: '1px solid #ced4da', 
+                            borderRadius: '6px',
+                            fontSize: '1rem',
+                            backgroundColor: '#ffffff',
+                            color: '#495057',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ 
+                          display: 'block', 
+                          marginBottom: '0.75rem', 
+                          fontWeight: '600',
+                          color: '#495057'
+                        }}>
+                          Useful Days *
+                        </label>
+                        <input
+                          type="number"
+                          required
+                          min="1"
+                          value={newEquipment.useful_days}
+                          onChange={(e) => setNewEquipment({ ...newEquipment, useful_days: parseInt(e.target.value) })}
+                          style={{ 
+                            width: '100%', 
+                            padding: '0.75rem', 
+                            border: '1px solid #ced4da', 
+                            borderRadius: '6px',
+                            fontSize: '1rem',
+                            backgroundColor: '#ffffff',
+                            color: '#495057',
+                            boxSizing: 'border-box'
+                          }}
+                          placeholder="Days until replacement needed"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '1rem', 
+                  justifyContent: 'flex-end',
+                  paddingTop: '1.5rem',
+                  borderTop: '1px solid #e9ecef'
+                }}>
                   <button 
                     type="button" 
-                    className="btn btn-secondary"
                     onClick={() => setShowAddForm(false)}
+                    style={{
+                      padding: '0.75rem 1.5rem',
+                      border: '1px solid #6c757d',
+                      borderRadius: '6px',
+                      background: '#6c757d',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontSize: '1rem',
+                      fontWeight: '500',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => e.target.style.background = '#5a6268'}
+                    onMouseLeave={(e) => e.target.style.background = '#6c757d'}
                   >
                     Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    style={{
+                      padding: '0.75rem 1.5rem',
+                      border: '1px solid #28a745',
+                      borderRadius: '6px',
+                      background: '#28a745',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontSize: '1rem',
+                      fontWeight: '500',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => e.target.style.background = '#218838'}
+                    onMouseLeave={(e) => e.target.style.background = '#28a745'}
+                  >
+                    Add Equipment
                   </button>
                 </div>
               </form>
             </div>
           )}
 
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Equipment Name</th>
-                <th>Quantity</th>
-                <th>Last Changed</th>
-                <th>Useful Days</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {equipment.map((item) => {
-                const daysUntilDue = calculateDaysUntilDue(item.last_changed, item.useful_days);
-                return (
-                  <tr key={item.id}>
-                    <td style={{ fontWeight: '600' }}>{item.name}</td>
-                    <td>{item.quantity}</td>
-                    <td>
-                      {item.last_changed ? formatDate(item.last_changed) : 'Not set'}
-                    </td>
-                    <td>{item.useful_days || 'N/A'} days</td>
-                    <td>
-                      <span className={`status-badge ${getStatusColor(daysUntilDue)}`}>
-                        {getStatusText(daysUntilDue)}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <button 
-                          className="btn btn-success"
-                          style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
-                          onClick={() => handleReceiveEquipment(item.id)}
-                          title="Receive new stock"
-                        >
-                          + Receive
-                        </button>
-                        <button 
-                          className="btn btn-warning"
-                          style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
-                          onClick={() => handleOpenEquipment(item.id)}
-                          title="Use/Open equipment"
-                        >
-                          - Use
-                        </button>
-                        {item.scheduled_replacement && (
+          <div style={{ 
+            background: '#ffffff', 
+            borderRadius: '12px', 
+            overflow: 'hidden',
+            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+            border: '1px solid #e9ecef'
+          }}>
+            <table style={{ 
+              width: '100%', 
+              borderCollapse: 'collapse',
+              fontSize: '0.9rem'
+            }}>
+              <thead>
+                <tr style={{ background: '#f8f9fa' }}>
+                  <th style={{ 
+                    padding: '1rem', 
+                    textAlign: 'left', 
+                    fontWeight: '600',
+                    color: '#2c3e50',
+                    borderBottom: '1px solid #e9ecef',
+                    fontSize: '0.85rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}>
+                    Equipment Name
+                  </th>
+                  <th style={{ 
+                    padding: '1rem', 
+                    textAlign: 'left', 
+                    fontWeight: '600',
+                    color: '#2c3e50',
+                    borderBottom: '1px solid #e9ecef',
+                    fontSize: '0.85rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}>
+                    Quantity
+                  </th>
+                  <th style={{ 
+                    padding: '1rem', 
+                    textAlign: 'left', 
+                    fontWeight: '600',
+                    color: '#2c3e50',
+                    borderBottom: '1px solid #e9ecef',
+                    fontSize: '0.85rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}>
+                    Last Changed
+                  </th>
+                  <th style={{ 
+                    padding: '1rem', 
+                    textAlign: 'left', 
+                    fontWeight: '600',
+                    color: '#2c3e50',
+                    borderBottom: '1px solid #e9ecef',
+                    fontSize: '0.85rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}>
+                    Useful Days
+                  </th>
+                  <th style={{ 
+                    padding: '1rem', 
+                    textAlign: 'left', 
+                    fontWeight: '600',
+                    color: '#2c3e50',
+                    borderBottom: '1px solid #e9ecef',
+                    fontSize: '0.85rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}>
+                    Status
+                  </th>
+                  <th style={{ 
+                    padding: '1rem', 
+                    textAlign: 'left', 
+                    fontWeight: '600',
+                    color: '#2c3e50',
+                    borderBottom: '1px solid #e9ecef',
+                    fontSize: '0.85rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}>
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {equipment.map((item, index) => {
+                  const daysUntilDue = calculateDaysUntilDue(item.last_changed, item.useful_days);
+                  return (
+                    <tr key={item.id} style={{ 
+                      backgroundColor: index % 2 === 0 ? '#ffffff' : '#f8f9fa',
+                      transition: 'background-color 0.2s ease'
+                    }}>
+                      <td style={{ 
+                        fontWeight: '600', 
+                        padding: '1rem',
+                        borderBottom: '1px solid #e9ecef',
+                        color: '#2c3e50'
+                      }}>
+                        {item.name}
+                      </td>
+                      <td style={{ 
+                        padding: '1rem',
+                        borderBottom: '1px solid #e9ecef',
+                        color: '#7f8c8d'
+                      }}>
+                        {item.quantity}
+                      </td>
+                      <td style={{ 
+                        padding: '1rem',
+                        borderBottom: '1px solid #e9ecef',
+                        color: '#7f8c8d'
+                      }}>
+                        {item.last_changed ? formatDate(item.last_changed) : 'Not set'}
+                      </td>
+                      <td style={{ 
+                        padding: '1rem',
+                        borderBottom: '1px solid #e9ecef',
+                        color: '#7f8c8d'
+                      }}>
+                        {item.useful_days || 'N/A'} days
+                      </td>
+                      <td style={{ 
+                        padding: '1rem',
+                        borderBottom: '1px solid #e9ecef'
+                      }}>
+                        <span className={`status-badge ${getStatusColor(daysUntilDue)}`} style={{
+                          padding: '4px 12px',
+                          borderRadius: '20px',
+                          fontSize: '0.8rem',
+                          fontWeight: '500',
+                          backgroundColor: daysUntilDue === null ? '#f8d7da' : daysUntilDue <= 0 ? '#f8d7da' : daysUntilDue <= 3 ? '#fff3cd' : '#d4edda',
+                          color: daysUntilDue === null ? '#721c24' : daysUntilDue <= 0 ? '#721c24' : daysUntilDue <= 3 ? '#856404' : '#155724',
+                          border: `1px solid ${daysUntilDue === null ? '#f5c6cb' : daysUntilDue <= 0 ? '#f5c6cb' : daysUntilDue <= 3 ? '#ffeaa7' : '#c3e6cb'}`
+                        }}>
+                          {getStatusText(daysUntilDue)}
+                        </span>
+                      </td>
+                      <td style={{ 
+                        padding: '1rem',
+                        borderBottom: '1px solid #e9ecef'
+                      }}>
+                        <div style={{ display: 'flex', gap: '8px' }}>
                           <button 
-                            className="btn btn-primary"
-                            style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
-                            onClick={() => handleChangeEquipment(item.id)}
-                            title="Log equipment change"
+                            onClick={() => handleReceiveEquipment(item.id)}
+                            style={{
+                              padding: '8px',
+                              border: 'none',
+                              borderRadius: '6px',
+                              background: '#28a745',
+                              color: 'white',
+                              cursor: 'pointer',
+                              fontSize: '14px',
+                              transition: 'all 0.2s ease',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '32px',
+                              height: '32px'
+                            }}
+                            onMouseEnter={(e) => e.target.style.background = '#218838'}
+                            onMouseLeave={(e) => e.target.style.background = '#28a745'}
+                            title="Receive new stock"
                           >
-                            Change
+                            📦
                           </button>
-                        )}
-                        <button 
-                          className="btn btn-secondary"
-                          style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
-                          onClick={() => handleViewHistory(item.id)}
-                          title="View history"
-                        >
-                          History
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                          <button 
+                            onClick={() => handleOpenEquipment(item.id)}
+                            style={{
+                              padding: '8px',
+                              border: 'none',
+                              borderRadius: '6px',
+                              background: '#ffc107',
+                              color: 'white',
+                              cursor: 'pointer',
+                              fontSize: '14px',
+                              transition: 'all 0.2s ease',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '32px',
+                              height: '32px'
+                            }}
+                            onMouseEnter={(e) => e.target.style.background = '#e0a800'}
+                            onMouseLeave={(e) => e.target.style.background = '#ffc107'}
+                            title="Use/Open equipment"
+                          >
+                            📉
+                          </button>
+                          {item.scheduled_replacement && (
+                            <button 
+                              onClick={() => handleChangeEquipment(item.id)}
+                              style={{
+                                padding: '8px',
+                                border: 'none',
+                                borderRadius: '6px',
+                                background: '#007bff',
+                                color: 'white',
+                                cursor: 'pointer',
+                                fontSize: '14px',
+                                transition: 'all 0.2s ease',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '32px',
+                                height: '32px'
+                              }}
+                              onMouseEnter={(e) => e.target.style.background = '#0056b3'}
+                              onMouseLeave={(e) => e.target.style.background = '#007bff'}
+                              title="Log equipment change"
+                            >
+                              🔄
+                            </button>
+                          )}
+                          <button 
+                            onClick={() => handleViewHistory(item.id)}
+                            style={{
+                              padding: '8px',
+                              border: 'none',
+                              borderRadius: '6px',
+                              background: '#6c757d',
+                              color: 'white',
+                              cursor: 'pointer',
+                              fontSize: '14px',
+                              transition: 'all 0.2s ease',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '32px',
+                              height: '32px'
+                            }}
+                            onMouseEnter={(e) => e.target.style.background = '#545b62'}
+                            onMouseLeave={(e) => e.target.style.background = '#6c757d'}
+                            title="View history"
+                          >
+                            📋
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
           {equipment.length === 0 && (
             <div style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
@@ -397,24 +726,82 @@ const AdminEquipment = () => {
             </div>
 
             {equipmentHistory.length > 0 ? (
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Action</th>
-                    <th>Quantity Change</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {equipmentHistory.map((entry, index) => (
-                    <tr key={index}>
-                      <td>{formatDate(entry.date)}</td>
-                      <td>{entry.action}</td>
-                      <td>{entry.quantity_change}</td>
+              <div style={{ 
+                background: '#ffffff', 
+                borderRadius: '8px', 
+                overflow: 'hidden',
+                border: '1px solid #e9ecef'
+              }}>
+                <table style={{ 
+                  width: '100%', 
+                  borderCollapse: 'collapse',
+                  fontSize: '0.9rem'
+                }}>
+                  <thead>
+                    <tr style={{ background: '#f8f9fa' }}>
+                      <th style={{ 
+                        padding: '1rem', 
+                        textAlign: 'left', 
+                        fontWeight: '600',
+                        color: '#2c3e50',
+                        borderBottom: '1px solid #e9ecef',
+                        fontSize: '0.85rem'
+                      }}>
+                        Date
+                      </th>
+                      <th style={{ 
+                        padding: '1rem', 
+                        textAlign: 'left', 
+                        fontWeight: '600',
+                        color: '#2c3e50',
+                        borderBottom: '1px solid #e9ecef',
+                        fontSize: '0.85rem'
+                      }}>
+                        Action
+                      </th>
+                      <th style={{ 
+                        padding: '1rem', 
+                        textAlign: 'left', 
+                        fontWeight: '600',
+                        color: '#2c3e50',
+                        borderBottom: '1px solid #e9ecef',
+                        fontSize: '0.85rem'
+                      }}>
+                        Quantity Change
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {equipmentHistory.map((entry, index) => (
+                      <tr key={index} style={{ 
+                        backgroundColor: index % 2 === 0 ? '#ffffff' : '#f8f9fa'
+                      }}>
+                        <td style={{ 
+                          padding: '1rem',
+                          borderBottom: '1px solid #e9ecef',
+                          color: '#2c3e50'
+                        }}>
+                          {formatDate(entry.date)}
+                        </td>
+                        <td style={{ 
+                          padding: '1rem',
+                          borderBottom: '1px solid #e9ecef',
+                          color: '#7f8c8d'
+                        }}>
+                          {entry.action}
+                        </td>
+                        <td style={{ 
+                          padding: '1rem',
+                          borderBottom: '1px solid #e9ecef',
+                          color: '#7f8c8d'
+                        }}>
+                          {entry.quantity_change}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             ) : (
               <p style={{ textAlign: 'center', color: '#666' }}>
                 No history available for this equipment.

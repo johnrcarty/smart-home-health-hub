@@ -24,6 +24,7 @@ const AdminMonitoring = () => {
         `${config.apiUrl}/api/monitoring/alerts?include_acknowledged=${includeAcknowledged}&limit=100&detailed=true`
       );
       const data = await response.json();
+      console.log('Alerts data:', data); // Debug log to see the actual data structure
       setAlerts(data);
     } catch (error) {
       console.error('Error fetching alerts:', error);
@@ -53,32 +54,38 @@ const AdminMonitoring = () => {
   };
 
   const handleAcknowledgeAlert = async (alertId) => {
-    const oxygenUsed = prompt('Oxygen used during this event (L/min):', '0');
-    const oxygenHighest = prompt('Highest oxygen level used:', '');
-    const oxygenUnit = prompt('Unit (L/min, mL/min, etc.):', 'L/min');
-
-    if (oxygenUsed !== null) {
-      try {
-        const response = await fetch(`${config.apiUrl}/api/monitoring/alerts/${alertId}/acknowledge`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            oxygen_used: parseFloat(oxygenUsed) || 0,
-            oxygen_highest: oxygenHighest || null,
-            oxygen_unit: oxygenUnit || 'L/min'
-          }),
-        });
-
-        if (response.ok) {
-          fetchAlerts();
-        } else {
-          console.error('Failed to acknowledge alert');
-        }
-      } catch (error) {
-        console.error('Error acknowledging alert:', error);
+    const wasOxygenUsed = confirm('Was oxygen used during this event?');
+    
+    let oxygenAmount = null;
+    let oxygenUnit = 'L/min';
+    
+    if (wasOxygenUsed) {
+      oxygenAmount = prompt('Oxygen amount used:', '');
+      if (oxygenAmount !== null && oxygenAmount !== '') {
+        oxygenUnit = prompt('Unit (L/min, mL/min, etc.):', 'L/min');
       }
+    }
+
+    try {
+      const response = await fetch(`${config.apiUrl}/api/monitoring/alerts/${alertId}/acknowledge`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          oxygen_used: wasOxygenUsed ? 1 : 0,
+          oxygen_highest: oxygenAmount || null,
+          oxygen_unit: oxygenUnit || 'L/min'
+        }),
+      });
+
+      if (response.ok) {
+        fetchAlerts();
+      } else {
+        console.error('Failed to acknowledge alert');
+      }
+    } catch (error) {
+      console.error('Error acknowledging alert:', error);
     }
   };
 
@@ -94,7 +101,18 @@ const AdminMonitoring = () => {
   };
 
   const formatDateTime = (dateString) => {
-    return new Date(dateString).toLocaleString();
+    if (!dateString) return 'N/A';
+    
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        return 'Invalid Date';
+      }
+      return date.toLocaleString();
+    } catch (error) {
+      console.error('Error formatting date:', dateString, error);
+      return 'Invalid Date';
+    }
   };
 
   const formatDuration = (seconds) => {
@@ -121,6 +139,30 @@ const AdminMonitoring = () => {
     }
   };
 
+  // Helper functions to map API data to display format
+  const getAlertType = (alert) => {
+    if (alert.spo2_alarm_triggered) return 'spo2';
+    if (alert.hr_alarm_triggered) return 'bpm';
+    if (alert.external_alarm_triggered) return 'external';
+    return 'unknown';
+  };
+
+  const getAlertValue = (alert) => {
+    // Since the API doesn't return trigger values, we'll use the min values as indicators
+    // If min values are -1, it means no specific threshold was recorded
+    if (alert.spo2_alarm_triggered && alert.spo2_min > 0) return alert.spo2_min;
+    if (alert.hr_alarm_triggered && alert.bpm_min > 0) return alert.bpm_min;
+    if (alert.external_alarm_triggered) return 'External';
+    return 'N/A';
+  };
+
+  const getDuration = (alert) => {
+    if (!alert.start_time) return null;
+    const startTime = new Date(alert.start_time);
+    const endTime = alert.end_time ? new Date(alert.end_time) : new Date();
+    return Math.floor((endTime - startTime) / 1000); // Duration in seconds
+  };
+
   if (loading) {
     return <div className="admin-page">
       <div className="loading">Loading monitoring data...</div>
@@ -128,7 +170,7 @@ const AdminMonitoring = () => {
   }
 
   return (
-    <div className="admin-page">
+    <div className="admin-page" style={{ margin: '2rem' }}>
       <div className="admin-page-header">
         <h1 className="admin-page-title">Monitoring & Alerts</h1>
         <p className="admin-page-description">
@@ -136,7 +178,7 @@ const AdminMonitoring = () => {
         </p>
       </div>
 
-      <div className="admin-section">
+      <div className="admin-section" style={{ maxWidth: '1400px', margin: '0 auto' }}>
         <div className="admin-section-header">
           <h2 className="admin-section-title">Patient Alerts</h2>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -164,138 +206,402 @@ const AdminMonitoring = () => {
         <div className="admin-section-content">
           {activeTab === 'history' ? (
             <div>
-              <div className="admin-card" style={{ marginBottom: '2rem' }}>
-                <h3 className="admin-card-title">Historical Data Analysis</h3>
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'end', marginBottom: '1rem' }}>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
-                      Select Date
-                    </label>
-                    <select
-                      value={selectedDate}
-                      onChange={(e) => setSelectedDate(e.target.value)}
-                      style={{ padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
-                    >
-                      <option value="">Choose a date...</option>
-                      {availableDates.map((date) => (
-                        <option key={date} value={date}>
-                          {new Date(date).toLocaleDateString()}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <button 
-                    className="btn btn-primary"
-                    onClick={() => selectedDate && fetchDayAnalysis(selectedDate)}
-                    disabled={!selectedDate}
-                  >
-                    Analyze Day
-                  </button>
+              <div style={{ 
+                marginBottom: '3rem',
+                background: '#ffffff',
+                border: '1px solid #e9ecef',
+                borderRadius: '12px',
+                overflow: 'hidden',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+              }}>
+                <div style={{
+                  background: '#f8f9fa',
+                  padding: '1.5rem 2rem',
+                  borderBottom: '1px solid #e9ecef'
+                }}>
+                  <h3 style={{
+                    margin: 0,
+                    color: '#2c3e50',
+                    fontSize: '1.25rem',
+                    fontWeight: '600'
+                  }}>
+                    Historical Data Analysis
+                  </h3>
                 </div>
+                
+                <div style={{ padding: '2rem' }}>
+                  <div style={{ display: 'flex', gap: '2rem', alignItems: 'end', marginBottom: '2rem' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ 
+                        display: 'block', 
+                        marginBottom: '0.75rem', 
+                        fontWeight: '600',
+                        color: '#495057'
+                      }}>
+                        Select Date
+                      </label>
+                      <select
+                        value={selectedDate}
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                        style={{ 
+                          width: '100%', 
+                          padding: '0.75rem', 
+                          border: '1px solid #ced4da', 
+                          borderRadius: '6px',
+                          fontSize: '1rem',
+                          backgroundColor: '#ffffff',
+                          color: '#495057',
+                          boxSizing: 'border-box'
+                        }}
+                      >
+                        <option value="">Choose a date...</option>
+                        {availableDates.map((date) => (
+                          <option key={date} value={date}>
+                            {new Date(date).toLocaleDateString()}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <button 
+                      onClick={() => selectedDate && fetchDayAnalysis(selectedDate)}
+                      disabled={!selectedDate}
+                      style={{
+                        padding: '0.75rem 1.5rem',
+                        border: '1px solid #007bff',
+                        borderRadius: '6px',
+                        background: selectedDate ? '#007bff' : '#6c757d',
+                        color: 'white',
+                        cursor: selectedDate ? 'pointer' : 'not-allowed',
+                        fontSize: '1rem',
+                        fontWeight: '500',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (selectedDate) e.target.style.background = '#0056b3';
+                      }}
+                      onMouseLeave={(e) => {
+                        if (selectedDate) e.target.style.background = '#007bff';
+                      }}
+                    >
+                      Analyze Day
+                    </button>
+                  </div>
 
-                {dayAnalysis && (
-                  <div style={{ marginTop: '1.5rem' }}>
-                    <h4>Analysis for {new Date(selectedDate).toLocaleDateString()}</h4>
-                    <div className="admin-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-                      <div className="admin-card">
-                        <h5>SpO₂ Statistics</h5>
-                        <p><strong>Average:</strong> {dayAnalysis.spo2_avg?.toFixed(1)}%</p>
-                        <p><strong>Minimum:</strong> {dayAnalysis.spo2_min}%</p>
-                        <p><strong>Maximum:</strong> {dayAnalysis.spo2_max}%</p>
-                        <p><strong>Below 90%:</strong> {dayAnalysis.spo2_below_90_count} readings</p>
-                      </div>
-                      
-                      <div className="admin-card">
-                        <h5>Heart Rate Statistics</h5>
-                        <p><strong>Average:</strong> {dayAnalysis.bpm_avg?.toFixed(0)} BPM</p>
-                        <p><strong>Minimum:</strong> {dayAnalysis.bpm_min} BPM</p>
-                        <p><strong>Maximum:</strong> {dayAnalysis.bpm_max} BPM</p>
-                      </div>
-                      
-                      <div className="admin-card">
-                        <h5>Alert Summary</h5>
-                        <p><strong>Total Alerts:</strong> {dayAnalysis.total_alerts}</p>
-                        <p><strong>Alert Duration:</strong> {formatDuration(dayAnalysis.total_alert_duration)}</p>
-                        <p><strong>Data Points:</strong> {dayAnalysis.total_readings}</p>
+                  {dayAnalysis && (
+                    <div style={{ marginTop: '1.5rem' }}>
+                      <h4 style={{ 
+                        margin: '0 0 1.5rem 0',
+                        color: '#495057',
+                        fontSize: '1rem',
+                        fontWeight: '600',
+                        borderBottom: '2px solid #e9ecef',
+                        paddingBottom: '0.5rem'
+                      }}>
+                        Analysis for {new Date(selectedDate).toLocaleDateString()}
+                      </h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}>
+                        <div style={{
+                          background: '#f8f9fa',
+                          border: '1px solid #e9ecef',
+                          borderRadius: '8px',
+                          padding: '1.5rem'
+                        }}>
+                          <h5 style={{ margin: '0 0 1rem 0', color: '#2c3e50' }}>SpO₂ Statistics</h5>
+                          <p style={{ margin: '0.5rem 0' }}><strong>Average:</strong> {dayAnalysis.spo2_avg?.toFixed(1)}%</p>
+                          <p style={{ margin: '0.5rem 0' }}><strong>Minimum:</strong> {dayAnalysis.spo2_min}%</p>
+                          <p style={{ margin: '0.5rem 0' }}><strong>Maximum:</strong> {dayAnalysis.spo2_max}%</p>
+                          <p style={{ margin: '0.5rem 0' }}><strong>Below 90%:</strong> {dayAnalysis.spo2_below_90_count} readings</p>
+                        </div>
+                        
+                        <div style={{
+                          background: '#f8f9fa',
+                          border: '1px solid #e9ecef',
+                          borderRadius: '8px',
+                          padding: '1.5rem'
+                        }}>
+                          <h5 style={{ margin: '0 0 1rem 0', color: '#2c3e50' }}>Heart Rate Statistics</h5>
+                          <p style={{ margin: '0.5rem 0' }}><strong>Average:</strong> {dayAnalysis.bpm_avg?.toFixed(0)} BPM</p>
+                          <p style={{ margin: '0.5rem 0' }}><strong>Minimum:</strong> {dayAnalysis.bpm_min} BPM</p>
+                          <p style={{ margin: '0.5rem 0' }}><strong>Maximum:</strong> {dayAnalysis.bpm_max} BPM</p>
+                        </div>
+                        
+                        <div style={{
+                          background: '#f8f9fa',
+                          border: '1px solid #e9ecef',
+                          borderRadius: '8px',
+                          padding: '1.5rem'
+                        }}>
+                          <h5 style={{ margin: '0 0 1rem 0', color: '#2c3e50' }}>Alert Summary</h5>
+                          <p style={{ margin: '0.5rem 0' }}><strong>Total Alerts:</strong> {dayAnalysis.total_alerts}</p>
+                          <p style={{ margin: '0.5rem 0' }}><strong>Alert Duration:</strong> {formatDuration(dayAnalysis.total_alert_duration)}</p>
+                          <p style={{ margin: '0.5rem 0' }}><strong>Data Points:</strong> {dayAnalysis.total_readings}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
           ) : (
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Date/Time</th>
-                  <th>Type</th>
-                  <th>Value</th>
-                  <th>Duration</th>
-                  <th>Severity</th>
-                  <th>Oxygen Used</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {alerts.map((alert) => {
-                  const severity = getAlertSeverity(alert.alert_type, alert.trigger_value);
-                  return (
-                    <tr key={alert.id}>
-                      <td>{formatDateTime(alert.alert_time)}</td>
-                      <td style={{ textTransform: 'uppercase', fontWeight: '600' }}>
-                        {alert.alert_type}
-                      </td>
-                      <td>
-                        {alert.trigger_value}
-                        {alert.alert_type === 'spo2' ? '%' : 
-                         alert.alert_type === 'bpm' ? ' BPM' : ''}
-                      </td>
-                      <td>{formatDuration(alert.duration)}</td>
-                      <td>
-                        <span style={{ 
-                          color: getSeverityColor(severity), 
-                          fontWeight: '600' 
+            <div style={{ 
+              background: '#ffffff', 
+              borderRadius: '12px', 
+              overflow: 'hidden',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+              border: '1px solid #e9ecef'
+            }}>
+              <table style={{ 
+                width: '100%', 
+                borderCollapse: 'collapse',
+                fontSize: '0.9rem'
+              }}>
+                <thead>
+                  <tr style={{ background: '#f8f9fa' }}>
+                    <th style={{ 
+                      padding: '1rem', 
+                      textAlign: 'left', 
+                      fontWeight: '600',
+                      color: '#2c3e50',
+                      borderBottom: '1px solid #e9ecef',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      Date/Time
+                    </th>
+                    <th style={{ 
+                      padding: '1rem', 
+                      textAlign: 'left', 
+                      fontWeight: '600',
+                      color: '#2c3e50',
+                      borderBottom: '1px solid #e9ecef',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      Type
+                    </th>
+                    <th style={{ 
+                      padding: '1rem', 
+                      textAlign: 'left', 
+                      fontWeight: '600',
+                      color: '#2c3e50',
+                      borderBottom: '1px solid #e9ecef',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      Value
+                    </th>
+                    <th style={{ 
+                      padding: '1rem', 
+                      textAlign: 'left', 
+                      fontWeight: '600',
+                      color: '#2c3e50',
+                      borderBottom: '1px solid #e9ecef',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      Duration
+                    </th>
+                    <th style={{ 
+                      padding: '1rem', 
+                      textAlign: 'left', 
+                      fontWeight: '600',
+                      color: '#2c3e50',
+                      borderBottom: '1px solid #e9ecef',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      Severity
+                    </th>
+                    <th style={{ 
+                      padding: '1rem', 
+                      textAlign: 'left', 
+                      fontWeight: '600',
+                      color: '#2c3e50',
+                      borderBottom: '1px solid #e9ecef',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      Oxygen Used
+                    </th>
+                    <th style={{ 
+                      padding: '1rem', 
+                      textAlign: 'left', 
+                      fontWeight: '600',
+                      color: '#2c3e50',
+                      borderBottom: '1px solid #e9ecef',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      Status
+                    </th>
+                    <th style={{ 
+                      padding: '1rem', 
+                      textAlign: 'left', 
+                      fontWeight: '600',
+                      color: '#2c3e50',
+                      borderBottom: '1px solid #e9ecef',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {alerts.map((alert, index) => {
+                    const alertType = getAlertType(alert);
+                    const alertValue = getAlertValue(alert);
+                    const duration = getDuration(alert);
+                    const severity = getAlertSeverity(alertType, alertValue);
+                    return (
+                      <tr key={alert.id} style={{ 
+                        backgroundColor: index % 2 === 0 ? '#ffffff' : '#f8f9fa',
+                        transition: 'background-color 0.2s ease'
+                      }}>
+                        <td style={{ 
+                          padding: '1rem',
+                          borderBottom: '1px solid #e9ecef',
+                          color: '#2c3e50',
+                          fontWeight: '500'
                         }}>
-                          {severity}
-                        </span>
-                      </td>
-                      <td>
-                        {alert.oxygen_used ? 
-                          `${alert.oxygen_used} ${alert.oxygen_unit || 'L/min'}` : 
-                          'Not recorded'
-                        }
-                      </td>
-                      <td>
-                        <span className={`status-badge ${alert.acknowledged ? 'status-active' : 'status-due'}`}>
-                          {alert.acknowledged ? 'Acknowledged' : 'Pending'}
-                        </span>
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                          <button 
-                            className="btn btn-secondary"
-                            style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
-                            onClick={() => handleViewAlertDetails(alert.id)}
-                          >
-                            Details
-                          </button>
-                          {!alert.acknowledged && (
+                          {formatDateTime(alert.start_time)}
+                        </td>
+                        <td style={{ 
+                          textTransform: 'uppercase', 
+                          fontWeight: '600',
+                          padding: '1rem',
+                          borderBottom: '1px solid #e9ecef',
+                          color: '#7f8c8d'
+                        }}>
+                          {alertType}
+                        </td>
+                        <td style={{ 
+                          padding: '1rem',
+                          borderBottom: '1px solid #e9ecef',
+                          color: '#7f8c8d'
+                        }}>
+                          {alertValue}
+                          {alertType === 'spo2' && alertValue !== 'N/A' && alertValue !== 'External' ? '%' : 
+                           alertType === 'bpm' && alertValue !== 'N/A' && alertValue !== 'External' ? ' BPM' : ''}
+                        </td>
+                        <td style={{ 
+                          padding: '1rem',
+                          borderBottom: '1px solid #e9ecef',
+                          color: '#7f8c8d'
+                        }}>
+                          {formatDuration(duration)}
+                        </td>
+                        <td style={{ 
+                          padding: '1rem',
+                          borderBottom: '1px solid #e9ecef'
+                        }}>
+                          <span style={{ 
+                            color: getSeverityColor(severity), 
+                            fontWeight: '600',
+                            padding: '4px 8px',
+                            borderRadius: '12px',
+                            fontSize: '0.75rem',
+                            backgroundColor: severity === 'Critical' ? '#f8d7da' : severity === 'High' ? '#fff3cd' : '#e2e3e5',
+                            border: `1px solid ${getSeverityColor(severity)}20`
+                          }}>
+                            {severity}
+                          </span>
+                        </td>
+                        <td style={{ 
+                          padding: '1rem',
+                          borderBottom: '1px solid #e9ecef',
+                          color: '#7f8c8d'
+                        }}>
+                          {alert.oxygen_used ? 
+                            `${alert.oxygen_highest || 'N/A'} ${alert.oxygen_unit || 'L/min'}` : 
+                            'Not used'
+                          }
+                        </td>
+                        <td style={{ 
+                          padding: '1rem',
+                          borderBottom: '1px solid #e9ecef'
+                        }}>
+                          <span style={{
+                            padding: '4px 12px',
+                            borderRadius: '20px',
+                            fontSize: '0.8rem',
+                            fontWeight: '500',
+                            backgroundColor: alert.acknowledged ? '#d4edda' : '#fff3cd',
+                            color: alert.acknowledged ? '#155724' : '#856404',
+                            border: `1px solid ${alert.acknowledged ? '#c3e6cb' : '#ffeaa7'}`
+                          }}>
+                            {alert.acknowledged ? 'Acknowledged' : 'Pending'}
+                          </span>
+                        </td>
+                        <td style={{ 
+                          padding: '1rem',
+                          borderBottom: '1px solid #e9ecef'
+                        }}>
+                          <div style={{ display: 'flex', gap: '8px' }}>
                             <button 
-                              className="btn btn-success"
-                              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
-                              onClick={() => handleAcknowledgeAlert(alert.id)}
+                              onClick={() => handleViewAlertDetails(alert.id)}
+                              style={{
+                                padding: '8px',
+                                border: 'none',
+                                borderRadius: '6px',
+                                background: '#6c757d',
+                                color: 'white',
+                                cursor: 'pointer',
+                                fontSize: '14px',
+                                transition: 'all 0.2s ease',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '32px',
+                                height: '32px'
+                              }}
+                              onMouseEnter={(e) => e.target.style.background = '#545b62'}
+                              onMouseLeave={(e) => e.target.style.background = '#6c757d'}
+                              title="View Details"
                             >
-                              Acknowledge
+                              👁️
                             </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                            {!alert.acknowledged && (
+                              <button 
+                                onClick={() => handleAcknowledgeAlert(alert.id)}
+                                style={{
+                                  padding: '8px',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  background: '#28a745',
+                                  color: 'white',
+                                  cursor: 'pointer',
+                                  fontSize: '14px',
+                                  transition: 'all 0.2s ease',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '32px',
+                                  height: '32px'
+                                }}
+                                onMouseEnter={(e) => e.target.style.background = '#218838'}
+                                onMouseLeave={(e) => e.target.style.background = '#28a745'}
+                                title="Acknowledge Alert"
+                              >
+                                ✅
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
 
           {alerts.length === 0 && activeTab !== 'history' && (
@@ -347,16 +653,16 @@ const AdminMonitoring = () => {
             <div className="admin-grid">
               <div className="admin-card">
                 <h4>Alert Information</h4>
-                <p><strong>Type:</strong> {selectedAlert.alert_type?.toUpperCase()}</p>
-                <p><strong>Time:</strong> {formatDateTime(selectedAlert.alert_time)}</p>
-                <p><strong>Value:</strong> {selectedAlert.trigger_value}</p>
-                <p><strong>Duration:</strong> {formatDuration(selectedAlert.duration)}</p>
+                <p><strong>Type:</strong> {getAlertType(selectedAlert)?.toUpperCase()}</p>
+                <p><strong>Time:</strong> {formatDateTime(selectedAlert.start_time)}</p>
+                <p><strong>Value:</strong> {getAlertValue(selectedAlert)}</p>
+                <p><strong>Duration:</strong> {formatDuration(getDuration(selectedAlert))}</p>
               </div>
 
               <div className="admin-card">
                 <h4>Response Data</h4>
-                <p><strong>Oxygen Used:</strong> {selectedAlert.oxygen_used || 'Not recorded'}</p>
-                <p><strong>Highest Oxygen:</strong> {selectedAlert.oxygen_highest || 'Not recorded'}</p>
+                <p><strong>Oxygen Used:</strong> {selectedAlert.oxygen_used ? 'Yes' : 'No'}</p>
+                <p><strong>Oxygen Amount:</strong> {selectedAlert.oxygen_highest || 'Not recorded'}</p>
                 <p><strong>Unit:</strong> {selectedAlert.oxygen_unit || 'N/A'}</p>
                 <p><strong>Acknowledged:</strong> {selectedAlert.acknowledged ? 'Yes' : 'No'}</p>
               </div>
@@ -365,23 +671,90 @@ const AdminMonitoring = () => {
             {selectedAlert.readings && selectedAlert.readings.length > 0 && (
               <div style={{ marginTop: '1.5rem' }}>
                 <h4>Related Readings</h4>
-                <div style={{ maxHeight: '200px', overflow: 'auto', border: '1px solid #ddd', borderRadius: '4px' }}>
-                  <table className="admin-table" style={{ margin: 0 }}>
+                <div style={{ maxHeight: '200px', overflow: 'auto', border: '1px solid #e9ecef', borderRadius: '8px' }}>
+                  <table style={{ 
+                    width: '100%', 
+                    borderCollapse: 'collapse',
+                    fontSize: '0.9rem',
+                    margin: 0
+                  }}>
                     <thead>
-                      <tr>
-                        <th>Time</th>
-                        <th>SpO₂</th>
-                        <th>BPM</th>
-                        <th>Perfusion</th>
+                      <tr style={{ background: '#f8f9fa' }}>
+                        <th style={{ 
+                          padding: '0.75rem', 
+                          textAlign: 'left', 
+                          fontWeight: '600',
+                          color: '#2c3e50',
+                          borderBottom: '1px solid #e9ecef',
+                          fontSize: '0.8rem'
+                        }}>
+                          Time
+                        </th>
+                        <th style={{ 
+                          padding: '0.75rem', 
+                          textAlign: 'left', 
+                          fontWeight: '600',
+                          color: '#2c3e50',
+                          borderBottom: '1px solid #e9ecef',
+                          fontSize: '0.8rem'
+                        }}>
+                          SpO₂
+                        </th>
+                        <th style={{ 
+                          padding: '0.75rem', 
+                          textAlign: 'left', 
+                          fontWeight: '600',
+                          color: '#2c3e50',
+                          borderBottom: '1px solid #e9ecef',
+                          fontSize: '0.8rem'
+                        }}>
+                          BPM
+                        </th>
+                        <th style={{ 
+                          padding: '0.75rem', 
+                          textAlign: 'left', 
+                          fontWeight: '600',
+                          color: '#2c3e50',
+                          borderBottom: '1px solid #e9ecef',
+                          fontSize: '0.8rem'
+                        }}>
+                          Perfusion
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
                       {selectedAlert.readings.slice(0, 20).map((reading, index) => (
-                        <tr key={index}>
-                          <td>{new Date(reading.datetime).toLocaleTimeString()}</td>
-                          <td>{reading.spo2}%</td>
-                          <td>{reading.bpm}</td>
-                          <td>{reading.perfusion}</td>
+                        <tr key={index} style={{ 
+                          backgroundColor: index % 2 === 0 ? '#ffffff' : '#f8f9fa'
+                        }}>
+                          <td style={{ 
+                            padding: '0.75rem',
+                            borderBottom: '1px solid #e9ecef',
+                            color: '#2c3e50'
+                          }}>
+                            {new Date(reading.datetime).toLocaleTimeString()}
+                          </td>
+                          <td style={{ 
+                            padding: '0.75rem',
+                            borderBottom: '1px solid #e9ecef',
+                            color: '#7f8c8d'
+                          }}>
+                            {reading.spo2}%
+                          </td>
+                          <td style={{ 
+                            padding: '0.75rem',
+                            borderBottom: '1px solid #e9ecef',
+                            color: '#7f8c8d'
+                          }}>
+                            {reading.bpm}
+                          </td>
+                          <td style={{ 
+                            padding: '0.75rem',
+                            borderBottom: '1px solid #e9ecef',
+                            color: '#7f8c8d'
+                          }}>
+                            {reading.perfusion}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

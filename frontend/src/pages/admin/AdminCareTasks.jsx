@@ -194,7 +194,7 @@ const AdminCareTasks = () => {
   }
 
   return (
-    <div className="admin-page">
+    <div className="admin-page" style={{ margin: '2rem' }}>
       <div className="admin-page-header">
         <h1 className="admin-page-title">Care Task Management</h1>
         <p className="admin-page-description">
@@ -202,7 +202,7 @@ const AdminCareTasks = () => {
         </p>
       </div>
 
-      <div className="admin-section">
+      <div className="admin-section" style={{ maxWidth: '1400px', margin: '0 auto' }}>
         <div className="admin-section-header">
           <h2 className="admin-section-title">Care Tasks</h2>
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
@@ -246,84 +246,268 @@ const AdminCareTasks = () => {
 
         <div className="admin-section-content">
           {showAddForm && (
-            <div className="admin-card" style={{ marginBottom: '2rem', background: '#f8f9fa' }}>
-              <h3 className="admin-card-title">Add New Care Task</h3>
-              <form onSubmit={handleAddCareTask}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Name *</label>
-                    <input
-                      type="text"
-                      required
-                      value={newCareTask.name}
-                      onChange={(e) => setNewCareTask({ ...newCareTask, name: e.target.value })}
-                      style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Category</label>
-                    <select
-                      value={newCareTask.category_id}
-                      onChange={(e) => setNewCareTask({ ...newCareTask, category_id: e.target.value })}
-                      style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
-                    >
-                      <option value="">Select Category</option>
-                      {categories.map((category) => (
-                        <option key={category.id} value={category.id}>
-                          {category.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Duration (minutes)</label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={newCareTask.estimated_duration_minutes}
-                      onChange={(e) => setNewCareTask({ ...newCareTask, estimated_duration_minutes: parseInt(e.target.value) })}
-                      style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
-                    />
+            <div style={{ 
+              marginBottom: '3rem',
+              background: '#ffffff',
+              border: '1px solid #e9ecef',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+            }}>
+              <div style={{
+                background: '#f8f9fa',
+                padding: '1.5rem 2rem',
+                borderBottom: '1px solid #e9ecef'
+              }}>
+                <h3 style={{
+                  margin: 0,
+                  color: '#2c3e50',
+                  fontSize: '1.25rem',
+                  fontWeight: '600'
+                }}>
+                  Add New Care Task
+                </h3>
+              </div>
+              
+              <form onSubmit={handleAddCareTask} style={{ padding: '2rem' }}>
+                {/* Basic Information Section */}
+                <div style={{ marginBottom: '2.5rem' }}>
+                  <h4 style={{ 
+                    margin: '0 0 1.5rem 0',
+                    color: '#495057',
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    borderBottom: '2px solid #e9ecef',
+                    paddingBottom: '0.5rem'
+                  }}>
+                    Basic Information
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '2rem' }}>
+                    <div>
+                      <label style={{ 
+                        display: 'block', 
+                        marginBottom: '0.75rem', 
+                        fontWeight: '600',
+                        color: '#495057'
+                      }}>
+                        Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newCareTask.name}
+                        onChange={(e) => setNewCareTask({ ...newCareTask, name: e.target.value })}
+                        style={{ 
+                          width: '100%', 
+                          padding: '0.75rem', 
+                          border: '1px solid #ced4da', 
+                          borderRadius: '6px',
+                          fontSize: '1rem',
+                          backgroundColor: '#ffffff',
+                          color: '#495057',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ 
+                        display: 'block', 
+                        marginBottom: '0.75rem', 
+                        fontWeight: '600',
+                        color: '#495057'
+                      }}>
+                        Category
+                      </label>
+                      <select
+                        value={newCareTask.category_id}
+                        onChange={(e) => setNewCareTask({ ...newCareTask, category_id: e.target.value })}
+                        style={{ 
+                          width: '100%', 
+                          padding: '0.75rem', 
+                          border: '1px solid #ced4da', 
+                          borderRadius: '6px',
+                          fontSize: '1rem',
+                          backgroundColor: '#ffffff',
+                          color: '#495057',
+                          boxSizing: 'border-box'
+                        }}
+                      >
+                        <option value="">Select Category</option>
+                        {categories.map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ 
+                        display: 'block', 
+                        marginBottom: '0.75rem', 
+                        fontWeight: '600',
+                        color: '#495057'
+                      }}>
+                        Duration (minutes)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={newCareTask.estimated_duration_minutes}
+                        onChange={(e) => setNewCareTask({ ...newCareTask, estimated_duration_minutes: parseInt(e.target.value) })}
+                        style={{ 
+                          width: '100%', 
+                          padding: '0.75rem', 
+                          border: '1px solid #ced4da', 
+                          borderRadius: '6px',
+                          fontSize: '1rem',
+                          backgroundColor: '#ffffff',
+                          color: '#495057',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
                 
-                <div style={{ marginBottom: '1rem' }}>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Description</label>
-                  <textarea
-                    value={newCareTask.description}
-                    onChange={(e) => setNewCareTask({ ...newCareTask, description: e.target.value })}
-                    style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px', minHeight: '80px' }}
-                  />
+                {/* Detailed Information Section */}
+                <div style={{ marginBottom: '2rem' }}>
+                  <h4 style={{ 
+                    margin: '0 0 1.5rem 0',
+                    color: '#495057',
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    borderBottom: '2px solid #e9ecef',
+                    paddingBottom: '0.5rem'
+                  }}>
+                    Detailed Information
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem' }}>
+                    <div>
+                      <label style={{ 
+                        display: 'block', 
+                        marginBottom: '0.75rem', 
+                        fontWeight: '600',
+                        color: '#495057'
+                      }}>
+                        Description
+                      </label>
+                      <textarea
+                        value={newCareTask.description}
+                        onChange={(e) => setNewCareTask({ ...newCareTask, description: e.target.value })}
+                        style={{ 
+                          width: '100%', 
+                          padding: '0.75rem', 
+                          border: '1px solid #ced4da', 
+                          borderRadius: '6px',
+                          fontSize: '1rem',
+                          backgroundColor: '#ffffff',
+                          color: '#495057',
+                          boxSizing: 'border-box',
+                          minHeight: '80px',
+                          resize: 'vertical'
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ 
+                        display: 'block', 
+                        marginBottom: '0.75rem', 
+                        fontWeight: '600',
+                        color: '#495057'
+                      }}>
+                        Instructions
+                      </label>
+                      <textarea
+                        value={newCareTask.instructions}
+                        onChange={(e) => setNewCareTask({ ...newCareTask, instructions: e.target.value })}
+                        style={{ 
+                          width: '100%', 
+                          padding: '0.75rem', 
+                          border: '1px solid #ced4da', 
+                          borderRadius: '6px',
+                          fontSize: '1rem',
+                          backgroundColor: '#ffffff',
+                          color: '#495057',
+                          boxSizing: 'border-box',
+                          minHeight: '100px',
+                          resize: 'vertical'
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ 
+                        display: 'block', 
+                        marginBottom: '0.75rem', 
+                        fontWeight: '600',
+                        color: '#495057'
+                      }}>
+                        Notes
+                      </label>
+                      <textarea
+                        value={newCareTask.notes}
+                        onChange={(e) => setNewCareTask({ ...newCareTask, notes: e.target.value })}
+                        style={{ 
+                          width: '100%', 
+                          padding: '0.75rem', 
+                          border: '1px solid #ced4da', 
+                          borderRadius: '6px',
+                          fontSize: '1rem',
+                          backgroundColor: '#ffffff',
+                          color: '#495057',
+                          boxSizing: 'border-box',
+                          minHeight: '60px',
+                          resize: 'vertical'
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div style={{ marginBottom: '1rem' }}>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Instructions</label>
-                  <textarea
-                    value={newCareTask.instructions}
-                    onChange={(e) => setNewCareTask({ ...newCareTask, instructions: e.target.value })}
-                    style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px', minHeight: '100px' }}
-                  />
-                </div>
-
-                <div style={{ marginBottom: '1rem' }}>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Notes</label>
-                  <textarea
-                    value={newCareTask.notes}
-                    onChange={(e) => setNewCareTask({ ...newCareTask, notes: e.target.value })}
-                    style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px', minHeight: '60px' }}
-                  />
-                </div>
-
-                <div className="admin-actions">
-                  <button type="submit" className="btn btn-success">
-                    Add Care Task
-                  </button>
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '1rem', 
+                  justifyContent: 'flex-end',
+                  paddingTop: '1.5rem',
+                  borderTop: '1px solid #e9ecef'
+                }}>
                   <button 
                     type="button" 
-                    className="btn btn-secondary"
                     onClick={() => setShowAddForm(false)}
+                    style={{
+                      padding: '0.75rem 1.5rem',
+                      border: '1px solid #6c757d',
+                      borderRadius: '6px',
+                      background: '#6c757d',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontSize: '1rem',
+                      fontWeight: '500',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => e.target.style.background = '#5a6268'}
+                    onMouseLeave={(e) => e.target.style.background = '#6c757d'}
                   >
                     Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    style={{
+                      padding: '0.75rem 1.5rem',
+                      border: '1px solid #28a745',
+                      borderRadius: '6px',
+                      background: '#28a745',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontSize: '1rem',
+                      fontWeight: '500',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => e.target.style.background = '#218838'}
+                    onMouseLeave={(e) => e.target.style.background = '#28a745'}
+                  >
+                    Add Care Task
                   </button>
                 </div>
               </form>
@@ -331,50 +515,168 @@ const AdminCareTasks = () => {
           )}
 
           {showAddCategoryForm && (
-            <div className="admin-card" style={{ marginBottom: '2rem', background: '#f8f9fa' }}>
-              <h3 className="admin-card-title">Add New Category</h3>
-              <form onSubmit={handleAddCategory}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Name *</label>
-                    <input
-                      type="text"
-                      required
-                      value={newCategory.name}
-                      onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
-                      style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Color</label>
-                    <input
-                      type="color"
-                      value={newCategory.color}
-                      onChange={(e) => setNewCategory({ ...newCategory, color: e.target.value })}
-                      style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
-                    />
+            <div style={{ 
+              marginBottom: '3rem',
+              background: '#ffffff',
+              border: '1px solid #e9ecef',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+            }}>
+              <div style={{
+                background: '#f8f9fa',
+                padding: '1.5rem 2rem',
+                borderBottom: '1px solid #e9ecef'
+              }}>
+                <h3 style={{
+                  margin: 0,
+                  color: '#2c3e50',
+                  fontSize: '1.25rem',
+                  fontWeight: '600'
+                }}>
+                  Add New Category
+                </h3>
+              </div>
+              
+              <form onSubmit={handleAddCategory} style={{ padding: '2rem' }}>
+                {/* Basic Information Section */}
+                <div style={{ marginBottom: '2rem' }}>
+                  <h4 style={{ 
+                    margin: '0 0 1.5rem 0',
+                    color: '#495057',
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    borderBottom: '2px solid #e9ecef',
+                    paddingBottom: '0.5rem'
+                  }}>
+                    Category Details
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                    <div>
+                      <label style={{ 
+                        display: 'block', 
+                        marginBottom: '0.75rem', 
+                        fontWeight: '600',
+                        color: '#495057'
+                      }}>
+                        Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newCategory.name}
+                        onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
+                        style={{ 
+                          width: '100%', 
+                          padding: '0.75rem', 
+                          border: '1px solid #ced4da', 
+                          borderRadius: '6px',
+                          fontSize: '1rem',
+                          backgroundColor: '#ffffff',
+                          color: '#495057',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ 
+                        display: 'block', 
+                        marginBottom: '0.75rem', 
+                        fontWeight: '600',
+                        color: '#495057'
+                      }}>
+                        Color
+                      </label>
+                      <input
+                        type="color"
+                        value={newCategory.color}
+                        onChange={(e) => setNewCategory({ ...newCategory, color: e.target.value })}
+                        style={{ 
+                          width: '100%', 
+                          padding: '0.75rem', 
+                          border: '1px solid #ced4da', 
+                          borderRadius: '6px',
+                          fontSize: '1rem',
+                          backgroundColor: '#ffffff',
+                          color: '#495057',
+                          boxSizing: 'border-box',
+                          height: '50px'
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
                 
-                <div style={{ marginBottom: '1rem' }}>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Description</label>
+                <div style={{ marginBottom: '2rem' }}>
+                  <label style={{ 
+                    display: 'block', 
+                    marginBottom: '0.75rem', 
+                    fontWeight: '600',
+                    color: '#495057'
+                  }}>
+                    Description
+                  </label>
                   <textarea
                     value={newCategory.description}
                     onChange={(e) => setNewCategory({ ...newCategory, description: e.target.value })}
-                    style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px', minHeight: '80px' }}
+                    style={{ 
+                      width: '100%', 
+                      padding: '0.75rem', 
+                      border: '1px solid #ced4da', 
+                      borderRadius: '6px',
+                      fontSize: '1rem',
+                      backgroundColor: '#ffffff',
+                      color: '#495057',
+                      boxSizing: 'border-box',
+                      minHeight: '80px',
+                      resize: 'vertical'
+                    }}
                   />
                 </div>
 
-                <div className="admin-actions">
-                  <button type="submit" className="btn btn-success">
-                    Add Category
-                  </button>
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '1rem', 
+                  justifyContent: 'flex-end',
+                  paddingTop: '1.5rem',
+                  borderTop: '1px solid #e9ecef'
+                }}>
                   <button 
                     type="button" 
-                    className="btn btn-secondary"
                     onClick={() => setShowAddCategoryForm(false)}
+                    style={{
+                      padding: '0.75rem 1.5rem',
+                      border: '1px solid #6c757d',
+                      borderRadius: '6px',
+                      background: '#6c757d',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontSize: '1rem',
+                      fontWeight: '500',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => e.target.style.background = '#5a6268'}
+                    onMouseLeave={(e) => e.target.style.background = '#6c757d'}
                   >
                     Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    style={{
+                      padding: '0.75rem 1.5rem',
+                      border: '1px solid #28a745',
+                      borderRadius: '6px',
+                      background: '#28a745',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontSize: '1rem',
+                      fontWeight: '500',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => e.target.style.background = '#218838'}
+                    onMouseLeave={(e) => e.target.style.background = '#28a745'}
+                  >
+                    Add Category
                   </button>
                 </div>
               </form>
@@ -413,67 +715,218 @@ const AdminCareTasks = () => {
               ))}
             </div>
           ) : (
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Category</th>
-                  <th>Duration</th>
-                  <th>Description</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {careTasks.map((task) => (
-                  <tr key={task.id}>
-                    <td style={{ fontWeight: '600' }}>{task.name}</td>
-                    <td>
-                      {task.category_id && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <div 
-                            style={{ 
-                              width: '12px', 
-                              height: '12px', 
-                              backgroundColor: getCategoryColor(task.category_id), 
-                              borderRadius: '2px' 
-                            }}
-                          ></div>
-                          {getCategoryName(task.category_id)}
-                        </div>
-                      )}
-                    </td>
-                    <td>{task.estimated_duration_minutes} min</td>
-                    <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {task.description}
-                    </td>
-                    <td>
-                      <span className={`status-badge ${task.active ? 'status-active' : 'status-inactive'}`}>
-                        {task.active ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <button 
-                          className={`btn ${task.active ? 'btn-warning' : 'btn-success'}`}
-                          style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
-                          onClick={() => handleToggleActive(task.id)}
-                        >
-                          {task.active ? 'Deactivate' : 'Activate'}
-                        </button>
-                        <button 
-                          className="btn btn-danger"
-                          style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
-                          onClick={() => handleDeleteCareTask(task.id)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
+            <div style={{ 
+              background: '#ffffff', 
+              borderRadius: '12px', 
+              overflow: 'hidden',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+              border: '1px solid #e9ecef'
+            }}>
+              <table style={{ 
+                width: '100%', 
+                borderCollapse: 'collapse',
+                fontSize: '0.9rem'
+              }}>
+                <thead>
+                  <tr style={{ background: '#f8f9fa' }}>
+                    <th style={{ 
+                      padding: '1rem', 
+                      textAlign: 'left', 
+                      fontWeight: '600',
+                      color: '#2c3e50',
+                      borderBottom: '1px solid #e9ecef',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      Name
+                    </th>
+                    <th style={{ 
+                      padding: '1rem', 
+                      textAlign: 'left', 
+                      fontWeight: '600',
+                      color: '#2c3e50',
+                      borderBottom: '1px solid #e9ecef',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      Category
+                    </th>
+                    <th style={{ 
+                      padding: '1rem', 
+                      textAlign: 'left', 
+                      fontWeight: '600',
+                      color: '#2c3e50',
+                      borderBottom: '1px solid #e9ecef',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      Duration
+                    </th>
+                    <th style={{ 
+                      padding: '1rem', 
+                      textAlign: 'left', 
+                      fontWeight: '600',
+                      color: '#2c3e50',
+                      borderBottom: '1px solid #e9ecef',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      Description
+                    </th>
+                    <th style={{ 
+                      padding: '1rem', 
+                      textAlign: 'left', 
+                      fontWeight: '600',
+                      color: '#2c3e50',
+                      borderBottom: '1px solid #e9ecef',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      Status
+                    </th>
+                    <th style={{ 
+                      padding: '1rem', 
+                      textAlign: 'left', 
+                      fontWeight: '600',
+                      color: '#2c3e50',
+                      borderBottom: '1px solid #e9ecef',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {careTasks.map((task, index) => (
+                    <tr key={task.id} style={{ 
+                      backgroundColor: index % 2 === 0 ? '#ffffff' : '#f8f9fa',
+                      transition: 'background-color 0.2s ease'
+                    }}>
+                      <td style={{ 
+                        fontWeight: '600', 
+                        padding: '1rem',
+                        borderBottom: '1px solid #e9ecef',
+                        color: '#2c3e50'
+                      }}>
+                        {task.name}
+                      </td>
+                      <td style={{ 
+                        padding: '1rem',
+                        borderBottom: '1px solid #e9ecef',
+                        color: '#7f8c8d'
+                      }}>
+                        {task.category_id && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <div 
+                              style={{ 
+                                width: '12px', 
+                                height: '12px', 
+                                backgroundColor: getCategoryColor(task.category_id), 
+                                borderRadius: '2px' 
+                              }}
+                            ></div>
+                            {getCategoryName(task.category_id)}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ 
+                        padding: '1rem',
+                        borderBottom: '1px solid #e9ecef',
+                        color: '#7f8c8d'
+                      }}>
+                        {task.estimated_duration_minutes} min
+                      </td>
+                      <td style={{ 
+                        maxWidth: '200px', 
+                        overflow: 'hidden', 
+                        textOverflow: 'ellipsis',
+                        padding: '1rem',
+                        borderBottom: '1px solid #e9ecef',
+                        color: '#7f8c8d'
+                      }}>
+                        {task.description}
+                      </td>
+                      <td style={{ 
+                        padding: '1rem',
+                        borderBottom: '1px solid #e9ecef'
+                      }}>
+                        <span style={{
+                          padding: '4px 12px',
+                          borderRadius: '20px',
+                          fontSize: '0.8rem',
+                          fontWeight: '500',
+                          backgroundColor: task.active ? '#d4edda' : '#f8d7da',
+                          color: task.active ? '#155724' : '#721c24',
+                          border: `1px solid ${task.active ? '#c3e6cb' : '#f5c6cb'}`
+                        }}>
+                          {task.active ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td style={{ 
+                        padding: '1rem',
+                        borderBottom: '1px solid #e9ecef'
+                      }}>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button 
+                            onClick={() => handleToggleActive(task.id)}
+                            style={{
+                              padding: '8px',
+                              border: 'none',
+                              borderRadius: '6px',
+                              background: task.active ? '#ffc107' : '#28a745',
+                              color: 'white',
+                              cursor: 'pointer',
+                              fontSize: '14px',
+                              transition: 'all 0.2s ease',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '32px',
+                              height: '32px'
+                            }}
+                            onMouseEnter={(e) => e.target.style.background = task.active ? '#e0a800' : '#218838'}
+                            onMouseLeave={(e) => e.target.style.background = task.active ? '#ffc107' : '#28a745'}
+                            title={task.active ? 'Deactivate' : 'Activate'}
+                          >
+                            {task.active ? '⏸️' : '▶️'}
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteCareTask(task.id)}
+                            style={{
+                              padding: '8px',
+                              border: 'none',
+                              borderRadius: '6px',
+                              background: '#dc3545',
+                              color: 'white',
+                              cursor: 'pointer',
+                              fontSize: '14px',
+                              transition: 'all 0.2s ease',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '32px',
+                              height: '32px'
+                            }}
+                            onMouseEnter={(e) => e.target.style.background = '#c82333'}
+                            onMouseLeave={(e) => e.target.style.background = '#dc3545'}
+                            title="Delete"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
 
           {careTasks.length === 0 && activeTab !== 'categories' && (

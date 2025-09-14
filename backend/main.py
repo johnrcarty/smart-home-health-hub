@@ -22,7 +22,7 @@ from modules.mqtt_module import MQTTModule
 from modules.state_module import StateModule
 
 # Import route modules
-from routes import core, settings, vitals, medications, care_tasks, equipment, monitoring, mqtt, serial, status
+from routes import core, settings, vitals, medications, care_tasks, equipment, monitoring, mqtt, serial, status, patients
 
 # Import legacy components
 from mqtt import initialize_mqtt_service, shutdown_mqtt_service
@@ -85,6 +85,7 @@ app.include_router(monitoring.router)
 app.include_router(mqtt.router)
 app.include_router(serial.router)
 app.include_router(status.router)
+app.include_router(patients.router)
 
 # Global event bus and modules
 event_bus = EventBus(maxsize=1000)

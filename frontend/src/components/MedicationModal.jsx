@@ -9,6 +9,8 @@ const MedicationModal = ({ onClose }) => {
   const [activeMedications, setActiveMedications] = useState([]);
   const [inactiveMedications, setInactiveMedications] = useState([]);
   const [scheduledMedications, setScheduledMedications] = useState({ scheduled_medications: [] });
+  const [patients, setPatients] = useState([]);
+  const [currentPatientId, setCurrentPatientId] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingMed, setEditingMed] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -24,7 +26,8 @@ const MedicationModal = ({ onClose }) => {
     instructions: '',
     startDate: '',
     asNeeded: false,
-    notes: ''
+    notes: '',
+    isPatientSpecific: false
   });
 
   // Confirmation modal state
@@ -60,10 +63,36 @@ const MedicationModal = ({ onClose }) => {
   // Load medications from API on component mount
   useEffect(() => {
     fetchMedications();
+    fetchPatients();
+    fetchCurrentPatient();
     if (tab === 'scheduled') {
       fetchScheduledMedications();
     }
   }, [tab]);
+
+  const fetchPatients = async () => {
+    try {
+      const response = await fetch(`${config.apiUrl}/api/patients/`);
+      if (response.ok) {
+        const data = await response.json();
+        setPatients(data);
+      }
+    } catch (error) {
+      console.error('Error fetching patients:', error);
+    }
+  };
+
+  const fetchCurrentPatient = async () => {
+    try {
+      const response = await fetch(`${config.apiUrl}/api/patients/current`);
+      if (response.ok) {
+        const currentPatient = await response.json();
+        setCurrentPatientId(currentPatient.id);
+      }
+    } catch (error) {
+      console.error('Error fetching current patient:', error);
+    }
+  };
 
   const fetchMedications = async () => {
     setLoading(true);
@@ -140,7 +169,8 @@ const MedicationModal = ({ onClose }) => {
       instructions: '',
       startDate: '',
       asNeeded: false,
-      notes: ''
+      notes: '',
+      isPatientSpecific: false
     });
     setEditingMed(null);
     // Don't automatically hide the form - let the caller decide
@@ -175,7 +205,8 @@ const MedicationModal = ({ onClose }) => {
             instructions: formData.instructions,
             start_date: formData.startDate,
             as_needed: formData.asNeeded,
-            notes: formData.notes
+            notes: formData.notes,
+            is_patient_specific: formData.isPatientSpecific
           })
         });
         
@@ -207,7 +238,8 @@ const MedicationModal = ({ onClose }) => {
       instructions: med.instructions || '',
       startDate: med.start_date || '',
       asNeeded: med.as_needed || false,
-      notes: med.notes || ''
+      notes: med.notes || '',
+      isPatientSpecific: med.patient_id !== null
     });
     setEditingMed(med);
     setShowAddForm(true);
@@ -394,6 +426,18 @@ const MedicationModal = ({ onClose }) => {
                 fontWeight: '600'
               }}>
                 {med.schedules.length} schedule{med.schedules.length !== 1 ? 's' : ''}
+              </span>
+            )}
+            {med.is_global !== undefined && (
+              <span style={{ 
+                background: med.is_global ? '#f0f0f0' : '#e8f5e8', 
+                color: med.is_global ? '#666' : '#28a745', 
+                padding: '2px 6px', 
+                borderRadius: '10px', 
+                fontSize: '11px',
+                fontWeight: '600'
+              }}>
+                {med.is_global ? 'Global' : 'Patient'}
               </span>
             )}
           </div>
@@ -612,6 +656,44 @@ const MedicationModal = ({ onClose }) => {
               }}
             />
           </div>
+        </div>
+
+        {/* Checkboxes */}
+        <div style={{ display: 'flex', gap: '24px', marginTop: '8px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={formData.asNeeded}
+              onChange={(e) => setFormData(prev => ({ ...prev, asNeeded: e.target.checked }))}
+              style={{
+                width: '16px',
+                height: '16px',
+                cursor: 'pointer'
+              }}
+            />
+            <span style={{ fontWeight: '500', color: '#333', fontSize: '14px' }}>
+              Take as needed (PRN)
+            </span>
+          </label>
+          
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={formData.isPatientSpecific}
+              onChange={(e) => setFormData(prev => ({ ...prev, isPatientSpecific: e.target.checked }))}
+              style={{
+                width: '16px',
+                height: '16px',
+                cursor: 'pointer'
+              }}
+            />
+            <span style={{ fontWeight: '500', color: '#333', fontSize: '14px' }}>
+              Patient-specific medication
+            </span>
+            <span style={{ fontSize: '12px', color: '#666', fontStyle: 'italic' }}>
+              (uncheck for shared/global medication)
+            </span>
+          </label>
         </div>
 
         <div>
@@ -974,6 +1056,8 @@ const MedicationModal = ({ onClose }) => {
               setLoading={setLoading}
               scheduledMedications={scheduledMedications.scheduled_medications}
               showStatusFilters={true}
+              patients={patients}
+              currentPatientId={currentPatientId}
             />
           ) : !loading && showHistory ? (
             <MedicationHistory onBack={() => { setShowHistory(false); setTab('scheduled'); }} />

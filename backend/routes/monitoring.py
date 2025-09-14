@@ -42,21 +42,22 @@ async def acknowledge_alert_endpoint(alert_id: int, data: dict = Body(...), db: 
         logger.info(f"Acknowledging alert {alert_id} with data: {data}")
 
         # Extract oxygen data from the request
-        oxygen_used = data.get('oxygen_used', 0)
+        oxygen_amount = data.get('oxygen_used', 0)
         oxygen_highest = data.get('oxygen_highest')
         oxygen_unit = data.get('oxygen_unit')
 
-        logger.info(f"Processed data: used={oxygen_used}, highest={oxygen_highest}, unit={oxygen_unit}")
+        logger.info(f"Processed data: amount={oxygen_amount}, highest={oxygen_highest}, unit={oxygen_unit}")
 
-        # Make sure we handle null values properly
-        if oxygen_highest == "":
-            oxygen_highest = None
+        # Convert oxygen amount to boolean flag and store amount in oxygen_highest if not provided
+        oxygen_used_flag = bool(oxygen_amount and oxygen_amount > 0)
+        if oxygen_highest is None or oxygen_highest == "":
+            oxygen_highest = float(oxygen_amount) if oxygen_amount else None
 
         # Update the alert with oxygen information
         success = update_monitoring_alert(
             db,
             alert_id,
-            oxygen_used=oxygen_used,
+            oxygen_used=oxygen_used_flag,
             oxygen_highest=oxygen_highest,
             oxygen_unit=oxygen_unit
         )

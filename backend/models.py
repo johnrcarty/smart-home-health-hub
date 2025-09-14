@@ -4,34 +4,69 @@ from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
 
+class Patient(Base):
+    __tablename__ = 'patients'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    first_name = Column(String, nullable=False)
+    last_name = Column(String, nullable=False)
+    date_of_birth = Column(DateTime, nullable=True)
+    medical_record_number = Column(String, nullable=True, unique=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    notes = Column(Text, nullable=True)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    updated_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    
+    # Relationships
+    vitals = relationship('Vital', back_populates='patient')
+    pulse_ox_data = relationship('PulseOxData', back_populates='patient')
+    blood_pressure = relationship('BloodPressure', back_populates='patient')
+    temperature = relationship('Temperature', back_populates='patient')
+    monitoring_alerts = relationship('MonitoringAlert', back_populates='patient')
+    ventilator_alerts = relationship('VentilatorAlert', back_populates='patient')
+    medication_logs = relationship('MedicationLog', back_populates='patient')
+    care_task_logs = relationship('CareTaskLog', back_populates='patient')
+    equipment = relationship('Equipment', back_populates='patient')
+
 class BloodPressure(Base):
     __tablename__ = 'blood_pressure'
     id = Column(Integer, primary_key=True, autoincrement=True)
+    patient_id = Column(Integer, ForeignKey('patients.id'), nullable=False)
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
     systolic = Column(Integer, nullable=False)
     diastolic = Column(Integer, nullable=False)
     map = Column(Integer, nullable=False)
     raw_data = Column(Text, nullable=False)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    
+    # Relationships
+    patient = relationship('Patient', back_populates='blood_pressure')
 
 class Temperature(Base):
     __tablename__ = 'temperature'
     id = Column(Integer, primary_key=True, autoincrement=True)
+    patient_id = Column(Integer, ForeignKey('patients.id'), nullable=False)
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
     skin_temp = Column(Float)
     body_temp = Column(Float)
     raw_data = Column(Text, nullable=False)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    
+    # Relationships
+    patient = relationship('Patient', back_populates='temperature')
 
 class Vital(Base):
     __tablename__ = 'vitals'
     id = Column(Integer, primary_key=True, autoincrement=True)
+    patient_id = Column(Integer, ForeignKey('patients.id'), nullable=False)
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
     vital_type = Column(String, nullable=False)
     vital_group = Column(String, nullable=True)  # Sub-type or grouping (e.g., 'systolic', 'diastolic', 'map' for BP)
     value = Column(Float, nullable=False)
     notes = Column(Text)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    
+    # Relationships
+    patient = relationship('Patient', back_populates='vitals')
 
 class Setting(Base):
     __tablename__ = 'settings'
@@ -44,6 +79,7 @@ class Setting(Base):
 class PulseOxData(Base):
     __tablename__ = 'pulse_ox_data'
     id = Column(Integer, primary_key=True, autoincrement=True)
+    patient_id = Column(Integer, ForeignKey('patients.id'), nullable=False)
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
     spo2 = Column(Integer)
     bpm = Column(Integer)
@@ -54,10 +90,14 @@ class PulseOxData(Base):
     hr_alarm = Column(String)
     raw_data = Column(Text)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    
+    # Relationships
+    patient = relationship('Patient', back_populates='pulse_ox_data')
 
 class MonitoringAlert(Base):
     __tablename__ = 'monitoring_alerts'
     id = Column(Integer, primary_key=True, autoincrement=True)
+    patient_id = Column(Integer, ForeignKey('patients.id'), nullable=False)
     start_time = Column(TIMESTAMP(timezone=True), nullable=False)
     end_time = Column(TIMESTAMP(timezone=True))
     start_data_id = Column(Integer)
@@ -74,10 +114,14 @@ class MonitoringAlert(Base):
     oxygen_highest = Column(Float)
     oxygen_unit = Column(String)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    
+    # Relationships
+    patient = relationship('Patient', back_populates='monitoring_alerts')
 
 class VentilatorAlert(Base):
     __tablename__ = 'ventilator_alerts'
     id = Column(Integer, primary_key=True, autoincrement=True)
+    patient_id = Column(Integer, ForeignKey('patients.id'), nullable=False)
     device_id = Column(String, nullable=False)
     pin = Column(Integer, nullable=False)
     start_time = Column(TIMESTAMP(timezone=True), nullable=False)
@@ -86,6 +130,9 @@ class VentilatorAlert(Base):
     acknowledged = Column(Boolean, default=False)
     notes = Column(Text)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    
+    # Relationships
+    patient = relationship('Patient', back_populates='ventilator_alerts')
 
 class ExternalAlarm(Base):
     __tablename__ = 'external_alarms'
@@ -103,23 +150,37 @@ class ExternalAlarm(Base):
 class Equipment(Base):
     __tablename__ = 'equipment'
     id = Column(Integer, primary_key=True, autoincrement=True)
+    patient_id = Column(Integer, ForeignKey('patients.id'), nullable=True)  # NULL = shared equipment
     name = Column(String, nullable=False)
     quantity = Column(Integer, nullable=False, default=1)
     scheduled_replacement = Column(Boolean, nullable=False, default=True)
     last_changed = Column(TIMESTAMP(timezone=True), nullable=True)  # Nullable when scheduled_replacement is False
     useful_days = Column(Integer, nullable=True)  # Nullable when scheduled_replacement is False
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    updated_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    
+    # Relationships
+    patient = relationship('Patient', foreign_keys=[patient_id])
     change_logs = relationship('EquipmentChangeLog', back_populates='equipment')
 
 class EquipmentChangeLog(Base):
     __tablename__ = 'equipment_change_log'
     id = Column(Integer, primary_key=True, autoincrement=True)
     equipment_id = Column(Integer, ForeignKey('equipment.id'), nullable=False)
+    patient_id = Column(Integer, ForeignKey('patients.id'), nullable=True)  # Track which patient the change was for
     changed_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    notes = Column(Text, nullable=True)
+    changed_by = Column(String, nullable=True)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    
+    # Relationships
     equipment = relationship('Equipment', back_populates='change_logs')
+    patient = relationship('Patient', foreign_keys=[patient_id])
 
 class Medication(Base):
     __tablename__ = 'medication'
     id = Column(Integer, primary_key=True, autoincrement=True)
+    patient_id = Column(Integer, ForeignKey('patients.id'), nullable=True)  # NULL = global medication
     name = Column(String, nullable=False)
     concentration = Column(String)
     quantity = Column(Float, nullable=False)
@@ -134,6 +195,7 @@ class Medication(Base):
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False)
     
     # Relationships
+    patient = relationship('Patient', foreign_keys=[patient_id])
     schedules = relationship('MedicationSchedule', back_populates='medication', cascade='all, delete-orphan')
     administration_logs = relationship('MedicationLog', back_populates='medication', cascade='all, delete-orphan')
 
@@ -141,6 +203,7 @@ class MedicationSchedule(Base):
     __tablename__ = 'medication_schedule'
     id = Column(Integer, primary_key=True, autoincrement=True)
     medication_id = Column(Integer, ForeignKey('medication.id'), nullable=False)
+    patient_id = Column(Integer, ForeignKey('patients.id'), nullable=True)  # Can be NULL for global meds
     
     # Cron expression for scheduling (e.g., "30 8 * * 1,3,5" for Mon/Wed/Fri at 8:30 AM)
     cron_expression = Column(String, nullable=False)
@@ -163,12 +226,14 @@ class MedicationSchedule(Base):
     
     # Relationships
     medication = relationship('Medication', back_populates='schedules')
+    patient = relationship('Patient', foreign_keys=[patient_id])
     administration_logs = relationship('MedicationLog', back_populates='schedule')
 
 class MedicationLog(Base):
     __tablename__ = 'medication_log'
     id = Column(Integer, primary_key=True, autoincrement=True)
     medication_id = Column(Integer, ForeignKey('medication.id'), nullable=False)
+    patient_id = Column(Integer, ForeignKey('patients.id'), nullable=False)  # Always required for logs
     schedule_id = Column(Integer, ForeignKey('medication_schedule.id'), nullable=True)  # Null if administered without schedule
     
     # Administration details
@@ -190,6 +255,7 @@ class MedicationLog(Base):
     
     # Relationships
     medication = relationship('Medication', back_populates='administration_logs')
+    patient = relationship('Patient', back_populates='medication_logs')
     schedule = relationship('MedicationSchedule', back_populates='administration_logs')
 
 class CareTaskCategory(Base):
@@ -209,6 +275,7 @@ class CareTaskCategory(Base):
 class CareTask(Base):
     __tablename__ = 'care_task'
     id = Column(Integer, primary_key=True, autoincrement=True)
+    patient_id = Column(Integer, ForeignKey('patients.id'), nullable=True)  # NULL = global task template
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     category_id = Column(Integer, ForeignKey('care_task_category.id'), nullable=True)  # Reference to category
@@ -217,6 +284,7 @@ class CareTask(Base):
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False)
     
     # Relationships
+    patient = relationship('Patient', foreign_keys=[patient_id])
     category = relationship('CareTaskCategory', back_populates='care_tasks')
     schedules = relationship('CareTaskSchedule', back_populates='care_task', cascade='all, delete-orphan')
     completion_logs = relationship('CareTaskLog', back_populates='care_task', cascade='all, delete-orphan')
@@ -225,6 +293,7 @@ class CareTaskSchedule(Base):
     __tablename__ = 'care_task_schedule'
     id = Column(Integer, primary_key=True, autoincrement=True)
     care_task_id = Column(Integer, ForeignKey('care_task.id'), nullable=False)
+    patient_id = Column(Integer, ForeignKey('patients.id'), nullable=True)  # Can be NULL for global tasks
     
     # Cron expression for scheduling (e.g., "30 8 * * 1,3,5" for Mon/Wed/Fri at 8:30 AM)
     cron_expression = Column(String, nullable=False)
@@ -244,12 +313,14 @@ class CareTaskSchedule(Base):
     
     # Relationships
     care_task = relationship('CareTask', back_populates='schedules')
+    patient = relationship('Patient', foreign_keys=[patient_id])
     completion_logs = relationship('CareTaskLog', back_populates='schedule')
 
 class CareTaskLog(Base):
     __tablename__ = 'care_task_log'
     id = Column(Integer, primary_key=True, autoincrement=True)
     care_task_id = Column(Integer, ForeignKey('care_task.id'), nullable=False)
+    patient_id = Column(Integer, ForeignKey('patients.id'), nullable=False)  # Always required for logs
     schedule_id = Column(Integer, ForeignKey('care_task_schedule.id'), nullable=True)  # Null if completed without schedule
     
     # Completion details
@@ -273,4 +344,5 @@ class CareTaskLog(Base):
     
     # Relationships
     care_task = relationship('CareTask', back_populates='completion_logs')
+    patient = relationship('Patient', back_populates='care_task_logs')
     schedule = relationship('CareTaskSchedule', back_populates='completion_logs')

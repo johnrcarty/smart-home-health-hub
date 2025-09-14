@@ -6,17 +6,23 @@ import pytz
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from models import BloodPressure, Temperature, Vital, PulseOxData
+from crud.patients import get_or_create_default_patient
 
 logger = logging.getLogger('crud')
 
 
 # --- Blood Pressure CRUD ---
-def save_blood_pressure(db: Session, systolic, diastolic, map_value=None, timestamp=None, notes=None):
+def save_blood_pressure(db: Session, systolic, diastolic, map_value=None, timestamp=None, notes=None, patient_id=None):
     """
     Save blood pressure reading to database (Postgres)
     """
     now = datetime.now(timezone.utc)
     ts = timestamp or now
+    
+    # Get patient_id if not provided
+    if patient_id is None:
+        patient = get_or_create_default_patient(db)
+        patient_id = patient.id
     
     # Ensure timestamp is timezone-aware
     if ts and hasattr(ts, 'tzinfo') and ts.tzinfo is None:
@@ -29,6 +35,7 @@ def save_blood_pressure(db: Session, systolic, diastolic, map_value=None, timest
             ts = now
     
     bp = BloodPressure(
+        patient_id=patient_id,
         timestamp=ts,
         systolic=systolic,
         diastolic=diastolic,
@@ -39,14 +46,17 @@ def save_blood_pressure(db: Session, systolic, diastolic, map_value=None, timest
     db.add(bp)
     db.commit()
     db.refresh(bp)
-    logger.info(f"Blood pressure saved: {systolic}/{diastolic} (MAP: {map_value})")
+    logger.info(f"Blood pressure saved for patient {patient_id}: {systolic}/{diastolic} (MAP: {map_value})")
     return bp.id
 
 
-def get_latest_blood_pressure(db: Session):
+def get_latest_blood_pressure(db: Session, patient_id=None):
     """Get the most recent blood pressure reading."""
     try:
-        return db.query(BloodPressure).order_by(BloodPressure.timestamp.desc()).first()
+        query = db.query(BloodPressure)
+        if patient_id:
+            query = query.filter(BloodPressure.patient_id == patient_id)
+        return query.order_by(BloodPressure.timestamp.desc()).first()
     except Exception as e:
         logger.error(f"Error fetching latest blood pressure: {e}")
         return None
@@ -99,12 +109,17 @@ def get_last_n_blood_pressure(db: Session, n=5):
 
 
 # --- Temperature CRUD ---
-def save_temperature(db: Session, body_temp, skin_temp=None, timestamp=None, notes=None):
+def save_temperature(db: Session, body_temp, skin_temp=None, timestamp=None, notes=None, patient_id=None):
     """
     Save temperature reading to database (Postgres)
     """
     now = datetime.now(timezone.utc)
     ts = timestamp or now
+    
+    # Get patient_id if not provided
+    if patient_id is None:
+        patient = get_or_create_default_patient(db)
+        patient_id = patient.id
     
     # Ensure timestamp is timezone-aware
     if ts and hasattr(ts, 'tzinfo') and ts.tzinfo is None:
@@ -117,6 +132,7 @@ def save_temperature(db: Session, body_temp, skin_temp=None, timestamp=None, not
             ts = now
     
     temp = Temperature(
+        patient_id=patient_id,
         timestamp=ts,
         skin_temp=skin_temp,
         body_temp=body_temp,
@@ -126,7 +142,7 @@ def save_temperature(db: Session, body_temp, skin_temp=None, timestamp=None, not
     db.add(temp)
     db.commit()
     db.refresh(temp)
-    logger.info(f"Temperature saved: Skin: {skin_temp}°, Body: {body_temp}°")
+    logger.info(f"Temperature saved for patient {patient_id}: Skin: {skin_temp}°, Body: {body_temp}°")
     return temp.id
 
 
@@ -162,12 +178,17 @@ def get_last_n_temperature(db: Session, n=5):
 
 
 # --- Generic Vital CRUD ---
-def save_vital(db: Session, vital_type, value, timestamp=None, notes=None, vital_group=None):
+def save_vital(db: Session, vital_type, value, timestamp=None, notes=None, vital_group=None, patient_id=None):
     """
     Save a generic vital reading to database (Postgres)
     """
     now = datetime.now(timezone.utc)
     ts = timestamp or now
+    
+    # Get patient_id if not provided
+    if patient_id is None:
+        patient = get_or_create_default_patient(db)
+        patient_id = patient.id
     
     # Ensure timestamp is timezone-aware (convert to UTC if naive)
     if ts and hasattr(ts, 'tzinfo') and ts.tzinfo is None:
@@ -182,6 +203,7 @@ def save_vital(db: Session, vital_type, value, timestamp=None, notes=None, vital
             ts = now
     
     vital = Vital(
+        patient_id=patient_id,
         timestamp=ts,
         vital_type=vital_type,
         value=value,
@@ -192,15 +214,20 @@ def save_vital(db: Session, vital_type, value, timestamp=None, notes=None, vital
     db.add(vital)
     db.commit()
     db.refresh(vital)
-    logger.info(f"Vital saved: {vital_type}={value}, group={vital_group}")
+    logger.info(f"Vital saved for patient {patient_id}: {vital_type}={value}, group={vital_group}")
     return vital.id
 
 
-def save_blood_pressure_as_vitals(db: Session, systolic, diastolic, map_value=None, timestamp=None, notes=None):
+def save_blood_pressure_as_vitals(db: Session, systolic, diastolic, map_value=None, timestamp=None, notes=None, patient_id=None):
     """
     Save blood pressure reading as individual vital entries
     """
     vital_ids = []
+    
+    # Get patient_id if not provided
+    if patient_id is None:
+        patient = get_or_create_default_patient(db)
+        patient_id = patient.id
     
     # Calculate MAP if not provided
     if map_value is None and systolic and diastolic:
@@ -208,36 +235,41 @@ def save_blood_pressure_as_vitals(db: Session, systolic, diastolic, map_value=No
     
     # Save systolic
     if systolic is not None:
-        systolic_id = save_vital(db, 'blood_pressure', systolic, timestamp, notes, 'systolic')
+        systolic_id = save_vital(db, 'blood_pressure', systolic, timestamp, notes, 'systolic', patient_id)
         vital_ids.append(systolic_id)
     
     # Save diastolic  
     if diastolic is not None:
-        diastolic_id = save_vital(db, 'blood_pressure', diastolic, timestamp, notes, 'diastolic')
+        diastolic_id = save_vital(db, 'blood_pressure', diastolic, timestamp, notes, 'diastolic', patient_id)
         vital_ids.append(diastolic_id)
     
     # Save MAP
     if map_value is not None:
-        map_id = save_vital(db, 'blood_pressure', map_value, timestamp, notes, 'map')
+        map_id = save_vital(db, 'blood_pressure', map_value, timestamp, notes, 'map', patient_id)
         vital_ids.append(map_id)
     
     return vital_ids
 
 
-def save_temperature_as_vitals(db: Session, body_temp=None, skin_temp=None, timestamp=None, notes=None):
+def save_temperature_as_vitals(db: Session, body_temp=None, skin_temp=None, timestamp=None, notes=None, patient_id=None):
     """
     Save temperature readings as individual vital entries
     """
     vital_ids = []
     
+    # Get patient_id if not provided
+    if patient_id is None:
+        patient = get_or_create_default_patient(db)
+        patient_id = patient.id
+    
     # Save body temperature
     if body_temp is not None:
-        body_id = save_vital(db, 'temperature', body_temp, timestamp, notes, 'body')
+        body_id = save_vital(db, 'temperature', body_temp, timestamp, notes, 'body', patient_id)
         vital_ids.append(body_id)
     
     # Save skin temperature
     if skin_temp is not None:
-        skin_id = save_vital(db, 'temperature', skin_temp, timestamp, notes, 'skin')
+        skin_id = save_vital(db, 'temperature', skin_temp, timestamp, notes, 'skin', patient_id)
         vital_ids.append(skin_id)
     
     return vital_ids
@@ -349,7 +381,7 @@ def _group_multi_value_vitals(results, vital_type):
 
 
 # --- Pulse Oximeter CRUD ---
-def save_pulse_ox_data(db: Session, spo2, bpm, pa, status=None, motion=None, spo2_alarm=None, hr_alarm=None, raw_data=None, timestamp=None):
+def save_pulse_ox_data(db: Session, spo2, bpm, pa, status=None, motion=None, spo2_alarm=None, hr_alarm=None, raw_data=None, timestamp=None, patient_id=None):
     """
     Save pulse oximeter reading to database
 
@@ -363,6 +395,7 @@ def save_pulse_ox_data(db: Session, spo2, bpm, pa, status=None, motion=None, spo
         hr_alarm (str): Heart rate alarm status ("ON" or "OFF")
         raw_data (str): Raw data string received from sensor
         timestamp (str): Optional ISO timestamp, defaults to now if not provided
+        patient_id (int): Patient ID, creates default if not provided
 
     Returns:
         int: ID of the inserted record or None on error
@@ -370,8 +403,14 @@ def save_pulse_ox_data(db: Session, spo2, bpm, pa, status=None, motion=None, spo
     try:
         now = datetime.now().isoformat()
         ts = timestamp or now  # Use provided timestamp or current time
+        
+        # Get patient_id if not provided
+        if patient_id is None:
+            patient = get_or_create_default_patient(db)
+            patient_id = patient.id
 
         pulse_ox = PulseOxData(
+            patient_id=patient_id,
             timestamp=ts,
             spo2=spo2,
             bpm=bpm,

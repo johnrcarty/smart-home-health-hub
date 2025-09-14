@@ -1,7 +1,8 @@
 /* Layout Styles */
 .layout {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .admin-nav {
@@ -11,6 +12,11 @@
   display: flex;
   flex-direction: column;
   border-right: 1px solid #333;
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  z-index: 1000;
 }
 
 .admin-nav-header {
@@ -39,6 +45,7 @@
 .admin-nav-links {
   flex: 1;
   padding: 1rem 0;
+  overflow-y: auto;
 }
 
 .nav-link {
@@ -65,6 +72,7 @@
 .admin-nav-footer {
   padding: 1rem;
   border-top: 1px solid #333;
+  margin-top: auto;
 }
 
 .back-to-dashboard {
@@ -81,16 +89,22 @@
 .main-content {
   flex: 1;
   overflow-x: hidden;
+  overflow-y: auto;
+  height: 100vh;
 }
 
 .main-content.with-nav {
-  margin-left: 0;
+  margin-left: 250px;
 }
 
 /* Responsive Design */
 @media (max-width: 768px) {
   .admin-nav {
     width: 200px;
+  }
+  
+  .main-content.with-nav {
+    margin-left: 200px;
   }
   
   .nav-title {

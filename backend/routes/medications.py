@@ -2,6 +2,7 @@
 Medication management routes
 """
 import logging
+from datetime import datetime
 from fastapi import APIRouter, Depends, Body
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
@@ -12,6 +13,7 @@ from crud.medications import (add_medication, get_active_medications, get_inacti
                   get_all_medication_schedules, update_medication_schedule, delete_medication_schedule, 
                   toggle_medication_schedule_active, get_daily_medication_schedule, administer_medication,
                   get_medication_history, get_medication_names_for_dropdown)
+from crud.settings import get_setting
 from models import Medication
 
 logger = logging.getLogger("app")
@@ -38,6 +40,25 @@ async def api_add_medication(data: dict = Body(...), db: Session = Depends(get_d
     as_needed = data["as_needed"]
     notes = data["notes"]
     end_date = data.get("end_date")  # Optional, not required in add form
+    is_patient_specific = data.get("is_patient_specific", False)  # New field
+    admin_patient_id = data.get("admin_patient_id")  # Admin can specify patient directly
+    
+    # Determine patient_id
+    patient_id = None
+    if is_patient_specific:
+        if admin_patient_id:
+            # Admin specified a specific patient
+            patient_id = admin_patient_id
+        else:
+            # Use current patient from settings
+            current_patient_id = get_setting(db, 'current_patient_id')
+            if current_patient_id:
+                try:
+                    patient_id = int(current_patient_id)
+                except (ValueError, TypeError):
+                    return JSONResponse(status_code=400, content={"detail": "Invalid current patient ID"})
+            else:
+                return JSONResponse(status_code=400, content={"detail": "No current patient set for patient-specific medication"})
 
     try:
         med_id = add_medication(
@@ -50,7 +71,8 @@ async def api_add_medication(data: dict = Body(...), db: Session = Depends(get_d
             start_date=start_date,
             end_date=end_date,
             as_needed=as_needed,
-            notes=notes
+            notes=notes,
+            patient_id=patient_id
         )
         return {"id": med_id, "status": "success"}
     except Exception as e:
@@ -67,6 +89,95 @@ async def get_active_medications_endpoint(db: Session = Depends(get_db)):
 async def get_inactive_medications_endpoint(db: Session = Depends(get_db)):
     """Get all inactive medications."""
     return get_inactive_medications(db)
+
+
+# Admin-specific endpoints with patient filtering
+@router.get("/admin/medications/active")
+async def get_admin_active_medications_endpoint(patient_id: Optional[int] = None, db: Session = Depends(get_db)):
+    """Get active medications for admin view - can filter by patient_id or show all"""
+    try:
+        if patient_id:
+            # Get medications for specific patient + global medications
+            medications = db.query(Medication).filter(
+                Medication.active == True,
+                (Medication.end_date == None) | (Medication.end_date > datetime.now().date()),
+                (Medication.patient_id == patient_id) | (Medication.patient_id == None)
+            ).order_by(Medication.name).all()
+        else:
+            # Get all active medications (admin overview)
+            medications = db.query(Medication).filter(
+                Medication.active == True,
+                (Medication.end_date == None) | (Medication.end_date > datetime.now().date())
+            ).order_by(Medication.name).all()
+        
+        return [
+            {
+                'id': med.id,
+                'patient_id': med.patient_id,
+                'name': med.name,
+                'concentration': med.concentration,
+                'quantity': med.quantity,
+                'quantity_unit': med.quantity_unit,
+                'instructions': med.instructions,
+                'start_date': med.start_date.isoformat() if med.start_date else None,
+                'end_date': med.end_date.isoformat() if med.end_date else None,
+                'as_needed': med.as_needed,
+                'notes': med.notes,
+                'active': med.active,
+                'created_at': med.created_at.isoformat() if med.created_at else None,
+                'updated_at': med.updated_at.isoformat() if med.updated_at else None,
+                'is_global': med.patient_id is None,
+                'schedules': get_medication_schedules(db, med.id)
+            }
+            for med in medications
+        ]
+    except Exception as e:
+        logger.error(f"Error fetching admin active medications: {e}")
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+
+
+@router.get("/admin/medications/inactive")
+async def get_admin_inactive_medications_endpoint(patient_id: Optional[int] = None, db: Session = Depends(get_db)):
+    """Get inactive medications for admin view - can filter by patient_id or show all"""
+    try:
+        today = datetime.now().date()
+        
+        if patient_id:
+            # Get medications for specific patient + global medications
+            medications = db.query(Medication).filter(
+                (Medication.active == False) | (Medication.end_date <= today),
+                (Medication.patient_id == patient_id) | (Medication.patient_id == None)
+            ).order_by(Medication.name).all()
+        else:
+            # Get all inactive medications (admin overview)
+            medications = db.query(Medication).filter(
+                (Medication.active == False) | (Medication.end_date <= today)
+            ).order_by(Medication.name).all()
+        
+        return [
+            {
+                'id': med.id,
+                'patient_id': med.patient_id,
+                'name': med.name,
+                'concentration': med.concentration,
+                'quantity': med.quantity,
+                'quantity_unit': med.quantity_unit,
+                'instructions': med.instructions,
+                'start_date': med.start_date.isoformat() if med.start_date else None,
+                'end_date': med.end_date.isoformat() if med.end_date else None,
+                'as_needed': med.as_needed,
+                'notes': med.notes,
+                'active': med.active,
+                'created_at': med.created_at.isoformat() if med.created_at else None,
+                'updated_at': med.updated_at.isoformat() if med.updated_at else None,
+                'is_global': med.patient_id is None,
+                'schedules': get_medication_schedules(db, med.id)
+            }
+            for med in medications
+        ]
+    except Exception as e:
+        logger.error(f"Error fetching admin inactive medications: {e}")
+        return JSONResponse(status_code=500, content={"detail": str(e)})
 
 
 @router.put("/medications/{med_id}")
@@ -145,6 +256,21 @@ async def api_add_medication_schedule(
         if not medication:
             return JSONResponse(status_code=404, content={"detail": "Medication not found"})
         
+        # For global medications, use provided patient_id; otherwise inherit from medication
+        patient_id = None
+        if medication.patient_id is None:  # Global medication
+            patient_id = data.get('patient_id')
+            if patient_id:
+                patient_id = int(patient_id)
+            else:
+                # Fallback to current patient if no patient_id provided for global medication
+                current_patient_id = get_setting(db, 'current_patient_id')
+                if current_patient_id:
+                    try:
+                        patient_id = int(current_patient_id)
+                    except (ValueError, TypeError):
+                        pass  # Leave patient_id as None
+        
         schedule_id = add_medication_schedule(
             db,
             medication_id=medication_id,
@@ -152,7 +278,8 @@ async def api_add_medication_schedule(
             description=data['description'],
             dose_amount=data['dose_amount'],
             active=data.get('active', True),
-            notes=data.get('notes', '')
+            notes=data.get('notes', ''),
+            patient_id=patient_id
         )
         
         if schedule_id:

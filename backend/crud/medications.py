@@ -6,17 +6,22 @@ from datetime import datetime, timedelta
 from croniter import croniter
 from sqlalchemy.orm import Session
 from models import Medication, MedicationSchedule, MedicationLog
+from crud.settings import get_setting
 
 logger = logging.getLogger('crud')
 
 
 # --- Medication CRUD ---
-def add_medication(db: Session, name, concentration=None, quantity=None, quantity_unit=None, instructions=None, start_date=None, end_date=None, as_needed=False, notes=None, active=True):
+def add_medication(db: Session, name, concentration=None, quantity=None, quantity_unit=None, instructions=None, start_date=None, end_date=None, as_needed=False, notes=None, active=True, patient_id=None):
     """
     Add a new medication to the database.
+    
+    Args:
+        patient_id: If provided, medication is patient-specific. If None, medication is global.
     """
     now = datetime.now()
     medication = Medication(
+        patient_id=patient_id,
         name=name,
         concentration=concentration,
         quantity=quantity,
@@ -39,19 +44,30 @@ def add_medication(db: Session, name, concentration=None, quantity=None, quantit
 
 def get_active_medications(db: Session):
     """
-    Get all active medications (active=True and end_date is None or > today)
+    Get all active medications for the current patient plus global medications
+    (active=True and end_date is None or > today, and patient_id matches current patient or is None)
     """
     try:
         today = datetime.now().date()
+        current_patient_id = get_setting(db, 'current_patient_id')
+        
+        # Convert to int if it's a string
+        if current_patient_id:
+            try:
+                current_patient_id = int(current_patient_id)
+            except (ValueError, TypeError):
+                current_patient_id = None
         
         medications = db.query(Medication).filter(
             Medication.active == True,
-            (Medication.end_date == None) | (Medication.end_date > today)
+            (Medication.end_date == None) | (Medication.end_date > today),
+            (Medication.patient_id == current_patient_id) | (Medication.patient_id == None)
         ).order_by(Medication.name).all()
         
         return [
             {
                 'id': med.id,
+                'patient_id': med.patient_id,
                 'name': med.name,
                 'concentration': med.concentration,
                 'quantity': med.quantity,
@@ -64,6 +80,7 @@ def get_active_medications(db: Session):
                 'active': med.active,
                 'created_at': med.created_at.isoformat() if med.created_at else None,
                 'updated_at': med.updated_at.isoformat() if med.updated_at else None,
+                'is_global': med.patient_id is None,
                 'schedules': []
             }
             for med in medications
@@ -75,18 +92,29 @@ def get_active_medications(db: Session):
 
 def get_inactive_medications(db: Session):
     """
-    Get all inactive medications (active=False or end_date <= today)
+    Get all inactive medications for the current patient plus global medications
+    (active=False or end_date <= today, and patient_id matches current patient or is None)
     """
     try:
         today = datetime.now().date()
+        current_patient_id = get_setting(db, 'current_patient_id')
+        
+        # Convert to int if it's a string
+        if current_patient_id:
+            try:
+                current_patient_id = int(current_patient_id)
+            except (ValueError, TypeError):
+                current_patient_id = None
         
         medications = db.query(Medication).filter(
-            (Medication.active == False) | (Medication.end_date <= today)
+            (Medication.active == False) | (Medication.end_date <= today),
+            (Medication.patient_id == current_patient_id) | (Medication.patient_id == None)
         ).order_by(Medication.name).all()
         
         return [
             {
                 'id': med.id,
+                'patient_id': med.patient_id,
                 'name': med.name,
                 'concentration': med.concentration,
                 'quantity': med.quantity,
@@ -99,6 +127,7 @@ def get_inactive_medications(db: Session):
                 'active': med.active,
                 'created_at': med.created_at.isoformat() if med.created_at else None,
                 'updated_at': med.updated_at.isoformat() if med.updated_at else None,
+                'is_global': med.patient_id is None,
                 'schedules': []
             }
             for med in medications
@@ -158,6 +187,19 @@ def administer_medication(db: Session, med_id, dose_amount, schedule_id=None, sc
         if not med or med.quantity is None or dose_amount is None:
             return False
         
+        # Get current patient ID
+        current_patient_id = get_setting(db, 'current_patient_id')
+        if current_patient_id:
+            try:
+                current_patient_id = int(current_patient_id)
+            except (ValueError, TypeError):
+                current_patient_id = None
+        
+        # For patient-specific medications, make sure we have a current patient
+        if med.patient_id is not None and current_patient_id is None:
+            logger.error("Cannot administer patient-specific medication without current patient set")
+            return False
+        
         # Only deduct from quantity if dose_amount > 0 (don't deduct for skipped doses)
         if float(dose_amount) > 0:
             if med.quantity < float(dose_amount):
@@ -182,6 +224,7 @@ def administer_medication(db: Session, med_id, dose_amount, schedule_id=None, sc
         # Record log
         log = MedicationLog(
             medication_id=med_id,
+            patient_id=current_patient_id,  # Always use current patient for logs
             schedule_id=schedule_id,
             administered_at=datetime.now(),
             dose_amount=dose_amount,
@@ -203,15 +246,24 @@ def administer_medication(db: Session, med_id, dose_amount, schedule_id=None, sc
 
 def get_medication_names_for_dropdown(db: Session):
     """
-    Get all medication names for dropdown selection
+    Get all medication names for dropdown selection for current patient plus global medications
     Returns active medications first, then inactive ones with indicators
     """
     try:
         today = datetime.now().date()
+        current_patient_id = get_setting(db, 'current_patient_id')
         
-        # Get all medications ordered by active status (active first) then by name
+        # Convert to int if it's a string
+        if current_patient_id:
+            try:
+                current_patient_id = int(current_patient_id)
+            except (ValueError, TypeError):
+                current_patient_id = None
+        
+        # Get medications for current patient or global medications
         medications = db.query(Medication).filter(
-            Medication.id.isnot(None)
+            Medication.id.isnot(None),
+            (Medication.patient_id == current_patient_id) | (Medication.patient_id == None)
         ).order_by(
             Medication.active.desc(),
             Medication.name.asc()
@@ -225,13 +277,16 @@ def get_medication_names_for_dropdown(db: Session):
             name_display = med.name
             if not is_currently_active:
                 name_display += " (Inactive)"
+            if med.patient_id is None:
+                name_display += " (Global)"
             
             result.append({
                 'id': med.id,
                 'name': name_display,
                 'original_name': med.name,
                 'active': is_currently_active,
-                'concentration': med.concentration
+                'concentration': med.concentration,
+                'is_global': med.patient_id is None
             })
         
         return result
@@ -242,14 +297,24 @@ def get_medication_names_for_dropdown(db: Session):
 
 
 # --- MedicationSchedule CRUD ---
-def add_medication_schedule(db: Session, medication_id, cron_expression, description=None, dose_amount=None, active=True, notes=None):
+def add_medication_schedule(db: Session, medication_id, cron_expression, description=None, dose_amount=None, active=True, notes=None, patient_id=None):
     """
     Add a new medication schedule
     """
     try:
+        # Get the medication to inherit its patient_id if not explicitly provided
+        medication = db.query(Medication).filter(Medication.id == medication_id).first()
+        if not medication:
+            logger.error(f"Medication with id {medication_id} not found")
+            return None
+        
+        # Use provided patient_id if given, otherwise inherit from medication
+        schedule_patient_id = patient_id if patient_id is not None else medication.patient_id
+        
         now = datetime.now()
         schedule = MedicationSchedule(
             medication_id=medication_id,
+            patient_id=schedule_patient_id,
             cron_expression=cron_expression,
             description=description,
             dose_amount=dose_amount,
@@ -392,7 +457,7 @@ def toggle_medication_schedule_active(db: Session, schedule_id):
 
 def get_scheduled_medications_for_date(db: Session, target_date=None):
     """
-    Get all medications scheduled for a specific date
+    Get all medications scheduled for a specific date for the current patient plus global medications
     
     Args:
         target_date: datetime.date object, defaults to today
@@ -404,11 +469,22 @@ def get_scheduled_medications_for_date(db: Session, target_date=None):
         if target_date is None:
             target_date = datetime.now().date()
         
-        # Get all active medication schedules
+        current_patient_id = get_setting(db, 'current_patient_id')
+        
+        # Convert to int if it's a string
+        if current_patient_id:
+            try:
+                current_patient_id = int(current_patient_id)
+            except (ValueError, TypeError):
+                current_patient_id = None
+        
+        # Get all active medication schedules for current patient or global medications
         schedules = db.query(MedicationSchedule).filter(
-            MedicationSchedule.active == True
+            MedicationSchedule.active == True,
+            (MedicationSchedule.patient_id == current_patient_id) | (MedicationSchedule.patient_id == None)
         ).join(Medication).filter(
-            Medication.active == True
+            Medication.active == True,
+            (Medication.patient_id == current_patient_id) | (Medication.patient_id == None)
         ).all()
         
         scheduled_meds = []

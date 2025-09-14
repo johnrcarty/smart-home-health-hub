@@ -7,6 +7,7 @@ Most functionality has been moved to the event-driven architecture in modules/.
 import logging
 from contextlib import contextmanager
 from collections import deque
+from typing import Optional
 
 # Local imports
 from db import get_db
@@ -26,6 +27,30 @@ def get_db_session():
         yield db
     finally:
         db.close()
+
+
+def get_current_patient_id() -> Optional[int]:
+    """Get the current active patient ID for single-patient workflows"""
+    try:
+        with get_db_session() as db:
+            from crud.patients import get_active_patient
+            active_patient = get_active_patient(db)
+            return active_patient.id if active_patient else None
+    except Exception as e:
+        logger.error(f"Error getting current patient ID: {e}")
+        return None
+
+
+def ensure_default_patient() -> Optional[int]:
+    """Ensure a default patient exists and return its ID"""
+    try:
+        with get_db_session() as db:
+            from crud.patients import get_or_create_default_patient
+            patient = get_or_create_default_patient(db)
+            return patient.id if patient else None
+    except Exception as e:
+        logger.error(f"Error ensuring default patient: {e}")
+        return None
 
 
 def get_serial_log():

@@ -5,27 +5,32 @@ import logging
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from models import Equipment, EquipmentChangeLog
+from crud.patients import get_or_create_default_patient
 
 logger = logging.getLogger('crud')
 
 
 # --- Equipment CRUD ---
-def add_equipment_simple(db: Session, name, quantity=1, scheduled_replacement=True, last_changed=None, useful_days=None):
+def add_equipment_simple(db: Session, name, quantity=1, scheduled_replacement=True, last_changed=None, useful_days=None, patient_id=None):
     """
     Simple add equipment function matching the original signature for routes compatibility
     """
     try:
         equipment = Equipment(
             name=name,
+            patient_id=patient_id,  # Can be None for shared equipment
             quantity=quantity,
             scheduled_replacement=scheduled_replacement,
             last_changed=last_changed if scheduled_replacement else None,
-            useful_days=useful_days if scheduled_replacement else None
+            useful_days=useful_days if scheduled_replacement else None,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
         )
         db.add(equipment)
         db.commit()
         db.refresh(equipment)
-        logger.info(f"Equipment added: {name}")
+        patient_info = f" for patient {patient_id}" if patient_id else " (shared)"
+        logger.info(f"Equipment added: {name}{patient_info}")
         return equipment.id
     except Exception as e:
         logger.error(f"Error adding equipment: {e}")
@@ -43,10 +48,13 @@ def get_equipment(db: Session, equipment_id):
             return {
                 'id': equipment.id,
                 'name': equipment.name,
+                'patient_id': equipment.patient_id,
                 'quantity': equipment.quantity,
                 'scheduled_replacement': equipment.scheduled_replacement,
                 'last_changed': equipment.last_changed.isoformat() if equipment.last_changed else None,
-                'useful_days': equipment.useful_days
+                'useful_days': equipment.useful_days,
+                'created_at': equipment.created_at.isoformat() if equipment.created_at else None,
+                'updated_at': equipment.updated_at.isoformat() if equipment.updated_at else None
             }
         return None
     except Exception as e:
@@ -54,7 +62,7 @@ def get_equipment(db: Session, equipment_id):
         return None
 
 
-def update_equipment(db: Session, equipment_id, name=None, quantity=None, scheduled_replacement=None, last_changed=None, useful_days=None):
+def update_equipment(db: Session, equipment_id, name=None, quantity=None, scheduled_replacement=None, last_changed=None, useful_days=None, patient_id=None):
     """
     Update an equipment item
     """
@@ -73,7 +81,10 @@ def update_equipment(db: Session, equipment_id, name=None, quantity=None, schedu
             equipment.last_changed = last_changed
         if useful_days is not None:
             equipment.useful_days = useful_days
+        if patient_id is not None:
+            equipment.patient_id = patient_id
             
+        equipment.updated_at = datetime.utcnow()
         db.commit()
         logger.info(f"Equipment updated: {equipment.name}")
         return True
@@ -81,6 +92,45 @@ def update_equipment(db: Session, equipment_id, name=None, quantity=None, schedu
         logger.error(f"Error updating equipment {equipment_id}: {e}")
         db.rollback()
         return False
+
+
+def list_equipment(db: Session, patient_id=None, shared_only=False, skip=0, limit=100):
+    """
+    List equipment with optional patient filtering
+    
+    Args:
+        patient_id: Filter to specific patient equipment
+        shared_only: If True, return only shared equipment (patient_id is None)
+        skip: Number of records to skip
+        limit: Maximum number of records to return
+    """
+    try:
+        query = db.query(Equipment)
+        
+        if shared_only:
+            query = query.filter(Equipment.patient_id.is_(None))
+        elif patient_id is not None:
+            query = query.filter(Equipment.patient_id == patient_id)
+        
+        equipment_list = query.offset(skip).limit(limit).all()
+        
+        return [
+            {
+                'id': eq.id,
+                'name': eq.name,
+                'patient_id': eq.patient_id,
+                'quantity': eq.quantity,
+                'scheduled_replacement': eq.scheduled_replacement,
+                'last_changed': eq.last_changed.isoformat() if eq.last_changed else None,
+                'useful_days': eq.useful_days,
+                'created_at': eq.created_at.isoformat() if eq.created_at else None,
+                'updated_at': eq.updated_at.isoformat() if eq.updated_at else None
+            }
+            for eq in equipment_list
+        ]
+    except Exception as e:
+        logger.error(f"Error listing equipment: {e}")
+        return []
 
 
 def delete_equipment(db: Session, equipment_id):
@@ -174,7 +224,7 @@ def get_equipment_list(db: Session):
         return []
 
 
-def log_equipment_change(db: Session, equipment_id, changed_at):
+def log_equipment_change(db: Session, equipment_id, changed_at, patient_id=None, notes=None, changed_by=None):
     """
     Log an equipment change and update the last_changed date
     """
@@ -182,7 +232,11 @@ def log_equipment_change(db: Session, equipment_id, changed_at):
         # Create change log entry
         change_log = EquipmentChangeLog(
             equipment_id=equipment_id,
-            changed_at=changed_at
+            patient_id=patient_id,
+            changed_at=changed_at,
+            notes=notes,
+            changed_by=changed_by,
+            created_at=datetime.utcnow()
         )
         db.add(change_log)
 
@@ -190,6 +244,7 @@ def log_equipment_change(db: Session, equipment_id, changed_at):
         equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
         if equipment:
             equipment.last_changed = changed_at
+            equipment.updated_at = datetime.utcnow()
 
         db.commit()
         logger.info(f"Equipment change logged for ID {equipment_id}")

@@ -3,6 +3,7 @@ import MqttSettings from './settings/MqttSettings';
 import GpioSettings from './settings/GpioSettings';
 import SerialSettings from './settings/SerialSettings';
 import DashboardSettings from './settings/DashboardSettings';
+import PatientSettings from './settings/PatientSettings';
 import ModalBase from './ModalBase';
 import { getSettings, updateSettings } from '../services/settings';
 import config from '../config';
@@ -40,8 +41,9 @@ const SettingsForm = ({ onClose }) => {
         const settings = await getSettings();
         
         const newFormData = {};
-        for (const [key, setting] of Object.entries(settings)) {
-          newFormData[key] = setting.value;
+        for (const [key, value] of Object.entries(settings)) {
+          // Handle direct value format from API
+          newFormData[key] = typeof value === 'object' && value.value !== undefined ? value.value : value;
         }
         
         // Only update state if we received some settings
@@ -225,6 +227,21 @@ const SettingsForm = ({ onClose }) => {
               }}
             >
               MQTT
+            </button>
+            <button
+              onClick={() => setActiveTab('patients')}
+              style={{
+                padding: '8px 16px',
+                border: 'none',
+                borderRadius: '6px',
+                backgroundColor: activeTab === 'patients' ? '#007bff' : '#f8f9fa',
+                color: activeTab === 'patients' ? '#fff' : '#333',
+                cursor: 'pointer',
+                fontWeight: '500',
+                fontSize: '14px'
+              }}
+            >
+              Patients
             </button>
             <button
               onClick={() => setActiveTab('dev')}
@@ -560,6 +577,9 @@ const SettingsForm = ({ onClose }) => {
           )}
           {activeTab === 'mqtt' && (
             <MqttSettings />
+          )}
+          {activeTab === 'patients' && (
+            <PatientSettings />
           )}
           {activeTab === 'dev' && (
             <>
