@@ -17,7 +17,7 @@ const CareTaskScheduleView = ({ taskId, taskName, onClose }) => {
 
   const fetchSchedules = async () => {
     try {
-      const response = await fetch(`${config.apiUrl}/api/care-task-schedules/${taskId}`);
+      const response = await fetch(`${config.apiUrl}/api/care-tasks/${taskId}/schedules`);
       if (response.ok) {
         const data = await response.json();
         setSchedules(data);
@@ -142,7 +142,7 @@ const CareTaskScheduleView = ({ taskId, taskName, onClose }) => {
     
     try {
       setLoading(true);
-      const response = await fetch(`${config.apiUrl}/api/care-task-schedule/${scheduleId}`, {
+      const response = await fetch(`${config.apiUrl}/api/care-task-schedules/${scheduleId}`, {
         method: 'DELETE'
       });
       
@@ -163,7 +163,7 @@ const CareTaskScheduleView = ({ taskId, taskName, onClose }) => {
   const handleToggleSchedule = async (scheduleId) => {
     try {
       setLoading(true);
-      const response = await fetch(`${config.apiUrl}/api/care-task-schedule/${scheduleId}/toggle`, {
+      const response = await fetch(`${config.apiUrl}/api/care-task-schedules/${scheduleId}/toggle-active`, {
         method: 'POST'
       });
       

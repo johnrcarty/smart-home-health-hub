@@ -107,7 +107,7 @@ def delete_care_task_category(db: Session, category_id):
 
 
 # --- CareTask CRUD ---
-def add_care_task(db: Session, name, category_id, description=None, frequency=None, instructions=None, notes=None, active=True):
+def add_care_task(db: Session, name, category_id, description=None, active=True):
     """
     Add a new care task
     """
@@ -117,9 +117,6 @@ def add_care_task(db: Session, name, category_id, description=None, frequency=No
             name=name,
             category_id=category_id,
             description=description,
-            frequency=frequency,
-            instructions=instructions,
-            notes=notes,
             active=active,
             created_at=now,
             updated_at=now
@@ -162,9 +159,6 @@ def get_care_tasks(db: Session, active_only=True, category_id=None):
                 'category_name': task.category.name if task.category else None,
                 'category_color': task.category.color if task.category else '#3B82F6',
                 'description': task.description,
-                'frequency': task.frequency,
-                'instructions': task.instructions,
-                'notes': task.notes,
                 'active': task.active,
                 'created_at': task.created_at.isoformat() if task.created_at else None,
                 'updated_at': task.updated_at.isoformat() if task.updated_at else None
@@ -192,9 +186,6 @@ def get_care_task(db: Session, task_id):
             'category_name': task.category.name if task.category else None,
             'category_color': task.category.color if task.category else '#3B82F6',
             'description': task.description,
-            'frequency': task.frequency,
-            'instructions': task.instructions,
-            'notes': task.notes,
             'active': task.active,
             'created_at': task.created_at.isoformat() if task.created_at else None,
             'updated_at': task.updated_at.isoformat() if task.updated_at else None

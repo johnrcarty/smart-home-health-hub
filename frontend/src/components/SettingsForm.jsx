@@ -4,6 +4,7 @@ import GpioSettings from './settings/GpioSettings';
 import SerialSettings from './settings/SerialSettings';
 import DashboardSettings from './settings/DashboardSettings';
 import PatientSettings from './settings/PatientSettings';
+import ThresholdSettings from './settings/ThresholdSettings';
 import ModalBase from './ModalBase';
 import { getSettings, updateSettings } from '../services/settings';
 import config from '../config';
@@ -15,10 +16,6 @@ const SettingsForm = ({ onClose }) => {
   const [formData, setFormData] = useState({
     device_name: '',
     device_location: '',
-    min_spo2: 90,
-    max_spo2: 100,
-    min_bpm: 55,
-    max_bpm: 155,
     temp_unit: 'F',
     weight_unit: 'lbs',
     dark_mode: true,
@@ -84,10 +81,6 @@ const SettingsForm = ({ onClose }) => {
       const settingsToUpdate = {
         device_name: formData.device_name,
         device_location: formData.device_location,
-        min_spo2: parseInt(formData.min_spo2),
-        max_spo2: parseInt(formData.max_spo2),
-        min_bpm: parseInt(formData.min_bpm),
-        max_bpm: parseInt(formData.max_bpm),
         temp_unit: formData.temp_unit,
         weight_unit: formData.weight_unit,
         dark_mode: formData.dark_mode,
@@ -448,126 +441,7 @@ const SettingsForm = ({ onClose }) => {
             <DashboardSettings />
           )}
           {activeTab === 'thresholds' && (
-            <>
-              <div style={{ marginBottom: '24px' }}>
-                <h3 style={{ 
-                  color: '#ffffff', 
-                  fontSize: '1.25rem', 
-                  marginBottom: '16px',
-                  fontWeight: '600'
-                }}>Alert Thresholds</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-                  <div>
-                    <label style={{ 
-                      color: '#e2e8f0', 
-                      fontSize: '13px', 
-                      fontWeight: '500', 
-                      marginBottom: '6px', 
-                      display: 'block' 
-                    }}>Min SpO₂ (%)</label>
-                    <input
-                      type="number"
-                      value={formData.min_spo2}
-                      onChange={(e) => handleInputChange('min_spo2', e.target.value)}
-                      min="80"
-                      max="99"
-                      style={{
-                        width: '100%',
-                        padding: '10px 12px',
-                        backgroundColor: '#2d3748',
-                        border: '1px solid #4a5568',
-                        borderRadius: '6px',
-                        color: '#ffffff',
-                        fontSize: '14px',
-                        outline: 'none',
-                        boxSizing: 'border-box'
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ 
-                      color: '#e2e8f0', 
-                      fontSize: '13px', 
-                      fontWeight: '500', 
-                      marginBottom: '6px', 
-                      display: 'block' 
-                    }}>Max SpO₂ (%)</label>
-                    <input
-                      type="number"
-                      value={formData.max_spo2}
-                      onChange={(e) => handleInputChange('max_spo2', e.target.value)}
-                      min="90"
-                      max="100"
-                      style={{
-                        width: '100%',
-                        padding: '10px 12px',
-                        backgroundColor: '#2d3748',
-                        border: '1px solid #4a5568',
-                        borderRadius: '6px',
-                        color: '#ffffff',
-                        fontSize: '14px',
-                        outline: 'none',
-                        boxSizing: 'border-box'
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ 
-                      color: '#e2e8f0', 
-                      fontSize: '13px', 
-                      fontWeight: '500', 
-                      marginBottom: '6px', 
-                      display: 'block' 
-                    }}>Min Heart Rate (BPM)</label>
-                    <input
-                      type="number"
-                      value={formData.min_bpm}
-                      onChange={(e) => handleInputChange('min_bpm', e.target.value)}
-                      min="40"
-                      max="100"
-                      style={{
-                        width: '100%',
-                        padding: '10px 12px',
-                        backgroundColor: '#2d3748',
-                        border: '1px solid #4a5568',
-                        borderRadius: '6px',
-                        color: '#ffffff',
-                        fontSize: '14px',
-                        outline: 'none',
-                        boxSizing: 'border-box'
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ 
-                      color: '#e2e8f0', 
-                      fontSize: '13px', 
-                      fontWeight: '500', 
-                      marginBottom: '6px', 
-                      display: 'block' 
-                    }}>Max Heart Rate (BPM)</label>
-                    <input
-                      type="number"
-                      value={formData.max_bpm}
-                      onChange={(e) => handleInputChange('max_bpm', e.target.value)}
-                      min="100"
-                      max="220"
-                      style={{
-                        width: '100%',
-                        padding: '10px 12px',
-                        backgroundColor: '#2d3748',
-                        border: '1px solid #4a5568',
-                        borderRadius: '6px',
-                        color: '#ffffff',
-                        fontSize: '14px',
-                        outline: 'none',
-                        boxSizing: 'border-box'
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </>
+            <ThresholdSettings />
           )}
           {activeTab === 'gpio' && (
             <GpioSettings />
@@ -763,7 +637,7 @@ const SettingsForm = ({ onClose }) => {
             }}>Settings saved successfully!</div>
           )}
           {/* Only show main Save Settings button for tabs that don't have their own save functionality */}
-          {activeTab !== 'dashboard' && activeTab !== 'gpio' && activeTab !== 'serial' && activeTab !== 'mqtt' && activeTab !== 'admin' && (
+          {activeTab !== 'dashboard' && activeTab !== 'gpio' && activeTab !== 'serial' && activeTab !== 'mqtt' && activeTab !== 'thresholds' && activeTab !== 'admin' && (
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
               <button 
                 type="submit" 

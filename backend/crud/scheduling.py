@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from croniter import croniter
 from sqlalchemy.orm import Session
 from models import CareTask, CareTaskSchedule, CareTaskLog
+from crud.patients import get_active_patient
 
 logger = logging.getLogger('crud')
 
@@ -183,10 +184,11 @@ def get_scheduled_care_tasks_for_date(db: Session, target_date=None):
         for schedule in schedules:
             try:
                 # Calculate next occurrence using croniter
-                cron = croniter(schedule.cron_expression, target_date)
+                # Convert date to datetime for croniter
+                start_of_day = datetime.combine(target_date, datetime.min.time())
+                cron = croniter(schedule.cron_expression, start_of_day)
                 
                 # Get all times for this date
-                start_of_day = datetime.combine(target_date, datetime.min.time())
                 end_of_day = datetime.combine(target_date, datetime.max.time())
                 
                 current_time = cron.get_next(datetime)
@@ -275,25 +277,49 @@ def get_daily_care_task_schedule(db: Session):
         
         all_scheduled = []
         
-        # Process yesterday's schedules (check if missed)
+        # Process yesterday's schedules (check if missed or completed)
         for item in yesterday_scheduled:
-            item['status'] = 'missed'  # Default to missed for yesterday
+            # Check if this task was completed/skipped for this specific time
+            completion_log = db.query(CareTaskLog).filter(
+                CareTaskLog.schedule_id == item['schedule_id'],
+                CareTaskLog.scheduled_time == item['scheduled_time']
+            ).first()
+            
+            if completion_log:
+                item['status'] = completion_log.status  # 'completed', 'skipped', etc.
+                item['completed_at'] = completion_log.completed_at.isoformat() if completion_log.completed_at else None
+                item['notes'] = completion_log.notes
+            else:
+                item['status'] = 'missed'  # Default to missed for yesterday
+            
             item['is_yesterday'] = True
             all_scheduled.append(item)
         
         # Process today's schedules
         for item in today_scheduled:
-            scheduled_time = item['scheduled_time']
-            time_diff = (current_time - scheduled_time).total_seconds() / 60
+            # Check if this task was completed/skipped for this specific time
+            completion_log = db.query(CareTaskLog).filter(
+                CareTaskLog.schedule_id == item['schedule_id'],
+                CareTaskLog.scheduled_time == item['scheduled_time']
+            ).first()
             
-            if time_diff < -30:
-                item['status'] = 'pending'
-            elif time_diff < -15:
-                item['status'] = 'due_warning'
-            elif time_diff < 15:
-                item['status'] = 'due_on_time'
+            if completion_log:
+                item['status'] = completion_log.status  # 'completed', 'skipped', etc.
+                item['completed_at'] = completion_log.completed_at.isoformat() if completion_log.completed_at else None
+                item['notes'] = completion_log.notes
             else:
-                item['status'] = 'due_late'
+                # Only set time-based status if not completed
+                scheduled_time = item['scheduled_time']
+                time_diff = (current_time - scheduled_time).total_seconds() / 60
+                
+                if time_diff < -30:
+                    item['status'] = 'pending'
+                elif time_diff < -15:
+                    item['status'] = 'due_warning'
+                elif time_diff < 15:
+                    item['status'] = 'due_on_time'
+                else:
+                    item['status'] = 'due_late'
             
             item['is_yesterday'] = False
             all_scheduled.append(item)
@@ -332,6 +358,23 @@ def complete_care_task(db: Session, task_id, schedule_id=None, scheduled_time=No
     try:
         now = datetime.now()
         
+        # Get the care task to retrieve patient_id
+        care_task = db.query(CareTask).filter(CareTask.id == task_id).first()
+        if not care_task:
+            logger.error(f"Care task {task_id} not found")
+            return None
+        
+        # Determine patient_id: use care_task's patient_id or get active patient
+        patient_id = care_task.patient_id
+        if patient_id is None:
+            # For global care tasks, use the active patient
+            active_patient = get_active_patient(db)
+            if active_patient:
+                patient_id = active_patient.id
+            else:
+                logger.error("No patient_id found for care task and no active patient available")
+                return None
+        
         # Calculate timing flags if this is a scheduled task
         is_scheduled = bool(schedule_id)
         completed_early = False
@@ -353,6 +396,7 @@ def complete_care_task(db: Session, task_id, schedule_id=None, scheduled_time=No
         # Create the completion log
         log = CareTaskLog(
             care_task_id=task_id,
+            patient_id=patient_id,  # Use the determined patient_id
             schedule_id=schedule_id,
             completed_at=now,
             is_scheduled=is_scheduled,

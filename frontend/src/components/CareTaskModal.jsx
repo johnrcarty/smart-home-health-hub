@@ -77,15 +77,16 @@ const CareTaskModal = ({ onClose }) => {
     completedTasks: new Set()
   });
 
-  // Status filter state for scheduled tasks
+  // Status filter state for scheduled tasks - match backend status values
   const [statusFilters, setStatusFilters] = useState({
-    on_time: false,
-    warning: false,
-    late_early: false,
-    upcoming: true,
-    missed: true,
-    skipped: false,
-    ready_to_take: true
+    pending: true,        // Tasks that haven't reached scheduled time yet (>30 min away)
+    due_warning: true,    // Tasks that are getting close (15-30 min away)
+    due_on_time: true,    // Tasks that are ready now (±15 min)
+    due_late: true,       // Tasks that are overdue
+    upcoming: true,       // General upcoming status
+    missed: true,         // Tasks that were missed
+    completed: false,     // Hidden by default - completed tasks
+    skipped: false        // Hidden by default - skipped tasks
   });
 
   // Status filters visibility toggle
@@ -372,11 +373,15 @@ const CareTaskModal = ({ onClose }) => {
 
   const handleMarkCompleted = async (task) => {
     try {
-      const response = await fetch(`${config.API_BASE_URL}/api/care-task-schedule/${task.id}/complete`, {
+      const response = await fetch(`${config.apiUrl}/api/care-task-schedule/${task.schedule_id}/complete`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          scheduled_time: task.scheduled_time,
+          notes: `Completed via web interface`
+        })
       });
 
       if (response.ok) {
@@ -392,11 +397,15 @@ const CareTaskModal = ({ onClose }) => {
 
   const handleSkipTask = async (task) => {
     try {
-      const response = await fetch(`${config.API_BASE_URL}/api/care-task-schedule/${task.id}/skip`, {
+      const response = await fetch(`${config.apiUrl}/api/care-task-schedule/${task.schedule_id}/skip`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          scheduled_time: task.scheduled_time,
+          notes: `Skipped via web interface`
+        })
       });
 
       if (response.ok) {

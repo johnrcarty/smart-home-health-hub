@@ -15,27 +15,97 @@ const CareTaskScheduledView = ({
 
   // Filter tasks based on status filters
   const filteredTasks = allScheduledTasks.filter(task => {
-    const taskStatus = getStatusText(task);
+    const taskStatus = task.status; // Use the status directly from backend
     return statusFilters[taskStatus] !== false;
   });
 
-  const handleFilterChange = (status) => {
+  // Toggle status filter
+  const toggleStatusFilter = (filterKey) => {
     setStatusFilters(prev => ({
       ...prev,
-      [status]: !prev[status]
+      [filterKey]: !prev[filterKey]
     }));
+  };
+
+  // Clear all filters
+  const clearAllFilters = () => {
+    setStatusFilters({
+      pending: false,
+      due_warning: false,
+      due_on_time: false,
+      due_late: false,
+      upcoming: false,
+      missed: false,
+      completed: false,
+      skipped: false
+    });
+  };
+
+  // Set default filters (pending, missed, due statuses)
+  const setDefaultFilters = () => {
+    setStatusFilters({
+      pending: true,
+      due_warning: true,
+      due_on_time: true,
+      due_late: true,
+      upcoming: true,
+      missed: true,
+      completed: false,  // Hide completed by default
+      skipped: false     // Hide skipped by default
+    });
+  };
+
+  // Select all filters
+  const selectAllFilters = () => {
+    setStatusFilters({
+      pending: true,
+      due_warning: true,
+      due_on_time: true,
+      due_late: true,
+      upcoming: true,
+      missed: true,
+      completed: true,
+      skipped: true
+    });
+  };
+
+  // Count tasks by status
+  const getStatusCounts = (tasks) => {
+    if (!tasks || !Array.isArray(tasks)) {
+      return {
+        pending: 0, due_warning: 0, due_on_time: 0, due_late: 0,
+        upcoming: 0, missed: 0, completed: 0, skipped: 0, total: 0
+      };
+    }
+    
+    const counts = {
+      pending: 0, due_warning: 0, due_on_time: 0, due_late: 0,
+      upcoming: 0, missed: 0, completed: 0, skipped: 0, total: tasks.length
+    };
+    
+    tasks.forEach(task => {
+      const status = task.status;
+      if (counts[status] !== undefined) {
+        counts[status]++;
+      }
+    });
+    
+    return counts;
   };
 
   const renderStatusFilters = () => {
     if (!showFilters) return null;
 
+    const statusCounts = getStatusCounts(allScheduledTasks);
+    
     const filterOptions = [
-      { key: 'ready_to_take', label: 'Ready to Complete', color: '#28a745' },
+      { key: 'pending', label: 'Pending', color: '#17a2b8' },
+      { key: 'due_warning', label: 'Due Warning', color: '#ffc107' },
+      { key: 'due_on_time', label: 'Due On Time', color: '#28a745' },
+      { key: 'due_late', label: 'Due Late', color: '#dc3545' },
       { key: 'upcoming', label: 'Upcoming', color: '#17a2b8' },
-      { key: 'warning', label: 'Warning', color: '#ffc107' },
       { key: 'missed', label: 'Missed', color: '#dc3545' },
-      { key: 'on_time', label: 'On Time', color: '#28a745' },
-      { key: 'late_early', label: 'Late/Early', color: '#fd7e14' },
+      { key: 'completed', label: 'Completed', color: '#28a745' },
       { key: 'skipped', label: 'Skipped', color: '#6c757d' }
     ];
 
@@ -47,14 +117,51 @@ const CareTaskScheduledView = ({
         borderRadius: '8px',
         border: '1px solid #4a5568'
       }}>
-        <h4 style={{ 
-          margin: '0 0 12px 0', 
-          color: '#ffffff', 
-          fontSize: '14px', 
-          fontWeight: '600' 
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          marginBottom: '12px'
         }}>
-          Filter by Status:
-        </h4>
+          <h4 style={{ 
+            margin: 0, 
+            color: '#ffffff', 
+            fontSize: '14px', 
+            fontWeight: '600' 
+          }}>
+            Filter by Status:
+          </h4>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={selectAllFilters}
+              style={{
+                padding: '4px 8px',
+                backgroundColor: '#007bff',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '11px',
+                cursor: 'pointer'
+              }}
+            >
+              Toggle All
+            </button>
+            <button
+              onClick={setDefaultFilters}
+              style={{
+                padding: '4px 8px',
+                backgroundColor: '#28a745',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '11px',
+                cursor: 'pointer'
+              }}
+            >
+              Reset to Default
+            </button>
+          </div>
+        </div>
         <div style={{ 
           display: 'flex', 
           flexWrap: 'wrap', 
@@ -69,13 +176,17 @@ const CareTaskScheduledView = ({
                 gap: '6px',
                 cursor: 'pointer',
                 color: '#e2e8f0',
-                fontSize: '12px'
+                fontSize: '12px',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                backgroundColor: statusFilters[option.key] ? '#4a5568' : 'transparent',
+                border: '1px solid #4a5568'
               }}
             >
               <input
                 type="checkbox"
                 checked={statusFilters[option.key] || false}
-                onChange={() => handleFilterChange(option.key)}
+                onChange={() => toggleStatusFilter(option.key)}
                 style={{ cursor: 'pointer' }}
               />
               <div style={{
@@ -85,7 +196,7 @@ const CareTaskScheduledView = ({
                 borderRadius: '50%',
                 marginRight: '4px'
               }}></div>
-              {option.label}
+              {option.label} ({statusCounts[option.key] || 0})
             </label>
           ))}
         </div>
